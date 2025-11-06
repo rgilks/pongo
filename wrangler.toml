@@ -5,6 +5,11 @@ compatibility_date = "2024-01-01"
 [build]
 command = "wasm-pack build --target web --out-dir worker/pkg lobby_worker"
 
+[assets]
+directory = "./worker/pkg"
+binding = "ASSETS"
+html_handling = "auto-trailing-slash"
+
 [durable_objects]
 bindings = [{ name = "MATCH", class_name = "MatchDO" }]
 
