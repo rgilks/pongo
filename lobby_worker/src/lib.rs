@@ -219,55 +219,19 @@ async fn handle_websocket(req: Request, ctx: RouteContext<()>) -> Result<Respons
         return Response::error("Invalid match code", 400);
     }
 
-    // Log the request to see what we're receiving
-    eprintln!("Worker: Received request for match code: {}", code);
-    eprintln!("Worker: Request method: {:?}", req.method());
-    eprintln!("Worker: Upgrade header: {:?}", req.headers().get("Upgrade"));
+    // Get the Durable Object stub
+    let match_do = ctx.env.durable_object("MATCH")?;
+    let do_id = match_do.id_from_name(code)?;
+    let stub = do_id.get_stub()?;
 
-    // Forward ALL requests to the Durable Object - let the DO decide if it's a WebSocket upgrade
-    // This is important because fetch_with_request might modify the request, so we want
-    // the DO to handle the WebSocket upgrade directly
-    let match_do = match ctx.env.durable_object("MATCH") {
-        Ok(do_ns) => do_ns,
-        Err(e) => {
-            eprintln!("Failed to get MATCH DO namespace: {:?}", e);
-            return Response::error("Internal server error", 500);
-        }
-    };
-
-    let do_id = match match_do.id_from_name(code) {
-        Ok(id) => id,
-        Err(e) => {
-            eprintln!("Failed to get DO ID from name: {:?}", e);
-            return Response::error("Invalid match code", 400);
-        }
-    };
-
-    let stub = match do_id.get_stub() {
-        Ok(s) => s,
-        Err(e) => {
-            eprintln!("Failed to get DO stub: {:?}", e);
-            return Response::error("Internal server error", 500);
-        }
-    };
-
-    // Forward the request to the DO - it will handle the WebSocket upgrade
-    // CRITICAL: For WebSocket upgrades, we must forward the EXACT request object
-    // without any modifications. The DO will handle the WebSocket pair creation.
-    eprintln!("Worker: Forwarding request to DO...");
-    match stub.fetch_with_request(req).await {
-        Ok(resp) => {
-            eprintln!(
-                "Worker: DO returned response with status: {:?}",
-                resp.status_code()
-            );
-            Ok(resp)
-        }
-        Err(e) => {
-            eprintln!("Worker: Error forwarding request to DO: {:?}", e);
-            Response::error("Failed to connect to match", 500)
-        }
-    }
+    // CRITICAL: Forward the ORIGINAL request object directly to the DO
+    // Do NOT read the body, do NOT modify headers, do NOT construct a new Request
+    // The DO will handle the WebSocket upgrade and return a 101 response
+    //
+    // MOST IMPORTANT: Return the DO response DIRECTLY without any modification
+    // Do NOT wrap it, do NOT add headers, do NOT check status - just return it as-is
+    // Any modification of the 101 response will drop the WebSocket and cause a 500 error
+    stub.fetch_with_request(req).await
 }
 
 /// Generate a random 5-character match code (A-Z, 0-9)
