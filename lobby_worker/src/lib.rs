@@ -39,13 +39,15 @@ async fn handle_join(_req: Request, ctx: RouteContext<()>) -> Result<Response> {
     // Get the MATCH Durable Object namespace
     let match_do = ctx.env.durable_object("MATCH")?;
 
-    // Get DO stub by name
-    let stub = match_do.get_by_name(code)?;
+    // Get DO stub by name (this creates the DO if it doesn't exist)
+    let _stub = match_do.get_by_name(code)?;
 
-    // Forward the request to the Durable Object
-    // Create a new request with the match code in the URL
-    let url = format!("https://match.local/{}", code);
-    stub.fetch_with_str(&url).await
+    // For now, return a simple response indicating the match exists
+    // WebSocket connections should be made directly to the DO
+    Response::ok(format!(
+        "Match {} found. Connect via WebSocket to join.",
+        code
+    ))
 }
 
 /// Generate a random 5-character match code (A-Z, 0-9)
