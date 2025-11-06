@@ -78,32 +78,46 @@ impl DurableObject for MatchDO {
 
     async fn fetch(&self, req: Request) -> Result<Response> {
         // Check if this is a WebSocket upgrade request
-        let upgrade_header = req.headers().get("Upgrade")?;
+        // Note: When forwarding from Worker, the Upgrade header should be present
+        let upgrade_header = match req.headers().get("Upgrade") {
+            Ok(Some(header)) => Some(header),
+            Ok(None) => None,
+            Err(e) => {
+                // Log error but continue - might still be a WebSocket request
+                eprintln!("Error getting Upgrade header: {:?}", e);
+                None
+            }
+        };
 
-        if upgrade_header == Some("websocket".to_string()) {
-            // Create WebSocket pair
-            let pair = WebSocketPair::new()?;
-            let server = pair.server;
-            let client = pair.client;
+        // Handle WebSocket upgrade requests
+        if let Some(header) = upgrade_header {
+            if header.to_lowercase() == "websocket" {
+                // Create WebSocket pair
+                let pair = WebSocketPair::new()?;
+                let server = pair.server;
+                let client = pair.client;
 
-            // Accept the WebSocket connection on the server side
-            // This must be called before returning the response
-            // Note: accept_web_socket internally calls unwrap(), so if it fails, it will panic
-            #[allow(clippy::needless_borrows_for_generic_args)]
-            self.state.accept_web_socket(&server);
+                // Accept the WebSocket connection on the server side
+                // This must be called before returning the response
+                // Note: accept_web_socket internally calls unwrap(), so if it fails, it will panic
+                #[allow(clippy::needless_borrows_for_generic_args)]
+                self.state.accept_web_socket(&server);
 
-            // Note: WebSocket tracking is handled when Join message arrives
-            // We can't store the WebSocket here because we need player_id from Join message
+                // Note: WebSocket tracking is handled when Join message arrives
+                // We can't store the WebSocket here because we need player_id from Join message
 
-            // Client will send Join message after connection
-            // We'll handle player assignment in websocket_message
+                // Client will send Join message after connection
+                // We'll handle player assignment in websocket_message
 
-            // Return response with WebSocket (status 101 Switching Protocols)
-            // Response::from_websocket returns Result<Response>
-            Response::from_websocket(client)
-        } else {
-            Response::ok("Match Durable Object - Connect via WebSocket")
+                // Return response with WebSocket (status 101 Switching Protocols)
+                // Response::from_websocket returns Result<Response>
+                return Response::from_websocket(client);
+            }
         }
+
+        // Not a WebSocket upgrade request, or header missing
+        // This could happen if the request was forwarded incorrectly
+        Response::error("Expected WebSocket upgrade request", 426)
     }
 
     async fn websocket_message(

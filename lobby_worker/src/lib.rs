@@ -230,7 +230,15 @@ async fn handle_websocket(req: Request, ctx: RouteContext<()>) -> Result<Respons
         let stub = do_id.get_stub()?;
 
         // Forward the request to the DO - it will handle the WebSocket upgrade
-        stub.fetch_with_request(req).await
+        // Note: fetch_with_request should preserve all headers including Upgrade
+        match stub.fetch_with_request(req).await {
+            Ok(response) => Ok(response),
+            Err(e) => {
+                // Log error for debugging
+                eprintln!("Error forwarding WebSocket request to DO: {:?}", e);
+                Response::error(format!("Failed to connect to match: {:?}", e), 500)
+            }
+        }
     } else {
         Response::error("Expected WebSocket upgrade", 400)
     }
