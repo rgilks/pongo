@@ -219,20 +219,14 @@ async fn handle_websocket(req: Request, ctx: RouteContext<()>) -> Result<Respons
         return Response::error("Invalid match code", 400);
     }
 
-    // Check if this is a WebSocket upgrade request
-    let upgrade_header = match req.headers().get("Upgrade") {
-        Ok(Some(h)) => h,
-        _ => {
-            return Response::error("Expected WebSocket upgrade", 400);
-        }
-    };
+    // Log the request to see what we're receiving
+    eprintln!("Worker: Received request for match code: {}", code);
+    eprintln!("Worker: Request method: {:?}", req.method());
+    eprintln!("Worker: Upgrade header: {:?}", req.headers().get("Upgrade"));
 
-    if upgrade_header.to_lowercase() != "websocket" {
-        return Response::error("Expected WebSocket upgrade", 400);
-    }
-
-    // Forward the WebSocket upgrade request to the Durable Object
-    // The DO will create its own WebSocket pair and handle the connection
+    // Forward ALL requests to the Durable Object - let the DO decide if it's a WebSocket upgrade
+    // This is important because fetch_with_request might modify the request, so we want
+    // the DO to handle the WebSocket upgrade directly
     let match_do = match ctx.env.durable_object("MATCH") {
         Ok(do_ns) => do_ns,
         Err(e) => {
@@ -260,10 +254,20 @@ async fn handle_websocket(req: Request, ctx: RouteContext<()>) -> Result<Respons
     // Forward the request to the DO - it will handle the WebSocket upgrade
     // CRITICAL: For WebSocket upgrades, we must forward the EXACT request object
     // without any modifications. The DO will handle the WebSocket pair creation.
-    //
-    // Note: fetch_with_request should preserve all headers including Upgrade
-    // If this fails, it's likely a limitation of the Rust worker crate with WebSocket forwarding
-    stub.fetch_with_request(req).await
+    eprintln!("Worker: Forwarding request to DO...");
+    match stub.fetch_with_request(req).await {
+        Ok(resp) => {
+            eprintln!(
+                "Worker: DO returned response with status: {:?}",
+                resp.status_code()
+            );
+            Ok(resp)
+        }
+        Err(e) => {
+            eprintln!("Worker: Error forwarding request to DO: {:?}", e);
+            Response::error("Failed to connect to match", 500)
+        }
+    }
 }
 
 /// Generate a random 5-character match code (A-Z, 0-9)
