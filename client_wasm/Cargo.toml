@@ -10,6 +10,15 @@ crate-type = ["cdylib"]
 
 [dependencies]
 wasm-bindgen = "0.2"
-# wgpu = "0.21"  # To be added in M3
+wasm-bindgen-futures = "0.4"
+js-sys = "0.3"
+web-sys = { version = "0.3", features = [
+    "Window",
+    "Document",
+    "HtmlCanvasElement",
+] }
+# wgpu = "0.20"  # TODO: Add once web surface API is confirmed
+# bytemuck = { version = "1.14", features = ["derive"] }  # TODO: Add for buffer operations
 game_core = { path = "../game_core" }
-
+proto = { path = "../proto" }
+# glam = "0.27"  # TODO: Add for math operations

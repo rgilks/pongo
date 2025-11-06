@@ -16,6 +16,15 @@ A mobile-friendly, code-to-join, isometric arena shooter built with Rust + WebGP
 - ✅ Player joining logic
 - ✅ Snapshot broadcasting
 
+**Milestone 3 (M3) - Client WebGPU: 🚧 In Progress**
+
+- ✅ Client WASM crate structure created
+- ✅ Basic WASM bindings and entry points
+- 🚧 WebGPU surface initialization (API research needed)
+- ⏳ Isometric camera and rendering pipeline
+- ⏳ Mobile and desktop controls
+- ⏳ Client prediction and reconciliation
+
 **Deployed at:** https://iso.rob-gilks.workers.dev
 
 ## Quick Start

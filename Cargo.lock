@@ -80,7 +80,11 @@ name = "client_wasm"
 version = "0.1.0"
 dependencies = [
  "game_core",
+ "js-sys",
+ "proto",
  "wasm-bindgen",
+ "wasm-bindgen-futures",
+ "web-sys",
 ]
 
 [[package]]
