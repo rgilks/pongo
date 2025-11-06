@@ -20,10 +20,13 @@ A mobile-friendly, code-to-join, isometric arena shooter built with Rust + WebGP
 
 - ✅ Client WASM crate structure created
 - ✅ Basic WASM bindings and entry points
-- 🚧 WebGPU surface initialization (API research needed)
-- ⏳ Isometric camera and rendering pipeline
+- ✅ WebGPU surface initialization (wgpu 24.0 with webgpu feature)
+- ✅ Isometric camera with view/projection matrices
+- ✅ Basic rendering pipeline (meshes, shader, forward pass)
+- ⏳ Game entity rendering (players, bolts, blocks)
 - ⏳ Mobile and desktop controls
 - ⏳ Client prediction and reconciliation
+- ⏳ HDR target and bloom post-processing
 
 **Deployed at:** https://iso.rob-gilks.workers.dev
 
@@ -39,20 +42,23 @@ A mobile-friendly, code-to-join, isometric arena shooter built with Rust + WebGP
 ### Development
 
 ```bash
-# Run all checks (fmt, clippy, tests)
-npm run check:rust
+# Run all checks (fmt, clippy, tests) - recommended
+npm run test:all
 
-# Format code
-npm run fmt
+# Individual commands
+npm run fmt          # Format code
+npm run test         # Run tests
+npm run clippy       # Run clippy
 
-# Run tests
-npm run test
+# Deploy and test (deploy + endpoint tests + log checking)
+npm run deploy:test
 
-# Run clippy
-npm run clippy
-
-# Deploy to Cloudflare
+# Or deploy only
 npx wrangler deploy
+
+# Check Cloudflare logs
+npm run logs         # Real-time tail
+npm run logs:check   # Automated check (10 seconds)
 ```
 
 ### Pre-commit Hook
@@ -90,13 +96,19 @@ curl https://iso.rob-gilks.workers.dev/join/CODE
 ```
 
 **Unit tests:**
-- `cargo test --package game_core` - Core game logic
-- `cargo test --package proto` - Protocol serialization
+```bash
+npm run test              # All tests
+cargo test --package game_core  # Core game logic
+cargo test --package proto      # Protocol serialization
+```
 
 ## Documentation
 
-- **Specification**: `SPEC.md`
-- **Test Plan**: `TEST-PLAN.md`
+- **Specification**: `SPEC.md` - Full game specification and architecture
+- **Test Plan**: `TEST-PLAN.md` - Manual and automated test procedures
+- **Deployment**: See "Deploy and test" section above, or `DEPLOY.md` for detailed steps
+- **WebGPU Research**: `WEBGPU_RESEARCH.md` - Historical notes on WebGPU surface creation
+- **Automation Ideas**: `AUTOMATION-IDEAS.md` - Workflow automation suggestions
 
 ## License
 

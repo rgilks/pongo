@@ -42,14 +42,26 @@ This will:
 
 After deployment, test the endpoints:
 
-- `GET /` - Should return "ISO Game Server"
-- `GET /create` - Should return "Create endpoint - TODO"
-- `GET /join/:code` - Should return "Join endpoint - code: {code}"
+- `GET /` - Returns "ISO Game Server"
+- `GET /create` - Returns "Match created: {5-char code}"
+- `GET /join/:code` - Returns "Match {code} found. Connect via WebSocket to join."
+
+**Automated testing:**
+```bash
+npm run deploy:test
+```
+
+This script automatically:
+- Deploys to Cloudflare
+- Tests all endpoints
+- Checks logs for errors
 
 ## Current Status
 
 ✅ Basic Worker structure
 ✅ Durable Object structure
-⏳ WebSocket support (next)
-⏳ Game simulation integration (next)
+✅ WebSocket support
+✅ Game simulation integrated
+✅ Network protocol (C2S/S2C)
+✅ Player joining and snapshot broadcasting
 

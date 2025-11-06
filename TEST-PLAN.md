@@ -30,21 +30,25 @@
 - Respawn after 2s delay
 - Spawn shield protects for 0.5s
 
-### M2: DO + Net (To be implemented)
+### M2: DO + Net: ✅ Complete
 
-- Create match with 5-char code
-- Join match by code
-- Multiple clients sync via WebSocket
-- Client prediction works correctly
-- Reconciliation handles server corrections
+- ✅ Create match with 5-char code
+- ✅ Join match by code
+- ⏳ Multiple clients sync via WebSocket (infrastructure ready, needs client-side)
+- ⏳ Client prediction works correctly (pending client implementation)
+- ⏳ Reconciliation handles server corrections (pending client implementation)
 
-### M3: Client WebGPU (To be implemented)
+### M3: Client WebGPU: 🚧 In Progress
 
-- 3D isometric rendering
-- Bloom post-processing
-- Point lights from bolts
-- Mobile and desktop controls
-- 60fps target (30fps acceptable on mid-range phones)
+- ✅ WebGPU surface initialization
+- ✅ Isometric camera (pitch ~35°, yaw offset support)
+- ✅ Basic rendering pipeline (forward pass, lambert lighting)
+- ✅ Mesh generation (sphere, cube, ground quad)
+- ✅ Light buffers (SSBO for up to 8 point lights)
+- ⏳ Game entity rendering (players as spheres, bolts, blocks)
+- ⏳ Bloom post-processing
+- ⏳ Mobile and desktop controls
+- ⏳ 60fps target (30fps acceptable on mid-range phones)
 
 ### M4: Bots (To be implemented)
 

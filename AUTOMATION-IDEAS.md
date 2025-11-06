@@ -2,15 +2,12 @@
 
 ## Current State
 
-The iteration workflow has 8 steps:
-1. Fix linting errors
-2. Run unit tests
-3. Local testing (TEST-PLAN.md)
-4. Deploy to Cloudflare
-5. Deployed testing (TEST-PLAN.md)
-6. Check Cloudflare logs
-7. Documentation updates
-8. Commit and push
+The iteration workflow has been streamlined to 5 steps:
+1. Fix linting errors and run tests (automated via `npm run test:all`)
+2. Local testing (TEST-PLAN.md)
+3. Deploy, test, and check logs (automated via `npm run deploy:test`)
+4. Documentation updates
+5. Commit and push
 
 ## Automation Opportunities
 
@@ -71,12 +68,18 @@ The iteration workflow has 8 steps:
    - Log aggregation and visualization
    - Performance metrics
 
+## Completed Automations
+
+1. ✅ **`npm run test:all`** - Combines format, clippy, and tests
+2. ✅ **`npm run deploy:test`** - Combines deploy, endpoint testing, and log checking
+3. ✅ **`npm run logs:check`** - Automated log error detection
+
 ## Recommended Next Steps
 
-1. **Create `npm run test:all`** - Combines steps 1-2
-2. **Create `npm run deploy:test`** - Combines steps 4-6
-3. **Enhance log checking script** - Better error detection
-4. **Add GitHub Actions CI** - Automated testing on PRs
+1. **Enhance log checking script** - Better error detection, pattern matching
+2. **Add GitHub Actions CI** - Automated testing on PRs
+3. **Automated endpoint testing** - More comprehensive endpoint validation
+4. **WebSocket testing automation** - Programmatic WebSocket connection testing
 
 ## Implementation Notes
 
