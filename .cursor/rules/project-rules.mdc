@@ -23,38 +23,39 @@ alwaysApply: true
 ## Testing
 
 - Maintain a `TEST-PLAN.md` document with a set of manual tests that you will run by automating the web browser this is in place of puppeteer or playwright tests.
-- Rust unit tests live alongside code: run `cargo test`.
-- Full check: `npm run check` runs:
-  - `cargo fmt --check` and `cargo clippy -D warnings`
-  - `cargo test` (workspace, excluding `app-web`)
-  - Web CI build + headless test
 
 ## Pre-commit and push
 
 **Required workflow for each iteration:**
 
 1. **Fix linting errors**
+
    - Run `cargo fmt` to format code
    - Run `cargo clippy --workspace -- -D warnings` and fix all warnings/errors
 
 2. **Run unit tests**
+
    - Run `cargo test --workspace` and ensure all tests pass
    - Fix any failing tests
 
 3. **Local testing (TEST-PLAN.md)**
+
    - Follow `TEST-PLAN.md` for manual/local testing
    - Test relevant endpoints and functionality locally if possible
 
 4. **Deploy to Cloudflare**
+
    - Run `npx wrangler deploy` to deploy to production
    - Verify deployment succeeds
 
 5. **Deployed testing (TEST-PLAN.md)**
+
    - Test deployed endpoints according to `TEST-PLAN.md`
    - Verify all M2 endpoints work: `/`, `/create`, `/join/:code`
    - Test WebSocket connections if applicable
 
 6. **Documentation updates**
+
    - Update `README.md`, `TEST-PLAN.md` and `SPEC.md` if needed
    - Document any new features or changes
 
