@@ -9,7 +9,9 @@
     "fmt": "cargo fmt",
     "clippy": "cargo clippy --workspace -- -D warnings",
     "test": "cargo test --workspace",
-    "test:game_core": "cargo test --package game_core"
+    "test:game_core": "cargo test --package game_core",
+    "dev": "wrangler dev",
+    "deploy": "wrangler publish"
   },
   "devDependencies": {},
   "engines": {
