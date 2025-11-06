@@ -54,7 +54,17 @@ alwaysApply: true
    - Verify all M2 endpoints work: `/`, `/create`, `/join/:code`
    - Test WebSocket connections if applicable
 
-6. **Documentation updates**
+6. **Check Cloudflare logs**
+
+   - Run `npm run logs:check` to automatically check logs for errors (recommended)
+   - Or manually run `npm run logs` to tail logs in real-time
+   - Check for errors, warnings, or unexpected behavior in Workers
+   - Check Durable Object logs for game simulation issues
+   - Verify WebSocket connections are being handled correctly
+   - Look for any runtime errors or exceptions
+   - Note: The automated check runs for 10 seconds and reports any errors found
+
+7. **Documentation updates**
 
    - Update `README.md`, `TEST-PLAN.md` and `SPEC.md` if needed
    - Document any new features or changes
