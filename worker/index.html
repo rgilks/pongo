@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ISO Game</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            background: #1a1a1a;
+            color: #fff;
+            font-family: monospace;
+        }
+        #canvas {
+            border: 2px solid #444;
+            background: #000;
+        }
+        #ui {
+            margin-top: 20px;
+            text-align: center;
+        }
+        #status {
+            margin: 10px 0;
+            padding: 10px;
+            background: #333;
+            border-radius: 4px;
+        }
+        input, button {
+            padding: 8px 16px;
+            margin: 5px;
+            font-family: monospace;
+            font-size: 14px;
+        }
+        button {
+            background: #4a9eff;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        button:hover {
+            background: #5aaeff;
+        }
+        button:disabled {
+            background: #666;
+            cursor: not-allowed;
+        }
+    </style>
+</head>
+<body>
+    <canvas id="canvas" width="800" height="600"></canvas>
+    <div id="ui">
+        <div id="status">Initializing...</div>
+        <div>
+            <input type="text" id="matchCode" placeholder="Match code (5 chars)" maxlength="5" style="text-transform: uppercase;">
+            <button id="joinBtn" onclick="joinMatch()">Join Match</button>
+        </div>
+        <div style="margin-top: 10px; font-size: 12px; color: #888;">
+            Controls: W/S (move), A/D (turn), 1/2/3 (fire), Q/E/R (shield)
+        </div>
+    </div>
+
+    <script type="module">
+        import init, { init_client, connect_websocket, send_join, send_input, render_frame, handle_websocket_message } from './pkg/client_wasm.js';
+
+        let clientInitialized = false;
+        let ws = null;
+        let renderLoopId = null;
+        let inputState = {
+            thrust: 0,
+            turn: 0,
+            bolt: 0,
+            shield: 0
+        };
+
+        async function main() {
+            try {
+                // Initialize WASM
+                await init();
+                updateStatus('WASM loaded');
+
+                // Get canvas
+                const canvas = document.getElementById('canvas');
+                if (!canvas) {
+                    throw new Error('Canvas not found');
+                }
+
+                // Initialize client
+                await init_client(canvas);
+                clientInitialized = true;
+                updateStatus('Client initialized');
+
+                // Set up input handlers
+                setupInputHandlers();
+
+                // Start render loop
+                startRenderLoop();
+
+            } catch (error) {
+                console.error('Initialization error:', error);
+                updateStatus('Error: ' + error.message);
+            }
+        }
+
+        function updateStatus(message) {
+            const statusEl = document.getElementById('status');
+            if (statusEl) {
+                statusEl.textContent = message;
+            }
+            console.log('Status:', message);
+        }
+
+        function setupInputHandlers() {
+            const keys = new Set();
+
+            window.addEventListener('keydown', (e) => {
+                keys.add(e.key.toLowerCase());
+                updateInputState(keys);
+            });
+
+            window.addEventListener('keyup', (e) => {
+                keys.delete(e.key.toLowerCase());
+                updateInputState(keys);
+            });
+
+            // Send inputs periodically
+            setInterval(() => {
+                if (ws && ws.readyState === WebSocket.OPEN && clientInitialized) {
+                    try {
+                        send_input(
+                            inputState.thrust,
+                            inputState.turn,
+                            inputState.bolt,
+                            inputState.shield
+                        );
+                    } catch (error) {
+                        console.error('Error sending input:', error);
+                    }
+                }
+            }, 16); // ~60fps
+        }
+
+        function updateInputState(keys) {
+            // Movement
+            inputState.thrust = 0;
+            if (keys.has('w')) inputState.thrust = 1;
+            if (keys.has('s')) inputState.thrust = -1;
+
+            // Turning
+            inputState.turn = 0;
+            if (keys.has('a')) inputState.turn = -1;
+            if (keys.has('d')) inputState.turn = 1;
+
+            // Bolts
+            inputState.bolt = 0;
+            if (keys.has('1')) inputState.bolt = 1;
+            if (keys.has('2')) inputState.bolt = 2;
+            if (keys.has('3')) inputState.bolt = 3;
+
+            // Shields
+            inputState.shield = 0;
+            if (keys.has('q')) inputState.shield = 1;
+            if (keys.has('e')) inputState.shield = 2;
+            if (keys.has('r')) inputState.shield = 3;
+        }
+
+        function startRenderLoop() {
+            function render() {
+                if (clientInitialized) {
+                    try {
+                        render_frame();
+                    } catch (error) {
+                        console.error('Render error:', error);
+                    }
+                }
+                renderLoopId = requestAnimationFrame(render);
+            }
+            render();
+        }
+
+        window.joinMatch = async function() {
+            const codeInput = document.getElementById('matchCode');
+            const joinBtn = document.getElementById('joinBtn');
+            const code = codeInput.value.trim().toUpperCase();
+
+            if (code.length !== 5) {
+                updateStatus('Match code must be 5 characters');
+                return;
+            }
+
+            if (!clientInitialized) {
+                updateStatus('Client not initialized');
+                return;
+            }
+
+            try {
+                joinBtn.disabled = true;
+                updateStatus('Connecting to match...');
+
+                // Get WebSocket URL - for now, use the deployed worker URL
+                // In production, this would be constructed from the match code
+                const wsUrl = `wss://iso.rob-gilks.workers.dev/join/${code}`;
+                
+                // Note: Cloudflare Workers WebSocket connections work differently
+                // We need to upgrade the HTTP request to WebSocket
+                // For now, we'll use a workaround or connect directly to the DO
+                
+                // Connect WebSocket (this is a placeholder - actual connection needs proper URL)
+                connect_websocket(wsUrl);
+                updateStatus('WebSocket connecting...');
+
+                // Wait a bit for connection
+                await new Promise(resolve => setTimeout(resolve, 500));
+
+                // Send join message
+                send_join(code, 0, 0); // avatar=0, name_id=0 for now
+                updateStatus('Joining match...');
+
+            } catch (error) {
+                console.error('Join error:', error);
+                updateStatus('Error joining: ' + error.message);
+                joinBtn.disabled = false;
+            }
+        };
+
+        // Handle WebSocket messages (will be set up when WebSocket connects)
+        // For now, we'll need to set up the message handler manually
+        // This is a limitation - we need to handle WebSocket messages in JS
+        // and call handle_websocket_message() in WASM
+
+        // Start the application
+        main();
+    </script>
+</body>
+</html>
+

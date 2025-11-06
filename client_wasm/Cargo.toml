@@ -16,6 +16,10 @@ web-sys = { version = "0.3", features = [
     "Window",
     "Document",
     "HtmlCanvasElement",
+    "WebSocket",
+    "MessageEvent",
+    "BinaryType",
+    "Performance",
 ] }
 wgpu = { version = "24.0", features = ["webgpu"] }
 bytemuck = { version = "1.14", features = ["derive"] }

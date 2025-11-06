@@ -12,9 +12,54 @@ mod mesh;
 
 use camera::{Camera, CameraUniform};
 use mesh::{create_cube, create_ground_quad, create_sphere, Mesh};
+use proto::{dequantize_pos, dequantize_yaw, PlayerP, C2S, S2C};
+use std::collections::HashMap;
 use wasm_bindgen::prelude::*;
-use web_sys::HtmlCanvasElement;
+use wasm_bindgen::JsCast;
+use web_sys::{HtmlCanvasElement, MessageEvent, WebSocket};
 use wgpu::*;
+
+/// Game state data for a single player
+#[derive(Debug, Clone)]
+struct PlayerData {
+    pos: [f32; 2],
+    yaw: f32,
+    hp: u8,
+}
+
+/// Game state data for a single bolt
+#[derive(Debug, Clone)]
+struct BoltData {
+    pos: [f32; 2],
+    radius: f32,
+    level: u8,
+}
+
+/// Game state data for a single pickup
+#[derive(Debug, Clone)]
+struct PickupData {
+    pos: [f32; 2],
+    kind: u8,
+}
+
+/// Game state tracking
+struct GameState {
+    players: HashMap<u16, PlayerData>,
+    bolts: HashMap<u16, BoltData>,
+    pickups: HashMap<u16, PickupData>,
+    last_snapshot_id: u32,
+}
+
+impl GameState {
+    fn new() -> Self {
+        Self {
+            players: HashMap::new(),
+            bolts: HashMap::new(),
+            pickups: HashMap::new(),
+            last_snapshot_id: 0,
+        }
+    }
+}
 
 /// Main client state
 pub struct Client {
@@ -37,6 +82,11 @@ pub struct Client {
     light_buffer: Buffer,
     light_count_buffer: Buffer,
     light_bind_group: BindGroup,
+    // Network
+    ws: Option<WebSocket>,
+    player_id: Option<u16>,
+    game_state: GameState,
+    input_seq: u32,
 }
 
 impl Client {
@@ -310,6 +360,10 @@ impl Client {
             light_buffer,
             light_count_buffer,
             light_bind_group,
+            ws: None,
+            player_id: None,
+            game_state: GameState::new(),
+            input_seq: 0,
         })
     }
 
@@ -389,18 +443,254 @@ impl Client {
 
         Ok(())
     }
+
+    /// Connect to server WebSocket
+    pub fn connect_websocket(&mut self, url: &str) -> Result<(), JsValue> {
+        let ws = WebSocket::new(url)
+            .map_err(|e| JsValue::from_str(&format!("Failed to create WebSocket: {:?}", e)))?;
+
+        ws.set_binary_type(web_sys::BinaryType::Arraybuffer);
+
+        // Set up message handler - will be handled via JavaScript callback
+        // The actual message handling will be done via handle_websocket_message() called from JS
+        self.ws = Some(ws);
+        Ok(())
+    }
+
+    /// Handle incoming S2C message
+    pub fn handle_s2c_message(&mut self, bytes: &[u8]) -> Result<(), JsValue> {
+        let msg = S2C::from_bytes(bytes)
+            .map_err(|e| JsValue::from_str(&format!("Failed to parse S2C: {:?}", e)))?;
+
+        match msg {
+            S2C::Welcome {
+                player_id,
+                params_hash: _,
+                map_rev: _,
+            } => {
+                self.player_id = Some(player_id);
+            }
+            S2C::Snapshot {
+                id,
+                tick: _,
+                t_ms: _,
+                last_seq_ack: _,
+                players,
+                bolts,
+                pickups,
+                hill_owner: _,
+                hill_progress_u16: _,
+            } => {
+                self.update_game_state(id, players, bolts, pickups);
+            }
+            S2C::Eliminated { player_id } => {
+                self.game_state.players.remove(&player_id);
+            }
+            S2C::Ended { standings: _ } => {
+                // Game ended
+            }
+        }
+        Ok(())
+    }
+
+    /// Update game state from snapshot
+    fn update_game_state(
+        &mut self,
+        snapshot_id: u32,
+        players: Vec<PlayerP>,
+        bolts: Vec<proto::BoltP>,
+        pickups: Vec<proto::PickupP>,
+    ) {
+        self.game_state.last_snapshot_id = snapshot_id;
+
+        // Update players
+        self.game_state.players.clear();
+        for player in players {
+            let pos = [
+                dequantize_pos(player.pos_q[0]),
+                dequantize_pos(player.pos_q[1]),
+            ];
+            let yaw = dequantize_yaw(player.yaw_q);
+            self.game_state.players.insert(
+                player.id,
+                PlayerData {
+                    pos,
+                    yaw,
+                    hp: player.hp,
+                },
+            );
+        }
+
+        // Update bolts
+        self.game_state.bolts.clear();
+        for bolt in bolts {
+            let pos = [dequantize_pos(bolt.pos_q[0]), dequantize_pos(bolt.pos_q[1])];
+            // Radius from quantized value (rad_q is u8, scale appropriately)
+            let radius = bolt.rad_q as f32 / 100.0; // Approximate scaling
+            self.game_state.bolts.insert(
+                bolt.id,
+                BoltData {
+                    pos,
+                    radius,
+                    level: bolt.level,
+                },
+            );
+        }
+
+        // Update pickups
+        self.game_state.pickups.clear();
+        for pickup in pickups {
+            let pos = [
+                dequantize_pos(pickup.pos_q[0]),
+                dequantize_pos(pickup.pos_q[1]),
+            ];
+            self.game_state.pickups.insert(
+                pickup.id,
+                PickupData {
+                    pos,
+                    kind: pickup.kind,
+                },
+            );
+        }
+    }
+
+    /// Send input to server
+    pub fn send_input(
+        &mut self,
+        thrust: f32,
+        turn: f32,
+        bolt: u8,
+        shield: u8,
+    ) -> Result<(), JsValue> {
+        if let Some(ws) = &self.ws {
+            if ws.ready_state() == WebSocket::OPEN {
+                self.input_seq += 1;
+                let t_ms = web_sys::window()
+                    .and_then(|w| w.performance())
+                    .map(|p| p.now() as u32)
+                    .unwrap_or(0);
+
+                let thrust_i8 = (thrust.clamp(-1.0, 1.0) * 127.0) as i8;
+                let turn_i8 = (turn.clamp(-1.0, 1.0) * 127.0) as i8;
+
+                let input_msg = C2S::Input {
+                    seq: self.input_seq,
+                    t_ms,
+                    thrust_i8,
+                    turn_i8,
+                    bolt: bolt.min(3),
+                    shield: shield.min(3),
+                };
+
+                let bytes = input_msg.to_bytes().map_err(|e| {
+                    JsValue::from_str(&format!("Failed to serialize input: {:?}", e))
+                })?;
+
+                ws.send_with_u8_array(&bytes)
+                    .map_err(|e| JsValue::from_str(&format!("Failed to send input: {:?}", e)))?;
+            }
+        }
+        Ok(())
+    }
+
+    /// Send join message
+    pub fn send_join(&mut self, code: &str, avatar: u8, name_id: u8) -> Result<(), JsValue> {
+        if let Some(ws) = &self.ws {
+            if ws.ready_state() == WebSocket::OPEN {
+                let code_bytes = code.as_bytes();
+                if code_bytes.len() != 5 {
+                    return Err(JsValue::from_str("Match code must be 5 characters"));
+                }
+                let mut code_array = [0u8; 5];
+                code_array.copy_from_slice(code_bytes);
+
+                let join_msg = C2S::Join {
+                    code: code_array,
+                    avatar,
+                    name_id,
+                };
+
+                let bytes = join_msg.to_bytes().map_err(|e| {
+                    JsValue::from_str(&format!("Failed to serialize join: {:?}", e))
+                })?;
+
+                ws.send_with_u8_array(&bytes)
+                    .map_err(|e| JsValue::from_str(&format!("Failed to send join: {:?}", e)))?;
+            }
+        }
+        Ok(())
+    }
 }
+
+// Global client storage for WASM bindings
+static mut CLIENT: Option<Client> = None;
 
 #[wasm_bindgen]
 pub fn init_client(canvas: HtmlCanvasElement) -> js_sys::Promise {
     wasm_bindgen_futures::future_to_promise(async move {
         match Client::new(canvas).await {
-            Ok(_client) => {
-                // Store client in a way that can be accessed later
-                // For now, just return success
+            Ok(client) => {
+                unsafe {
+                    CLIENT = Some(client);
+                }
                 Ok(JsValue::UNDEFINED)
             }
             Err(e) => Err(e),
         }
     })
+}
+
+#[wasm_bindgen]
+pub fn connect_websocket(url: &str) -> Result<(), JsValue> {
+    unsafe {
+        if let Some(ref mut client) = CLIENT {
+            client.connect_websocket(url)
+        } else {
+            Err(JsValue::from_str("Client not initialized"))
+        }
+    }
+}
+
+#[wasm_bindgen]
+pub fn send_join(code: &str, avatar: u8, name_id: u8) -> Result<(), JsValue> {
+    unsafe {
+        if let Some(ref mut client) = CLIENT {
+            client.send_join(code, avatar, name_id)
+        } else {
+            Err(JsValue::from_str("Client not initialized"))
+        }
+    }
+}
+
+#[wasm_bindgen]
+pub fn send_input(thrust: f32, turn: f32, bolt: u8, shield: u8) -> Result<(), JsValue> {
+    unsafe {
+        if let Some(ref mut client) = CLIENT {
+            client.send_input(thrust, turn, bolt, shield)
+        } else {
+            Err(JsValue::from_str("Client not initialized"))
+        }
+    }
+}
+
+#[wasm_bindgen]
+pub fn render_frame() -> Result<(), JsValue> {
+    unsafe {
+        if let Some(ref mut client) = CLIENT {
+            client.render()
+        } else {
+            Err(JsValue::from_str("Client not initialized"))
+        }
+    }
+}
+
+#[wasm_bindgen]
+pub fn handle_websocket_message(bytes: &[u8]) -> Result<(), JsValue> {
+    unsafe {
+        if let Some(ref mut client) = CLIENT {
+            client.handle_s2c_message(bytes)
+        } else {
+            Err(JsValue::from_str("Client not initialized"))
+        }
+    }
 }
