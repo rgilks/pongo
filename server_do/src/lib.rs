@@ -97,7 +97,7 @@ impl DurableObject for MatchDO {
             // We'll handle player assignment in websocket_message
 
             // Return response with WebSocket
-            Ok(Response::from_websocket(client)?)
+            Response::from_websocket(client)
         } else {
             Response::ok("Match Durable Object - Connect via WebSocket")
         }
@@ -119,10 +119,14 @@ impl DurableObject for MatchDO {
                 match C2S::from_bytes(&bytes) {
                     Ok(c2s_msg) => {
                         let mut gs = self.game_state.borrow_mut();
-                        Self::handle_c2s_message(&mut gs, ws, c2s_msg)?;
+                        if let Err(e) = Self::handle_c2s_message(&mut gs, ws, c2s_msg) {
+                            // Log error but don't close connection
+                            eprintln!("Error handling C2S message: {:?}", e);
+                        }
                     }
-                    Err(_e) => {
-                        // Log parse error (for now, just ignore)
+                    Err(e) => {
+                        // Log parse error but don't close connection
+                        eprintln!("Failed to parse C2S message: {:?}", e);
                     }
                 }
             }
@@ -182,6 +186,19 @@ impl MatchDO {
                     Error::RustError(format!("Failed to serialize Welcome: {:?}", e))
                 })?;
                 ws.send_with_bytes(&bytes)?;
+
+                // Send initial snapshot so client can see game state
+                gs.snapshot_id += 1;
+                let snapshot = Self::generate_snapshot(gs);
+                let snapshot_bytes = match snapshot.to_bytes() {
+                    Ok(b) => b,
+                    Err(e) => {
+                        // Log error but don't fail - client can wait for next snapshot
+                        eprintln!("Failed to serialize initial snapshot: {:?}", e);
+                        return Ok(());
+                    }
+                };
+                ws.send_with_bytes(&snapshot_bytes)?;
             }
             C2S::Input {
                 seq,
