@@ -23,6 +23,7 @@ pub struct Client {
     size: (u32, u32),
     camera: Camera,
     camera_buffer: Buffer,
+    #[allow(dead_code)] // Will be used when rendering pipeline is implemented
     camera_bind_group: BindGroup,
 }
 

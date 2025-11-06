@@ -13,10 +13,13 @@ pub struct Camera {
     /// Up vector
     pub up: Vec3,
     /// Pitch angle in radians (~35° = 0.6109 rad)
+    #[allow(dead_code)] // Used in set_yaw_offset
     pub pitch: f32,
     /// User yaw offset for map rotation (in radians)
+    #[allow(dead_code)] // Will be used for map rotation feature
     pub yaw_offset: f32,
     /// Distance from target
+    #[allow(dead_code)] // Used in set_yaw_offset
     pub distance: f32,
     /// Field of view (vertical) in radians
     pub fov: f32,
@@ -87,6 +90,7 @@ impl Camera {
     }
 
     /// Get view-projection matrix (combined)
+    #[allow(dead_code)] // Will be used when rendering pipeline is implemented
     pub fn view_projection_matrix(&self) -> Mat4 {
         self.projection_matrix() * self.view_matrix()
     }
