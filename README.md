@@ -1,4 +1,35 @@
-# ISO — Isometric Arena Shooter
+# ISO
+
+A mobile-friendly, code-to-join, isometric arena shooter built with Rust + WebGPU (client) and Cloudflare Durable Objects (server).
+
+## Current Status
+
+**Milestone 2 (M2) - DO + Net: ✅ Complete**
+
+- ✅ Cloudflare Workers infrastructure set up
+- ✅ Durable Object created and deployed
+- ✅ WebSocket support implemented
+- ✅ Game simulation integrated into Durable Object
+- ✅ Lobby endpoints (`/create`, `/join/:code`) working
+- ✅ Network protocol implemented (C2S/S2C messages)
+- ✅ Protocol parsing and snapshot generation
+- ✅ Player joining logic
+- ✅ Snapshot broadcasting
+
+**Deployed at:** https://iso.rob-gilks.workers.dev
+
+## Testing
+
+See `TEST-PLAN.md` for detailed test procedures.
+
+**Quick test:**
+```bash
+# Create a match
+curl https://iso.rob-gilks.workers.dev/create
+
+# Join a match (replace CODE with actual code)
+curl https://iso.rob-gilks.workers.dev/join/CODE
+``` — Isometric Arena Shooter
 
 A mobile-friendly PWA, code-to-join, isometric arena shooter built engine-free with **Rust + WebGPU** (client) and **Cloudflare Durable Objects** (server).
 
