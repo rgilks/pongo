@@ -68,4 +68,3 @@ impl Params {
     // World bounds
     pub const WORLD_BOUNDS: f32 = 32.0; // ±32u
 }
-

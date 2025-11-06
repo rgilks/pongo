@@ -1,0 +1,31 @@
+#!/bin/sh
+# Pre-commit hook: run Rust checks and tests
+
+set -e
+
+echo "Running pre-commit checks..."
+
+# Run Rust formatting check
+echo "Checking Rust formatting..."
+cargo fmt --check || {
+    echo "❌ Formatting check failed. Run 'cargo fmt' to fix."
+    exit 1
+}
+
+# Run Clippy with deny warnings
+echo "Running Clippy..."
+cargo clippy --workspace -- -D warnings || {
+    echo "❌ Clippy check failed. Fix warnings before committing."
+    exit 1
+}
+
+# Run tests
+echo "Running tests..."
+cargo test --workspace || {
+    echo "❌ Tests failed. Fix tests before committing."
+    exit 1
+}
+
+echo "✅ All pre-commit checks passed!"
+exit 0
+

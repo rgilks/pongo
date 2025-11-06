@@ -1,18 +1,19 @@
 pub mod components;
+pub mod map;
+pub mod params;
 pub mod resources;
 pub mod systems;
-pub mod params;
-pub mod map;
 
 pub use components::*;
-pub use resources::*;
-pub use params::*;
 pub use map::*;
+pub use params::*;
+pub use resources::*;
 
 use hecs::World;
 use systems::*;
 
 /// Run the deterministic game simulation schedule
+#[allow(clippy::too_many_arguments)]
 pub fn step(
     world: &mut World,
     time: &mut Time,
@@ -25,13 +26,13 @@ pub fn step(
 ) {
     // Clamp dt to prevent large jumps
     let clamped_dt = time.dt.min(params::Params::MAX_DT);
-    
+
     // Fixed micro-steps for stable physics
     let mut remaining_dt = clamped_dt;
     while remaining_dt > 0.0 {
         let step_dt = remaining_dt.min(params::Params::FIXED_DT);
         remaining_dt -= step_dt;
-        
+
         let step_time = Time {
             dt: step_dt,
             now: time.now + (clamped_dt - remaining_dt),
@@ -43,33 +44,33 @@ pub fn step(
         // Ingest inputs (creates MovementIntent/CombatIntent)
         ingest_inputs(world, net_queue);
         apply_shield_intents(world);
-        
+
         // BotThink (handled externally for now)
-        
+
         // Apply movement intents
         apply_movement_intent(world, &step_time);
-        
+
         // Integrate motion
         integrate_motion(world, &step_time, map);
-        
+
         // Shield update
         shield_update(world, &step_time);
-        
+
         // Fire bolts
         fire_bolts(world, &step_time, events);
-        
+
         // Spawn from events
         spawn_from_events(world, events);
-        
+
         // Bolts step
         bolts_step(world, &step_time, map);
-        
+
         // Resolve hits
         resolve_hits(world, events);
-        
+
         // Apply damage
         apply_damage(world, events, score);
-        
+
         // Handle eliminations (create respawn timers)
         let eliminated_ids: Vec<u16> = events.eliminated.clone();
         for player_id in eliminated_ids {
@@ -87,26 +88,26 @@ pub fn step(
                 world.insert(entity, (timer,)).unwrap();
             }
         }
-        
+
         // Respawn tick
         respawn_tick(world, &step_time, map, events);
         apply_respawns(world, events);
-        
+
         // Pickups spawn
         pickups_spawn(world, &step_time, map, rng);
-        
+
         // Pickups collect
         pickups_collect(world, events);
-        
+
         // Apply pickup effects
         apply_pickup_effects(world, events);
-        
+
         // Hill score tick
         hill_score_tick(world, &step_time, map, score, config);
-        
+
         // Energy regen
         energy_regen(world, &step_time);
-        
+
         // GC
         gc(world, &step_time);
     }

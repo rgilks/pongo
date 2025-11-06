@@ -1,7 +1,7 @@
-use std::collections::HashMap;
 use glam::Vec2;
 use hecs::Entity;
 use rand::Rng as RandRng;
+use std::collections::HashMap;
 
 use crate::components::PickupKind;
 use crate::map::Map;
@@ -13,11 +13,15 @@ pub struct GameParams {
     pub params: Params,
 }
 
+impl Default for GameParams {
+    fn default() -> Self {
+        Self { params: Params }
+    }
+}
+
 impl GameParams {
     pub fn new() -> Self {
-        Self {
-            params: Params,
-        }
+        Self::default()
     }
 }
 
@@ -34,7 +38,7 @@ impl GameMap {
 }
 
 /// Time resource
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Default)]
 pub struct Time {
     pub dt: f32,
     pub now: f32, // total elapsed time
@@ -42,21 +46,26 @@ pub struct Time {
 
 impl Time {
     pub fn new() -> Self {
-        Self { dt: 0.0, now: 0.0 }
+        Self::default()
     }
 }
 
 /// Deterministic RNG (server authority)
-#[derive(Debug)]
 pub struct GameRng {
     rng: rand::rngs::ThreadRng,
 }
 
-impl GameRng {
-    pub fn new() -> Self {
+impl Default for GameRng {
+    fn default() -> Self {
         Self {
             rng: rand::thread_rng(),
         }
+    }
+}
+
+impl GameRng {
+    pub fn new() -> Self {
+        Self::default()
     }
 
     pub fn gen(&mut self) -> f32 {
@@ -71,8 +80,9 @@ impl GameRng {
 /// Score tracking
 #[derive(Debug, Default)]
 pub struct Score {
-    pub hill_points: HashMap<u16, u16>, // player_id -> points
+    pub hill_points: HashMap<u16, u16>,  // player_id -> points
     pub eliminations: HashMap<u16, u16>, // player_id -> count
+    pub hill_points_fractional: HashMap<u16, f32>, // player_id -> fractional points accumulator
 }
 
 impl Score {
@@ -116,8 +126,8 @@ pub struct Config {
     pub match_time_s: f32,
 }
 
-impl Config {
-    pub fn new() -> Self {
+impl Default for Config {
+    fn default() -> Self {
         Self {
             objective_on: true,
             target_actors: Params::TARGET_ACTORS,
@@ -125,6 +135,12 @@ impl Config {
             hill_points_to_win: Params::HILL_POINTS_TO_WIN,
             match_time_s: Params::MATCH_TIME_S,
         }
+    }
+}
+
+impl Config {
+    pub fn new() -> Self {
+        Self::default()
     }
 }
 
@@ -183,4 +199,3 @@ pub struct RespawnEvent {
     pub player_id: u16,
     pub spawn_pos: Vec2,
 }
-

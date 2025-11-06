@@ -38,14 +38,14 @@ pub struct Player {
 }
 
 /// Health as damage slots (0..3)
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Default)]
 pub struct Health {
     pub damage: u8, // 0 = full health, 3 = eliminated
 }
 
 impl Health {
     pub fn new() -> Self {
-        Self { damage: 0 }
+        Self::default()
     }
 
     pub fn is_eliminated(&self) -> bool {
@@ -59,9 +59,15 @@ pub struct Energy {
     pub cur: f32,
 }
 
+impl Default for Energy {
+    fn default() -> Self {
+        Self { cur: 100.0 }
+    }
+}
+
 impl Energy {
     pub fn new() -> Self {
-        Self { cur: 100.0 }
+        Self::default()
     }
 
     pub fn can_afford(&self, cost: f32) -> bool {
@@ -76,20 +82,26 @@ impl Energy {
 /// Shield component
 #[derive(Debug, Clone, Copy)]
 pub struct Shield {
-    pub max: u8,        // max level (0..3, 0 = not unlocked)
-    pub active: u8,     // current active level (0..3)
-    pub t_left: f32,    // time remaining (max 0.6s)
-    pub cooldown: f32,  // cooldown timer (0.4s after deactivate)
+    pub max: u8,       // max level (0..3, 0 = not unlocked)
+    pub active: u8,    // current active level (0..3)
+    pub t_left: f32,   // time remaining (max 0.6s)
+    pub cooldown: f32, // cooldown timer (0.4s after deactivate)
 }
 
-impl Shield {
-    pub fn new() -> Self {
+impl Default for Shield {
+    fn default() -> Self {
         Self {
             max: 0,
             active: 0,
             t_left: 0.0,
             cooldown: 0.0,
         }
+    }
+}
+
+impl Shield {
+    pub fn new() -> Self {
+        Self::default()
     }
 
     pub fn can_activate(&self, level: u8) -> bool {
@@ -104,10 +116,10 @@ impl Shield {
 /// Bolt projectile
 #[derive(Debug, Clone, Copy)]
 pub struct Bolt {
-    pub level: u8,      // 1..3
-    pub dmg: u8,        // damage amount
-    pub radius: f32,    // collision radius
-    pub owner: u16,     // player ID who fired it
+    pub level: u8,   // 1..3
+    pub dmg: u8,     // damage amount
+    pub radius: f32, // collision radius
+    pub owner: u16,  // player ID who fired it
 }
 
 impl Bolt {
@@ -214,8 +226,8 @@ pub enum BotState {
     Engage,
 }
 
-impl BotBrain {
-    pub fn new() -> Self {
+impl Default for BotBrain {
+    fn default() -> Self {
         Self {
             state: BotState::SeekPickups,
             reaction_ms: 100.0,
@@ -228,6 +240,12 @@ impl BotBrain {
     }
 }
 
+impl BotBrain {
+    pub fn new() -> Self {
+        Self::default()
+    }
+}
+
 /// Movement intent (from input)
 #[derive(Debug, Clone, Copy)]
 pub struct MovementIntent {
@@ -235,8 +253,8 @@ pub struct MovementIntent {
     pub turn: f32,   // -1.0 (left) to +1.0 (right)
 }
 
-impl MovementIntent {
-    pub fn new() -> Self {
+impl Default for MovementIntent {
+    fn default() -> Self {
         Self {
             thrust: 0.0,
             turn: 0.0,
@@ -244,19 +262,22 @@ impl MovementIntent {
     }
 }
 
+impl MovementIntent {
+    pub fn new() -> Self {
+        Self::default()
+    }
+}
+
 /// Combat intent (from input)
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Default)]
 pub struct CombatIntent {
-    pub bolt_level: u8,  // 0 = none, 1..3 = fire
+    pub bolt_level: u8,   // 0 = none, 1..3 = fire
     pub shield_level: u8, // 0 = none, 1..3 = activate
 }
 
 impl CombatIntent {
     pub fn new() -> Self {
-        Self {
-            bolt_level: 0,
-            shield_level: 0,
-        }
+        Self::default()
     }
 }
 
@@ -266,9 +287,15 @@ pub struct BoltCooldown {
     pub t_left: f32,
 }
 
+impl Default for BoltCooldown {
+    fn default() -> Self {
+        Self { t_left: 0.0 }
+    }
+}
+
 impl BoltCooldown {
     pub fn new() -> Self {
-        Self { t_left: 0.0 }
+        Self::default()
     }
 
     pub fn can_fire(&self) -> bool {
@@ -298,9 +325,14 @@ pub struct BoltMaxLevel {
     pub level: u8, // 1..3
 }
 
-impl BoltMaxLevel {
-    pub fn new() -> Self {
+impl Default for BoltMaxLevel {
+    fn default() -> Self {
         Self { level: 1 } // Start with L1 only
     }
 }
 
+impl BoltMaxLevel {
+    pub fn new() -> Self {
+        Self::default()
+    }
+}

@@ -1,14 +1,19 @@
 use hecs::World;
 
 use crate::components::*;
-use crate::resources::*;
 use crate::params::Params;
+use crate::resources::*;
 
 /// Advance spawn pads and spawn pickup items
-pub fn pickups_spawn(world: &mut World, time: &Time, map: &GameMap, rng: &mut crate::resources::GameRng) {
+pub fn pickups_spawn(
+    world: &mut World,
+    time: &Time,
+    map: &GameMap,
+    rng: &mut crate::resources::GameRng,
+) {
     // Find or create spawn pads
     let mut pads = Vec::new();
-    
+
     for (entity, pad) in world.query::<&SpawnPad>().iter() {
         pads.push((entity, pad.clone()));
     }
@@ -34,7 +39,7 @@ pub fn pickups_spawn(world: &mut World, time: &Time, map: &GameMap, rng: &mut cr
             // Check if item already exists at this pad
             let pad_transform = *world.get::<&Transform2D>(entity).unwrap();
             let mut has_item = false;
-            
+
             for (_, (_, transform)) in world.query::<(&Pickup, &Transform2D)>().iter() {
                 if (transform.pos - pad_transform.pos).length() < 0.5 {
                     has_item = true;
@@ -57,7 +62,7 @@ pub fn pickups_spawn(world: &mut World, time: &Time, map: &GameMap, rng: &mut cr
         }
 
         // Update pad
-        for (e, mut p) in world.query_mut::<&mut SpawnPad>() {
+        for (e, p) in world.query_mut::<&mut SpawnPad>() {
             if e == entity {
                 *p = pad;
                 break;
@@ -69,14 +74,16 @@ pub fn pickups_spawn(world: &mut World, time: &Time, map: &GameMap, rng: &mut cr
 /// Collect pickups when players touch them
 pub fn pickups_collect(world: &mut World, events: &mut Events) {
     // Collect pickups (deterministic: sort by entity ID)
-    let mut pickup_entities: Vec<_> = world.query::<(&Pickup, &Transform2D)>()
+    let mut pickup_entities: Vec<_> = world
+        .query::<(&Pickup, &Transform2D)>()
         .iter()
         .map(|(e, _)| e)
         .collect();
     pickup_entities.sort_by_key(|e| e.id());
 
     // Collect players (deterministic: sort by entity ID)
-    let mut player_entities: Vec<_> = world.query::<(&Player, &Transform2D)>()
+    let mut player_entities: Vec<_> = world
+        .query::<(&Player, &Transform2D)>()
         .iter()
         .map(|(e, _)| e)
         .collect();
@@ -97,11 +104,13 @@ pub fn pickups_collect(world: &mut World, events: &mut Events) {
             let collision_dist = Params::PLAYER_RADIUS + 0.3; // pickup radius ~0.3
 
             if dist < collision_dist {
-                events.pickup_taken.push(crate::resources::PickupTakenEvent {
-                    player_id: player.id,
-                    pickup_entity: *pickup_entity,
-                    kind: pickup.kind,
-                });
+                events
+                    .pickup_taken
+                    .push(crate::resources::PickupTakenEvent {
+                        player_id: player.id,
+                        pickup_entity: *pickup_entity,
+                        kind: pickup.kind,
+                    });
                 pickups_to_remove.push(*pickup_entity);
                 break;
             }
@@ -134,7 +143,7 @@ pub fn apply_pickup_effects(world: &mut World, events: &Events) {
                     if health.damage > 0 {
                         health.damage -= 1;
                     }
-                    for (e, mut h) in world.query_mut::<&mut Health>() {
+                    for (e, h) in world.query_mut::<&mut Health>() {
                         if e == entity {
                             *h = health;
                             break;
@@ -143,11 +152,13 @@ pub fn apply_pickup_effects(world: &mut World, events: &Events) {
                 }
                 PickupKind::BoltUpgrade => {
                     // Check if component exists first
-                    let has_bolt_max = world.get::<&crate::components::BoltMaxLevel>(entity).is_ok();
+                    let has_bolt_max = world
+                        .get::<&crate::components::BoltMaxLevel>(entity)
+                        .is_ok();
                     if has_bolt_max {
                         // Update existing
                         let mut found = false;
-                        for (e, mut b) in world.query_mut::<&mut crate::components::BoltMaxLevel>() {
+                        for (e, b) in world.query_mut::<&mut crate::components::BoltMaxLevel>() {
                             if e == entity {
                                 if b.level < 3 {
                                     b.level += 1;
@@ -175,7 +186,7 @@ pub fn apply_pickup_effects(world: &mut World, events: &Events) {
                     if shield.max < 3 {
                         shield.max += 1;
                     }
-                    for (e, mut s) in world.query_mut::<&mut Shield>() {
+                    for (e, s) in world.query_mut::<&mut Shield>() {
                         if e == entity {
                             *s = shield;
                             break;

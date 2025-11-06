@@ -1,0 +1,36 @@
+---
+alwaysApply: true
+---
+
+## Principles
+
+- Keep changes small and test each step.
+- Refactor for clarity: simple, elegant, maintainable.
+- Improve tests, docs, and diagrams continuously.
+- Remove dead or commented-out code.
+- Use whitespace for readability.
+- Keep functions < 20 lines; files < 200 lines.
+
+## Technology preferences
+
+- Prefer WebGPU via `wgpu` v24.0; avoid WebGL2 fallbacks.
+- Prefer Node for servers/tooling; never use Python.
+
+## Logging
+
+- Ensure logs are sufficient for debugging and monitoring.
+
+## Testing
+
+- Maintain a `TEST-PLAN.md` document with a set of manual tests that you will run by automating the web browser this is in place of puppeteer or playwright tests.
+- Rust unit tests live alongside code: run `cargo test`.
+- Full check: `npm run check` runs:
+  - `cargo fmt --check` and `cargo clippy -D warnings`
+  - `cargo test` (workspace, excluding `app-web`)
+  - Web CI build + headless test
+
+## Pre-commit and push
+
+- Update `README.md`, `TEST-PLAN.md` and `SPEC.md`.
+- Fix warnings where possible.
+- Commit and push only after the above succeed.

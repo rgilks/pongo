@@ -40,12 +40,9 @@ pub fn ingest_inputs(world: &mut World, net_queue: &mut NetQueue) {
 /// Apply shield intents
 pub fn apply_shield_intents(world: &mut World) {
     let mut updates = Vec::new();
-    
+
     // Collect all players with combat intents and shields (deterministic: sort by entity ID)
-    for (entity, (intent, shield)) in world
-        .query::<(&CombatIntent, &Shield)>()
-        .iter()
-    {
+    for (entity, (intent, shield)) in world.query::<(&CombatIntent, &Shield)>().iter() {
         updates.push((entity, *intent, *shield));
     }
     updates.sort_by_key(|(e, _, _)| e.id());
@@ -63,4 +60,3 @@ pub fn apply_shield_intents(world: &mut World) {
         world.insert(entity, (shield,)).unwrap();
     }
 }
-

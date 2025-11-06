@@ -1,13 +1,17 @@
 use hecs::World;
 
 use crate::components::*;
-use crate::resources::*;
 use crate::params::Params;
+use crate::resources::*;
 
 /// Update shield state, drain energy, handle timers
 pub fn shield_update(world: &mut World, time: &Time) {
     // Collect entities with shield and energy (deterministic: sort by entity ID)
-    let mut entities: Vec<_> = world.query::<(&Shield, &Energy)>().iter().map(|(e, _)| e).collect();
+    let mut entities: Vec<_> = world
+        .query::<(&Shield, &Energy)>()
+        .iter()
+        .map(|(e, _)| e)
+        .collect();
     entities.sort_by_key(|e| e.id());
 
     for entity in entities {
@@ -24,7 +28,7 @@ pub fn shield_update(world: &mut World, time: &Time) {
         // Update active shield
         if shield.active > 0 {
             shield.t_left -= time.dt;
-            
+
             // Drain energy
             let drain_rate = match shield.active {
                 1 => Params::SHIELD_S1_DRAIN,
@@ -42,13 +46,13 @@ pub fn shield_update(world: &mut World, time: &Time) {
         }
 
         // Update components
-        for (e, mut s) in world.query_mut::<&mut Shield>() {
+        for (e, s) in world.query_mut::<&mut Shield>() {
             if e == entity {
                 *s = shield;
                 break;
             }
         }
-        for (e, mut e_comp) in world.query_mut::<&mut Energy>() {
+        for (e, e_comp) in world.query_mut::<&mut Energy>() {
             if e == entity {
                 *e_comp = energy;
                 break;
@@ -60,7 +64,8 @@ pub fn shield_update(world: &mut World, time: &Time) {
 /// Process fire bolt intents
 pub fn fire_bolts(world: &mut World, _time: &Time, events: &mut Events) {
     // Collect entities with combat intents (deterministic: sort by entity ID)
-    let mut entities: Vec<_> = world.query::<(&CombatIntent, &BoltCooldown, &Energy, &Transform2D, &Player)>()
+    let mut entities: Vec<_> = world
+        .query::<(&CombatIntent, &BoltCooldown, &Energy, &Transform2D, &Player)>()
         .iter()
         .map(|(e, _)| e)
         .collect();
@@ -78,16 +83,17 @@ pub fn fire_bolts(world: &mut World, _time: &Time, events: &mut Events) {
         }
 
         let level = intent.bolt_level;
-        
+
         // Check if player has bolt upgrade level
-        let bolt_max = world.get::<&crate::components::BoltMaxLevel>(entity)
+        let bolt_max = world
+            .get::<&crate::components::BoltMaxLevel>(entity)
             .map(|b| b.level)
             .unwrap_or(1);
-        
+
         if level > bolt_max {
             continue;
         }
-        
+
         let cost = match level {
             1 => Params::BOLT_L1_COST,
             2 => Params::BOLT_L2_COST,
@@ -98,7 +104,7 @@ pub fn fire_bolts(world: &mut World, _time: &Time, events: &mut Events) {
         if !energy.can_afford(cost) {
             continue;
         }
-        
+
         // Fire bolt
         let speed = match level {
             1 => Params::BOLT_L1_SPEED,
@@ -121,16 +127,16 @@ pub fn fire_bolts(world: &mut World, _time: &Time, events: &mut Events) {
         // Spend energy and reset cooldown
         let mut new_energy = energy;
         new_energy.spend(cost);
-        for (e, mut e_comp) in world.query_mut::<&mut Energy>() {
+        for (e, e_comp) in world.query_mut::<&mut Energy>() {
             if e == entity {
                 *e_comp = new_energy;
                 break;
             }
         }
-        
+
         let mut new_cooldown = BoltCooldown::new();
         new_cooldown.t_left = Params::BOLT_COOLDOWN;
-        for (e, mut c) in world.query_mut::<&mut BoltCooldown>() {
+        for (e, c) in world.query_mut::<&mut BoltCooldown>() {
             if e == entity {
                 *c = new_cooldown;
                 break;
@@ -154,7 +160,8 @@ pub fn spawn_from_events(world: &mut World, events: &Events) {
 /// Step bolts forward, check collisions with blocks, expire
 pub fn bolts_step(world: &mut World, time: &Time, map: &GameMap) {
     // Collect bolt entities (deterministic: sort by entity ID)
-    let mut entities: Vec<_> = world.query::<(&Bolt, &Lifetime, &Transform2D)>()
+    let mut entities: Vec<_> = world
+        .query::<(&Bolt, &Lifetime, &Transform2D)>()
         .iter()
         .map(|(e, _)| e)
         .collect();
@@ -191,7 +198,7 @@ pub fn bolts_step(world: &mut World, time: &Time, map: &GameMap) {
         }
 
         // Update lifetime
-        for (e, mut l) in world.query_mut::<&mut Lifetime>() {
+        for (e, l) in world.query_mut::<&mut Lifetime>() {
             if e == entity {
                 *l = lifetime;
                 break;
@@ -208,14 +215,16 @@ pub fn bolts_step(world: &mut World, time: &Time, map: &GameMap) {
 /// Resolve hits: bolts vs players
 pub fn resolve_hits(world: &mut World, events: &mut Events) {
     // Collect bolts (deterministic: sort by entity ID)
-    let mut bolt_entities: Vec<_> = world.query::<(&Bolt, &Transform2D)>()
+    let mut bolt_entities: Vec<_> = world
+        .query::<(&Bolt, &Transform2D)>()
         .iter()
         .map(|(e, _)| e)
         .collect();
     bolt_entities.sort_by_key(|e| e.id());
 
     // Collect players (deterministic: sort by entity ID)
-    let mut player_entities: Vec<_> = world.query::<(&Player, &Transform2D, &Shield, &Health)>()
+    let mut player_entities: Vec<_> = world
+        .query::<(&Player, &Transform2D, &Shield, &Health)>()
         .iter()
         .map(|(e, _)| e)
         .collect();
@@ -251,16 +260,16 @@ pub fn resolve_hits(world: &mut World, events: &mut Events) {
             if dist < collision_dist {
                 // Check shield
                 let mut damage = bolt.dmg;
-                
+
                 if shield.is_active() {
                     // Check if bolt is in shield arc
                     let to_bolt = (bolt_transform.pos - player_transform.pos).normalize();
                     let forward = player_transform.forward();
                     let angle = to_bolt.dot(forward).acos();
-                    
+
                     if angle <= Params::SHIELD_ARC * 0.5 {
                         // Shield blocks: damage = max(0, BoltLevel - ShieldLevel)
-                        damage = damage.saturating_sub(shield.active as u8);
+                        damage = damage.saturating_sub(shield.active);
                     }
                 }
 
@@ -300,16 +309,16 @@ pub fn apply_damage(world: &mut World, events: &mut Events, score: &mut Score) {
             let health = *world.get::<&Health>(entity).unwrap();
             let mut health = health;
             health.damage = (health.damage + damage_event.amount).min(3);
-            
+
             if health.is_eliminated() {
                 events.eliminated.push(damage_event.target);
-                
+
                 // Increment elimination count for source
                 *score.eliminations.entry(damage_event.source).or_insert(0) += 1;
             }
-            
+
             // Update health
-            for (e, mut h) in world.query_mut::<&mut Health>() {
+            for (e, h) in world.query_mut::<&mut Health>() {
                 if e == entity {
                     *h = health;
                     break;

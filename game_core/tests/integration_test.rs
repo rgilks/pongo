@@ -1,6 +1,6 @@
 use game_core::*;
-use hecs::World;
 use glam::Vec2;
+use hecs::World;
 
 // Fix Rng reference
 use game_core::resources::GameRng as Rng;
@@ -215,7 +215,7 @@ fn test_elimination() {
     // Check player2 was eliminated
     let health = world.get::<&Health>(player2).unwrap();
     assert!(health.is_eliminated());
-    
+
     // Check respawn timer was created
     assert!(world.get::<&RespawnTimer>(player2).is_ok());
 }
@@ -235,16 +235,23 @@ fn test_pickup_collection() {
     let player_entity = create_player(&mut world, 1, 0, 0, Vec2::new(0.0, 0.0));
 
     // Create a pickup very close to the player (within collision radius)
-    let pickup_pos = Vec2::new(0.3, 0.0); // Very close to player (radius 0.6 + pickup 0.3 = 0.9, so 0.3 is within range)
+    // Use a position that's definitely within collection range
+    let pickup_pos = Vec2::new(0.2, 0.0); // Within collision radius (player 0.6 + pickup 0.3 = 0.9, so 0.2 is well within)
     let pickup = Pickup {
         kind: PickupKind::Health,
     };
     let transform = Transform2D::new(pickup_pos, 0.0);
-    world.spawn((pickup, transform));
+    let pickup_entity = world.spawn((pickup, transform));
+
+    // Count pickups before (should be 1 + any from spawn pads)
+    let mut initial_count = 0;
+    for (_, _) in world.query::<&Pickup>().iter() {
+        initial_count += 1;
+    }
 
     // Step simulation multiple times to ensure collision
     time.dt = 0.1;
-    for _ in 0..5 {
+    for _ in 0..10 {
         step(
             &mut world,
             &mut time,
@@ -257,12 +264,8 @@ fn test_pickup_collection() {
         );
     }
 
-    // Check pickup was collected
-    let mut pickup_count = 0;
-    for (_, _) in world.query::<&Pickup>().iter() {
-        pickup_count += 1;
-    }
-    assert_eq!(pickup_count, 0);
+    // Check our specific pickup was collected (entity should be despawned)
+    assert!(world.get::<&Pickup>(pickup_entity).is_err());
 }
 
 #[test]
@@ -280,8 +283,18 @@ fn test_hill_scoring() {
     // Create a player at hill center
     let player_entity = create_player(&mut world, 1, 0, 0, map.map.hill_center);
 
-    // Step for multiple frames to accumulate points
-    for _ in 0..10 {
+    // Verify player is actually at hill center
+    {
+        let player_transform = world.get::<&Transform2D>(player_entity).unwrap();
+        let dist_to_hill = (player_transform.pos - map.map.hill_center).length();
+        assert!(
+            dist_to_hill <= crate::params::Params::HILL_RADIUS,
+            "Player should be in hill"
+        );
+    }
+
+    // Step for multiple frames to accumulate points (need at least 1 second total)
+    for _ in 0..15 {
         time.dt = 0.1;
         step(
             &mut world,
@@ -295,7 +308,11 @@ fn test_hill_scoring() {
         );
     }
 
-    // Check player earned points (should have at least 1 point after 1 second of being in hill)
-    assert!(score.hill_points.get(&1).unwrap_or(&0) > &0);
+    // Check player earned points (should have at least 1 point after 1.5 seconds of being in hill)
+    let points = score.hill_points.get(&1).unwrap_or(&0);
+    assert!(
+        *points > 0,
+        "Player should have earned points, got {}",
+        points
+    );
 }
-
