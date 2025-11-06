@@ -37,7 +37,8 @@ A mobile-friendly, code-to-join, isometric arena shooter built with Rust + WebGP
 - Rust (stable, 2021 edition)
 - Node 20+
 - wasm-pack (for M3)
-- Wrangler CLI (`npm install -g wrangler`)
+- Wrangler CLI: `npm install -g wrangler`
+- Cloudflare account: `wrangler login`
 
 ### Development
 
@@ -50,11 +51,14 @@ npm run fmt          # Format code
 npm run test         # Run tests
 npm run clippy       # Run clippy
 
+# Local development server
+wrangler dev         # Starts at http://localhost:8787
+
 # Deploy and test (deploy + endpoint tests + log checking)
 npm run deploy:test
 
 # Or deploy only
-npx wrangler deploy
+npx wrangler deploy  # Deploys to https://iso.<your-subdomain>.workers.dev
 
 # Check Cloudflare logs
 npm run logs         # Real-time tail
@@ -106,7 +110,6 @@ cargo test --package proto      # Protocol serialization
 
 - **Specification**: `SPEC.md` - Full game specification and architecture
 - **Test Plan**: `TEST-PLAN.md` - Manual and automated test procedures
-- **Deployment**: See "Deploy and test" section above, or `DEPLOY.md` for detailed steps
 - **WebGPU Research**: `WEBGPU_RESEARCH.md` - Historical notes on WebGPU surface creation
 
 ## License
