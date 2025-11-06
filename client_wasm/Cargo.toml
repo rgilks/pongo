@@ -17,7 +17,7 @@ web-sys = { version = "0.3", features = [
     "Document",
     "HtmlCanvasElement",
 ] }
-# wgpu = "0.20"  # TODO: Add once web surface API is confirmed
+# wgpu = "0.20"  # TODO: Add once web surface API is verified
 # bytemuck = { version = "1.14", features = ["derive"] }  # TODO: Add for buffer operations
 game_core = { path = "../game_core" }
 proto = { path = "../proto" }

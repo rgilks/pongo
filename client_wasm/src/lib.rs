@@ -2,38 +2,53 @@
 //!
 //! Engine-free rendering using wgpu for WebGPU API
 //!
-//! Note: WebGPU surface creation API is being finalized.
-//! This is a placeholder structure that will be completed in the next iteration.
+//! Note: WebGPU surface creation API for web/WASM is being researched.
+//! The wgpu 0.20 API for HtmlCanvasElement -> Surface conversion needs verification.
+//! This is a placeholder that compiles and can be completed once the correct API is confirmed.
 
 use wasm_bindgen::prelude::*;
 use web_sys::HtmlCanvasElement;
 
 /// Main client state
 ///
-/// TODO: Complete WebGPU initialization once wgpu web API is confirmed
+/// TODO: Complete WebGPU initialization once correct wgpu web API is verified
 pub struct Client {
-    // Placeholder - will contain Device, Queue, Surface, etc.
     _canvas: HtmlCanvasElement,
+    _width: u32,
+    _height: u32,
 }
 
 impl Client {
     /// Initialize WebGPU client
     ///
     /// TODO: Implement proper wgpu surface creation for web
+    /// Current blocker: HtmlCanvasElement -> SurfaceTarget conversion API
+    /// Research needed: wgpu 0.20 web surface creation method
     pub async fn new(canvas: HtmlCanvasElement) -> Result<Self, JsValue> {
+        let width = canvas.width();
+        let height = canvas.height();
+
         // Placeholder implementation
         // Will be completed once we verify the correct wgpu web API
-        Ok(Self { _canvas: canvas })
+        // Options to investigate:
+        // 1. SurfaceTarget::Canvas variant (if available)
+        // 2. SurfaceTargetUnsafe::from_window with canvas conversion
+        // 3. Feature flags or web-specific wgpu initialization
+        Ok(Self {
+            _canvas: canvas,
+            _width: width,
+            _height: height,
+        })
     }
 
     /// Resize the rendering surface
     pub fn resize(&mut self, _width: u32, _height: u32) {
-        // TODO: Implement resize
+        // TODO: Implement resize once surface is created
     }
 
     /// Render a frame
     pub fn render(&mut self) -> Result<(), JsValue> {
-        // TODO: Implement rendering
+        // TODO: Implement rendering once WebGPU is initialized
         Ok(())
     }
 }
