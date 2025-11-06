@@ -18,32 +18,6 @@ A mobile-friendly, code-to-join, isometric arena shooter built with Rust + WebGP
 
 **Deployed at:** https://iso.rob-gilks.workers.dev
 
-## Testing
-
-See `TEST-PLAN.md` for detailed test procedures.
-
-**Quick test:**
-```bash
-# Create a match
-curl https://iso.rob-gilks.workers.dev/create
-
-# Join a match (replace CODE with actual code)
-curl https://iso.rob-gilks.workers.dev/join/CODE
-``` — Isometric Arena Shooter
-
-A mobile-friendly PWA, code-to-join, isometric arena shooter built engine-free with **Rust + WebGPU** (client) and **Cloudflare Durable Objects** (server).
-
-## Status
-
-**M1 — Core Sim (Local)**: ✅ Complete
-- ECS (`hecs`) with deterministic simulation
-- Movement, combat, pickups, hill scoring, eliminations
-- Comprehensive test suite
-
-**M2 — DO + Net**: 🚧 In Progress
-- WebSocket hub, soft-tick, snapshots/ACK
-- Persistence, idle expiry, join/create by code
-
 ## Quick Start
 
 ### Prerequisites
@@ -51,6 +25,7 @@ A mobile-friendly PWA, code-to-join, isometric arena shooter built engine-free w
 - Rust (stable, 2021 edition)
 - Node 20+
 - wasm-pack (for M3)
+- Wrangler CLI (`npm install -g wrangler`)
 
 ### Development
 
@@ -66,6 +41,9 @@ npm run test
 
 # Run clippy
 npm run clippy
+
+# Deploy to Cloudflare
+npx wrangler deploy
 ```
 
 ### Pre-commit Hook
@@ -91,15 +69,26 @@ iso/
 
 ## Testing
 
-- **Unit tests**: `cargo test --package game_core`
-- **Integration tests**: `cargo test --package game_core --test integration_test`
+See `TEST-PLAN.md` for detailed test procedures.
+
+**Quick test:**
+```bash
+# Create a match
+curl https://iso.rob-gilks.workers.dev/create
+
+# Join a match (replace CODE with actual code)
+curl https://iso.rob-gilks.workers.dev/join/CODE
+```
+
+**Unit tests:**
+- `cargo test --package game_core` - Core game logic
+- `cargo test --package proto` - Protocol serialization
 
 ## Documentation
 
 - **Specification**: `SPEC.md`
-- **Test Plan**: `TEST-PLAN.md` (to be created)
+- **Test Plan**: `TEST-PLAN.md`
 
 ## License
 
 MIT
-
