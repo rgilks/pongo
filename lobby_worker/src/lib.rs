@@ -223,16 +223,14 @@ async fn handle_websocket(req: Request, ctx: RouteContext<()>) -> Result<Respons
     let upgrade_header = req.headers().get("Upgrade")?;
 
     if upgrade_header == Some("websocket".to_string()) {
-        // Create WebSocket pair in Worker
-        // Note: Proper WebSocket forwarding to DO requires DO's State
-        // For now, we create the pair here and will bridge messages
-        let pair = WebSocketPair::new()?;
-        let client = pair.client;
+        // Forward the WebSocket upgrade request to the Durable Object
+        // The DO will create its own WebSocket pair and handle the connection
+        let match_do = ctx.env.durable_object("MATCH")?;
+        let do_id = match_do.id_from_name(code)?;
+        let stub = do_id.get_stub()?;
 
-        // TODO: Bridge server WebSocket to DO
-        // For now, return client WebSocket to test browser connection
-        // Messages will need to be forwarded to DO in websocket_message handler
-        Ok(Response::from_websocket(client)?)
+        // Forward the request to the DO - it will handle the WebSocket upgrade
+        stub.fetch_with_request(req).await
     } else {
         Response::error("Expected WebSocket upgrade", 400)
     }
