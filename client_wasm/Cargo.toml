@@ -17,8 +17,9 @@ web-sys = { version = "0.3", features = [
     "Document",
     "HtmlCanvasElement",
 ] }
-# wgpu = "0.20"  # TODO: Add once web surface API is verified (see WEBGPU_RESEARCH.md)
-# bytemuck = { version = "1.14", features = ["derive"] }  # TODO: Add for buffer operations
+wgpu = { version = "24.0", features = ["webgpu"] }
+bytemuck = { version = "1.14", features = ["derive"] }
+getrandom = { version = "0.2", features = ["js"] }
 game_core = { path = "../game_core" }
 proto = { path = "../proto" }
-# glam = "0.27"  # TODO: Add for math operations
+glam = "0.27"
