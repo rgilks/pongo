@@ -43,7 +43,9 @@ async fn handle_join(_req: Request, ctx: RouteContext<()>) -> Result<Response> {
     let stub = match_do.get_by_name(code)?;
 
     // Forward the request to the Durable Object
-    stub.fetch_with_request(_req).await
+    // Create a new request with the match code in the URL
+    let url = format!("https://match.local/{}", code);
+    stub.fetch_with_str(&url).await
 }
 
 /// Generate a random 5-character match code (A-Z, 0-9)
