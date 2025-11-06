@@ -680,6 +680,7 @@ name = "server_do"
 version = "0.1.0"
 dependencies = [
  "game_core",
+ "hecs",
  "proto",
  "serde",
  "serde_json",
