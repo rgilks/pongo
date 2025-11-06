@@ -7,6 +7,9 @@
 
 #![cfg(target_arch = "wasm32")]
 
+mod camera;
+
+use camera::{Camera, CameraUniform};
 use wasm_bindgen::prelude::*;
 use web_sys::HtmlCanvasElement;
 use wgpu::*;
@@ -18,6 +21,9 @@ pub struct Client {
     surface: Surface<'static>,
     surface_config: SurfaceConfiguration,
     size: (u32, u32),
+    camera: Camera,
+    camera_buffer: Buffer,
+    camera_bind_group: BindGroup,
 }
 
 impl Client {
@@ -88,12 +94,55 @@ impl Client {
 
         surface.configure(&device, &surface_config);
 
+        // Create isometric camera
+        let aspect = width as f32 / height.max(1) as f32;
+        let camera = Camera::new(aspect);
+
+        // Create camera uniform buffer (256-byte aligned)
+        let camera_uniform = CameraUniform::from_camera(&camera);
+        let camera_buffer = device.create_buffer(&BufferDescriptor {
+            label: Some("Camera Uniform Buffer"),
+            size: std::mem::size_of::<CameraUniform>() as u64,
+            usage: BufferUsages::UNIFORM | BufferUsages::COPY_DST,
+            mapped_at_creation: false,
+        });
+        queue.write_buffer(&camera_buffer, 0, bytemuck::bytes_of(&camera_uniform));
+
+        // Create camera bind group layout
+        let camera_bind_group_layout =
+            device.create_bind_group_layout(&BindGroupLayoutDescriptor {
+                label: Some("Camera Bind Group Layout"),
+                entries: &[BindGroupLayoutEntry {
+                    binding: 0,
+                    visibility: ShaderStages::VERTEX_FRAGMENT,
+                    ty: BindingType::Buffer {
+                        ty: BufferBindingType::Uniform,
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                }],
+            });
+
+        // Create camera bind group
+        let camera_bind_group = device.create_bind_group(&BindGroupDescriptor {
+            label: Some("Camera Bind Group"),
+            layout: &camera_bind_group_layout,
+            entries: &[BindGroupEntry {
+                binding: 0,
+                resource: camera_buffer.as_entire_binding(),
+            }],
+        });
+
         Ok(Self {
             device,
             queue,
             surface,
             surface_config,
             size: (width, height),
+            camera,
+            camera_buffer,
+            camera_bind_group,
         })
     }
 
@@ -104,6 +153,15 @@ impl Client {
             self.surface_config.width = width;
             self.surface_config.height = height;
             self.surface.configure(&self.device, &self.surface_config);
+
+            // Update camera aspect ratio
+            let aspect = width as f32 / height as f32;
+            self.camera.set_aspect(aspect);
+
+            // Update camera uniform buffer
+            let camera_uniform = CameraUniform::from_camera(&self.camera);
+            self.queue
+                .write_buffer(&self.camera_buffer, 0, bytemuck::bytes_of(&camera_uniform));
         }
     }
 
