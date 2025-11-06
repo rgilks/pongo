@@ -110,7 +110,6 @@ cargo test --package proto      # Protocol serialization
 
 - **Specification**: `SPEC.md` - Full game specification and architecture
 - **Test Plan**: `TEST-PLAN.md` - Manual and automated test procedures
-- **WebGPU Research**: `WEBGPU_RESEARCH.md` - Historical notes on WebGPU surface creation
 
 ## License
 
