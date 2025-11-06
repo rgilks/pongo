@@ -86,7 +86,9 @@ impl DurableObject for MatchDO {
             let server = pair.server;
             let client = pair.client;
 
-            // Accept the WebSocket connection
+            // Accept the WebSocket connection on the server side
+            // This must be called before returning the response
+            // Note: accept_web_socket internally calls unwrap(), so if it fails, it will panic
             #[allow(clippy::needless_borrows_for_generic_args)]
             self.state.accept_web_socket(&server);
 
@@ -96,7 +98,8 @@ impl DurableObject for MatchDO {
             // Client will send Join message after connection
             // We'll handle player assignment in websocket_message
 
-            // Return response with WebSocket
+            // Return response with WebSocket (status 101 Switching Protocols)
+            // Response::from_websocket returns Result<Response>
             Response::from_websocket(client)
         } else {
             Response::ok("Match Durable Object - Connect via WebSocket")
