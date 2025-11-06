@@ -59,6 +59,6 @@ alwaysApply: true
    - Update `README.md`, `TEST-PLAN.md` and `SPEC.md` if needed
    - Document any new features or changes
 
-7. **Commit and push**
+8. **Commit and push**
    - Only commit and push after all above steps succeed
    - Use descriptive commit messages
