@@ -1,3 +1,3 @@
-var srcIndex = new Map(JSON.parse('[["hecs",["",[],["archetype.rs","batch.rs","borrow.rs","bundle.rs","change_tracker.rs","command_buffer.rs","entities.rs","entity_builder.rs","entity_ref.rs","lib.rs","query.rs","query_one.rs","take.rs","world.rs"]]]]'));
+var srcIndex = new Map(JSON.parse('[["hecs",["",[],["archetype.rs","batch.rs","borrow.rs","bundle.rs","change_tracker.rs","command_buffer.rs","entities.rs","entity_builder.rs","entity_ref.rs","lib.rs","query.rs","query_one.rs","take.rs","world.rs"]]],["worker",["",[["kv",[],["builder.rs","mod.rs"]],["r2",[],["builder.rs","mod.rs"]]],["abort.rs","ai.rs","analytics_engine.rs","cache.rs","cf.rs","container.rs","context.rs","cors.rs","crypto.rs","date.rs","delay.rs","durable.rs","dynamic_dispatch.rs","env.rs","error.rs","fetcher.rs","formdata.rs","global.rs","headers.rs","http.rs","hyperdrive.rs","lib.rs","panic_abort.rs","rate_limit.rs","request.rs","request_init.rs","response.rs","router.rs","schedule.rs","secret_store.rs","send.rs","socket.rs","sql.rs","streams.rs","version.rs","websocket.rs"]]]]'));
 createSrcSidebar();
-//{"start":36,"fragment_lengths":[214]}
+//{"start":36,"fragment_lengths":[214,555]}
