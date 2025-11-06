@@ -77,11 +77,21 @@ impl DurableObject for MatchDO {
     }
 
     async fn fetch(&self, req: Request) -> Result<Response> {
+        // Debug: Log the Upgrade header to see what we're receiving
+        let upgrade_header_result = req.headers().get("Upgrade");
+        eprintln!("DO: Upgrade header result: {:?}", upgrade_header_result);
+
         // Check if this is a WebSocket upgrade request
         // Note: When forwarding from Worker, the Upgrade header should be present
-        let upgrade_header = match req.headers().get("Upgrade") {
-            Ok(Some(header)) => Some(header),
-            Ok(None) => None,
+        let upgrade_header = match upgrade_header_result {
+            Ok(Some(header)) => {
+                eprintln!("DO found Upgrade header: {}", header);
+                Some(header)
+            }
+            Ok(None) => {
+                eprintln!("DO: Upgrade header is None - request might not be a WebSocket upgrade");
+                None
+            }
             Err(e) => {
                 // Log error but continue - might still be a WebSocket request
                 eprintln!("Error getting Upgrade header: {:?}", e);
@@ -93,7 +103,13 @@ impl DurableObject for MatchDO {
         if let Some(header) = upgrade_header {
             if header.to_lowercase() == "websocket" {
                 // Create WebSocket pair
-                let pair = WebSocketPair::new()?;
+                let pair = match WebSocketPair::new() {
+                    Ok(p) => p,
+                    Err(e) => {
+                        eprintln!("Failed to create WebSocket pair: {:?}", e);
+                        return Response::error("Failed to create WebSocket", 500);
+                    }
+                };
                 let server = pair.server;
                 let client = pair.client;
 
@@ -111,7 +127,13 @@ impl DurableObject for MatchDO {
 
                 // Return response with WebSocket (status 101 Switching Protocols)
                 // Response::from_websocket returns Result<Response>
-                return Response::from_websocket(client);
+                match Response::from_websocket(client) {
+                    Ok(resp) => return Ok(resp),
+                    Err(e) => {
+                        eprintln!("Failed to create WebSocket response: {:?}", e);
+                        return Response::error("Failed to create WebSocket response", 500);
+                    }
+                }
             }
         }
 

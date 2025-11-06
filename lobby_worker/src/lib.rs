@@ -220,28 +220,50 @@ async fn handle_websocket(req: Request, ctx: RouteContext<()>) -> Result<Respons
     }
 
     // Check if this is a WebSocket upgrade request
-    let upgrade_header = req.headers().get("Upgrade")?;
-
-    if upgrade_header == Some("websocket".to_string()) {
-        // Forward the WebSocket upgrade request to the Durable Object
-        // The DO will create its own WebSocket pair and handle the connection
-        let match_do = ctx.env.durable_object("MATCH")?;
-        let do_id = match_do.id_from_name(code)?;
-        let stub = do_id.get_stub()?;
-
-        // Forward the request to the DO - it will handle the WebSocket upgrade
-        // Note: fetch_with_request should preserve all headers including Upgrade
-        match stub.fetch_with_request(req).await {
-            Ok(response) => Ok(response),
-            Err(e) => {
-                // Log error for debugging
-                eprintln!("Error forwarding WebSocket request to DO: {:?}", e);
-                Response::error(format!("Failed to connect to match: {:?}", e), 500)
-            }
+    let upgrade_header = match req.headers().get("Upgrade") {
+        Ok(Some(h)) => h,
+        _ => {
+            return Response::error("Expected WebSocket upgrade", 400);
         }
-    } else {
-        Response::error("Expected WebSocket upgrade", 400)
+    };
+
+    if upgrade_header.to_lowercase() != "websocket" {
+        return Response::error("Expected WebSocket upgrade", 400);
     }
+
+    // Forward the WebSocket upgrade request to the Durable Object
+    // The DO will create its own WebSocket pair and handle the connection
+    let match_do = match ctx.env.durable_object("MATCH") {
+        Ok(do_ns) => do_ns,
+        Err(e) => {
+            eprintln!("Failed to get MATCH DO namespace: {:?}", e);
+            return Response::error("Internal server error", 500);
+        }
+    };
+
+    let do_id = match match_do.id_from_name(code) {
+        Ok(id) => id,
+        Err(e) => {
+            eprintln!("Failed to get DO ID from name: {:?}", e);
+            return Response::error("Invalid match code", 400);
+        }
+    };
+
+    let stub = match do_id.get_stub() {
+        Ok(s) => s,
+        Err(e) => {
+            eprintln!("Failed to get DO stub: {:?}", e);
+            return Response::error("Internal server error", 500);
+        }
+    };
+
+    // Forward the request to the DO - it will handle the WebSocket upgrade
+    // CRITICAL: For WebSocket upgrades, we must forward the EXACT request object
+    // without any modifications. The DO will handle the WebSocket pair creation.
+    //
+    // Note: fetch_with_request should preserve all headers including Upgrade
+    // If this fails, it's likely a limitation of the Rust worker crate with WebSocket forwarding
+    stub.fetch_with_request(req).await
 }
 
 /// Generate a random 5-character match code (A-Z, 0-9)
