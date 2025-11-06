@@ -3,8 +3,7 @@
 //! Engine-free rendering using wgpu for WebGPU API
 //!
 //! Note: WebGPU surface creation API for web/WASM is being researched.
-//! The wgpu 0.20 API for HtmlCanvasElement -> Surface conversion needs verification.
-//! This is a placeholder that compiles and can be completed once the correct API is confirmed.
+//! See WEBGPU_RESEARCH.md for detailed findings and blockers.
 
 use wasm_bindgen::prelude::*;
 use web_sys::HtmlCanvasElement;
@@ -23,17 +22,14 @@ impl Client {
     ///
     /// TODO: Implement proper wgpu surface creation for web
     /// Current blocker: HtmlCanvasElement -> SurfaceTarget conversion API
-    /// Research needed: wgpu 0.20 web surface creation method
+    /// See WEBGPU_RESEARCH.md for detailed research findings
     pub async fn new(canvas: HtmlCanvasElement) -> Result<Self, JsValue> {
         let width = canvas.width();
         let height = canvas.height();
 
         // Placeholder implementation
         // Will be completed once we verify the correct wgpu web API
-        // Options to investigate:
-        // 1. SurfaceTarget::Canvas variant (if available)
-        // 2. SurfaceTargetUnsafe::from_window with canvas conversion
-        // 3. Feature flags or web-specific wgpu initialization
+        // See WEBGPU_RESEARCH.md for attempted approaches and blockers
         Ok(Self {
             _canvas: canvas,
             _width: width,
