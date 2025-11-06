@@ -5,27 +5,32 @@
 ### M1: Core Sim (Local)
 
 ✅ **Movement**
+
 - Player moves forward/backward with W/S
 - Player turns left/right with A/D
 - Collision with walls prevents movement
 
 ✅ **Combat**
+
 - Fire bolts with 1/2/3 keys
 - Bolts travel and hit players
 - Shield blocks bolts in frontal arc
 - Energy drains when firing/shielding
 
 ✅ **Pickups**
+
 - Health orbs restore damage
 - Bolt upgrades increase max level
 - Shield modules unlock/upgrade shield
 
 ✅ **Hill Scoring**
+
 - Solo player in hill earns points
 - Contested hill awards no points
 - First to 100 points wins
 
 ✅ **Eliminations**
+
 - 3 damage = elimination
 - Respawn after 2s delay
 - Spawn shield protects for 0.5s
@@ -52,7 +57,7 @@
 
 ### M4: Bots (To be implemented)
 
-- Bots navigate with A*
+- Bots navigate with A\*
 - Bots collect pickups
 - Bots contest hill
 - Bots react to incoming bolts
@@ -77,4 +82,3 @@ Run with `cargo test --workspace`:
 - ✅ Eliminations
 - ✅ Pickup collection
 - ✅ Hill scoring
-

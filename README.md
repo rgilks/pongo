@@ -19,10 +19,10 @@ A mobile-friendly, code-to-join, isometric arena shooter built with Rust + WebGP
 **Milestone 3 (M3) - Client WebGPU: 🚧 In Progress**
 
 - ✅ Client WASM crate structure created
-- ✅ Basic WASM bindings and entry points
 - ✅ WebGPU surface initialization (wgpu 24.0 with webgpu feature)
 - ✅ Isometric camera with view/projection matrices
-- ✅ Basic rendering pipeline (meshes, shader, forward pass)
+- ✅ Basic rendering pipeline (meshes, shader, forward pass, Lambert lighting)
+- ✅ Light buffers (SSBO for up to 8 point lights)
 - ⏳ Game entity rendering (players, bolts, blocks)
 - ⏳ Mobile and desktop controls
 - ⏳ Client prediction and reconciliation
@@ -36,7 +36,7 @@ A mobile-friendly, code-to-join, isometric arena shooter built with Rust + WebGP
 
 - Rust (stable, 2021 edition)
 - Node 20+
-- wasm-pack (for M3)
+- wasm-pack (for client WASM builds)
 - Wrangler CLI: `npm install -g wrangler`
 - Cloudflare account: `wrangler login`
 
@@ -90,7 +90,7 @@ iso/
 
 See `TEST-PLAN.md` for detailed test procedures.
 
-**Quick test:**
+**Quick endpoint test:**
 ```bash
 # Create a match
 curl https://iso.rob-gilks.workers.dev/create
@@ -99,7 +99,7 @@ curl https://iso.rob-gilks.workers.dev/create
 curl https://iso.rob-gilks.workers.dev/join/CODE
 ```
 
-**Unit tests:**
+**Run tests:**
 ```bash
 npm run test              # All tests
 cargo test --package game_core  # Core game logic
