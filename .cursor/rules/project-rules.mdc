@@ -28,47 +28,34 @@ alwaysApply: true
 
 **Required workflow for each iteration:**
 
-1. **Fix linting errors**
+1. **Fix linting errors and run tests** (automated)
 
-   - Run `cargo fmt` to format code
-   - Run `cargo clippy --workspace -- -D warnings` and fix all warnings/errors
-
-2. **Run unit tests**
-
-   - Run `cargo test --workspace` and ensure all tests pass
-   - Fix any failing tests
+   - Run `npm run test:all` to run all checks (format, clippy, tests)
+   - Or manually:
+     - Run `cargo fmt` to format code
+     - Run `cargo clippy --workspace -- -D warnings` and fix all warnings/errors
+     - Run `cargo test --workspace` and ensure all tests pass
 
 3. **Local testing (TEST-PLAN.md)**
 
    - Follow `TEST-PLAN.md` for manual/local testing
    - Test relevant endpoints and functionality locally if possible
 
-4. **Deploy to Cloudflare**
+4. **Deploy, test, and check logs** (automated)
 
-   - Run `npx wrangler deploy` to deploy to production
-   - Verify deployment succeeds
-
-5. **Deployed testing (TEST-PLAN.md)**
-
-   - Test deployed endpoints according to `TEST-PLAN.md`
-   - Verify all M2 endpoints work: `/`, `/create`, `/join/:code`
+   - Run `npm run deploy:test` to deploy, test endpoints, and check logs automatically
+   - Or manually:
+     - Run `npx wrangler deploy` to deploy to production
+     - Test deployed endpoints: `/`, `/create`, `/join/:code`
+     - Run `npm run logs:check` to check for errors in logs
+   - Verify all M2 endpoints work correctly
    - Test WebSocket connections if applicable
 
-6. **Check Cloudflare logs**
-
-   - Run `npm run logs:check` to automatically check logs for errors (recommended)
-   - Or manually run `npm run logs` to tail logs in real-time
-   - Check for errors, warnings, or unexpected behavior in Workers
-   - Check Durable Object logs for game simulation issues
-   - Verify WebSocket connections are being handled correctly
-   - Look for any runtime errors or exceptions
-   - Note: The automated check runs for 10 seconds and reports any errors found
-
-7. **Documentation updates**
+4. **Documentation updates**
 
    - Update `README.md`, `TEST-PLAN.md` and `SPEC.md` if needed
    - Document any new features or changes
 
-8. **Commit and push**
+5. **Commit and push**
    - Only commit and push after all above steps succeed
    - Use descriptive commit messages

@@ -10,8 +10,10 @@
     "clippy": "cargo clippy --workspace -- -D warnings",
     "test": "cargo test --workspace",
     "test:game_core": "cargo test --package game_core",
+    "test:all": "./scripts/test-all.sh",
     "dev": "wrangler dev",
     "deploy": "wrangler publish",
+    "deploy:test": "./scripts/deploy-test.sh",
     "logs": "wrangler tail iso --format pretty",
     "logs:check": "./scripts/check-logs.sh 10"
   },
