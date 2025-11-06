@@ -48,9 +48,81 @@ async fn handle_index(_req: Request, _ctx: RouteContext<()>) -> Result<Response>
         </div>
     </div>
     <script type="module">
-        // Note: Client WASM needs to be built and served
-        // For now, this is a placeholder
-        document.getElementById('status').textContent = 'Client WASM not yet built. Run: wasm-pack build --target web --out-dir ../worker/pkg/client_wasm client_wasm';
+        import init, { init_client, connect_websocket, send_join, send_input, render_frame, handle_websocket_message } from './pkg/client_wasm.js';
+
+        let clientInitialized = false;
+        let ws = null;
+        let inputState = { thrust: 0, turn: 0, bolt: 0, shield: 0 };
+
+        async function main() {
+            try {
+                await init();
+                updateStatus('WASM loaded');
+                const canvas = document.getElementById('canvas');
+                if (!canvas) throw new Error('Canvas not found');
+                await init_client(canvas);
+                clientInitialized = true;
+                updateStatus('Client initialized - Ready to join');
+                setupInputHandlers();
+                startRenderLoop();
+            } catch (error) {
+                console.error('Error:', error);
+                updateStatus('Error: ' + error.message);
+            }
+        }
+
+        function updateStatus(msg) {
+            const el = document.getElementById('status');
+            if (el) el.textContent = msg;
+            console.log('Status:', msg);
+        }
+
+        function setupInputHandlers() {
+            const keys = new Set();
+            window.addEventListener('keydown', (e) => { keys.add(e.key.toLowerCase()); updateInputState(keys); });
+            window.addEventListener('keyup', (e) => { keys.delete(e.key.toLowerCase()); updateInputState(keys); });
+            setInterval(() => {
+                if (ws && ws.readyState === WebSocket.OPEN && clientInitialized) {
+                    try { send_input(inputState.thrust, inputState.turn, inputState.bolt, inputState.shield); } 
+                    catch (e) { console.error('Send input error:', e); }
+                }
+            }, 16);
+        }
+
+        function updateInputState(keys) {
+            inputState.thrust = keys.has('w') ? 1 : keys.has('s') ? -1 : 0;
+            inputState.turn = keys.has('a') ? -1 : keys.has('d') ? 1 : 0;
+            inputState.bolt = keys.has('1') ? 1 : keys.has('2') ? 2 : keys.has('3') ? 3 : 0;
+            inputState.shield = keys.has('q') ? 1 : keys.has('e') ? 2 : keys.has('r') ? 3 : 0;
+        }
+
+        function startRenderLoop() {
+            function render() {
+                if (clientInitialized) {
+                    try { render_frame(); } catch (e) { console.error('Render error:', e); }
+                }
+                requestAnimationFrame(render);
+            }
+            render();
+        }
+
+        window.joinMatch = async function() {
+            const code = document.getElementById('matchCode').value.trim().toUpperCase();
+            if (code.length !== 5) { updateStatus('Match code must be 5 characters'); return; }
+            if (!clientInitialized) { updateStatus('Client not initialized'); return; }
+            try {
+                document.getElementById('joinBtn').disabled = true;
+                updateStatus('Connecting...');
+                // Note: WebSocket URL needs to be constructed properly for Cloudflare Workers
+                // For now, this is a placeholder - actual connection logic needed
+                updateStatus('WebSocket connection not yet implemented for browser client');
+            } catch (error) {
+                updateStatus('Error: ' + error.message);
+                document.getElementById('joinBtn').disabled = false;
+            }
+        };
+
+        main();
     </script>
 </body>
 </html>"#;
