@@ -215,7 +215,7 @@ impl Mesh {
     pub fn new(device: &Device, queue: &Queue, vertices: &[Vertex], indices: &[u16]) -> Self {
         let vertex_buffer = device.create_buffer(&BufferDescriptor {
             label: Some("Vertex Buffer"),
-            size: (vertices.len() * std::mem::size_of::<Vertex>()) as u64,
+            size: std::mem::size_of_val(vertices) as u64,
             usage: BufferUsages::VERTEX | BufferUsages::COPY_DST,
             mapped_at_creation: false,
         });
@@ -223,7 +223,7 @@ impl Mesh {
 
         let index_buffer = device.create_buffer(&BufferDescriptor {
             label: Some("Index Buffer"),
-            size: (indices.len() * std::mem::size_of::<u16>()) as u64,
+            size: std::mem::size_of_val(indices) as u64,
             usage: BufferUsages::INDEX | BufferUsages::COPY_DST,
             mapped_at_creation: false,
         });
