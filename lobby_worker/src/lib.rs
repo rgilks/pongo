@@ -11,6 +11,7 @@ pub async fn main(req: Request, env: Env, _ctx: worker::Context) -> Result<Respo
         .get_async("/", handle_index)
         .get_async("/create", handle_create)
         .get_async("/join/:code", handle_join)
+        .get_async("/ws/:code", handle_websocket)
         .run(req, env)
         .await
 }
@@ -48,7 +49,7 @@ async fn handle_index(_req: Request, _ctx: RouteContext<()>) -> Result<Response>
         </div>
     </div>
     <script type="module">
-        import init, { init_client, connect_websocket, send_join, send_input, render_frame, handle_websocket_message } from './pkg/client_wasm.js';
+        import init, { init_client, connect_websocket, prepare_join, prepare_input, render_frame, handle_websocket_message } from '/client_wasm/client_wasm.js';
 
         let clientInitialized = false;
         let ws = null;
@@ -83,7 +84,12 @@ async fn handle_index(_req: Request, _ctx: RouteContext<()>) -> Result<Response>
             window.addEventListener('keyup', (e) => { keys.delete(e.key.toLowerCase()); updateInputState(keys); });
             setInterval(() => {
                 if (ws && ws.readyState === WebSocket.OPEN && clientInitialized) {
-                    try { send_input(inputState.thrust, inputState.turn, inputState.bolt, inputState.shield); } 
+                    try { 
+                        const inputBytes = prepare_input(inputState.thrust, inputState.turn, inputState.bolt, inputState.shield);
+                        if (inputBytes && ws.readyState === WebSocket.OPEN) {
+                            ws.send(inputBytes);
+                        }
+                    } 
                     catch (e) { console.error('Send input error:', e); }
                 }
             }, 16);
@@ -112,10 +118,53 @@ async fn handle_index(_req: Request, _ctx: RouteContext<()>) -> Result<Response>
             if (!clientInitialized) { updateStatus('Client not initialized'); return; }
             try {
                 document.getElementById('joinBtn').disabled = true;
-                updateStatus('Connecting...');
-                // Note: WebSocket URL needs to be constructed properly for Cloudflare Workers
-                // For now, this is a placeholder - actual connection logic needed
-                updateStatus('WebSocket connection not yet implemented for browser client');
+                updateStatus('Connecting to match...');
+                
+                // Construct WebSocket URL
+                const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+                const wsUrl = `${protocol}//${window.location.host}/ws/${code}`;
+                
+                // Create WebSocket connection
+                ws = new WebSocket(wsUrl);
+                
+                ws.onopen = () => {
+                    updateStatus('Connected! Sending join message...');
+                    // Send join message via WASM
+                    try {
+                        connect_websocket(wsUrl); // Register with WASM client
+                        const joinBytes = prepare_join(code, 0, 0); // avatar=0, name_id=0
+                        if (joinBytes && ws.readyState === WebSocket.OPEN) {
+                            ws.send(joinBytes);
+                            updateStatus('Joined match! Waiting for game state...');
+                        }
+                    } catch (e) {
+                        console.error('Join error:', e);
+                        updateStatus('Error joining: ' + e.message);
+                    }
+                };
+                
+                ws.onmessage = (event) => {
+                    if (event.data instanceof ArrayBuffer) {
+                        const bytes = new Uint8Array(event.data);
+                        try {
+                            handle_websocket_message(bytes);
+                        } catch (e) {
+                            console.error('Message handling error:', e);
+                        }
+                    }
+                };
+                
+                ws.onerror = (error) => {
+                    console.error('WebSocket error:', error);
+                    updateStatus('WebSocket connection error');
+                    document.getElementById('joinBtn').disabled = false;
+                };
+                
+                ws.onclose = () => {
+                    updateStatus('Connection closed');
+                    document.getElementById('joinBtn').disabled = false;
+                };
+                
             } catch (error) {
                 updateStatus('Error: ' + error.message);
                 document.getElementById('joinBtn').disabled = false;
@@ -156,12 +205,37 @@ async fn handle_join(_req: Request, ctx: RouteContext<()>) -> Result<Response> {
     // Get DO stub by name (this creates the DO if it doesn't exist)
     let _stub = match_do.get_by_name(code)?;
 
-    // For now, return a simple response indicating the match exists
-    // WebSocket connections should be made directly to the DO
+    // Return response with WebSocket URL
     Response::ok(format!(
-        "Match {} found. Connect via WebSocket to join.",
-        code
+        "Match {} found. Connect via WebSocket at /ws/{}",
+        code, code
     ))
+}
+
+async fn handle_websocket(req: Request, ctx: RouteContext<()>) -> Result<Response> {
+    let code = ctx.param("code").map_or("", |v| v);
+
+    if code.is_empty() || code.len() != 5 {
+        return Response::error("Invalid match code", 400);
+    }
+
+    // Check if this is a WebSocket upgrade request
+    let upgrade_header = req.headers().get("Upgrade")?;
+
+    if upgrade_header == Some("websocket".to_string()) {
+        // Create WebSocket pair in Worker
+        // Note: Proper WebSocket forwarding to DO requires DO's State
+        // For now, we create the pair here and will bridge messages
+        let pair = WebSocketPair::new()?;
+        let client = pair.client;
+
+        // TODO: Bridge server WebSocket to DO
+        // For now, return client WebSocket to test browser connection
+        // Messages will need to be forwarded to DO in websocket_message handler
+        Ok(Response::from_websocket(client)?)
+    } else {
+        Response::error("Expected WebSocket upgrade", 400)
+    }
 }
 
 /// Generate a random 5-character match code (A-Z, 0-9)

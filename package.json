@@ -14,8 +14,8 @@
     "build:client": "cd client_wasm && wasm-pack build --target web --out-dir ../worker/pkg/client_wasm",
     "build:server": "wasm-pack build --target web --out-dir worker/pkg lobby_worker",
     "build": "npm run build:server && npm run build:client",
-    "dev": "wrangler dev",
-    "deploy": "wrangler publish",
+    "dev": "npx wrangler dev --assets worker/pkg",
+    "deploy": "npx wrangler publish",
     "deploy:test": "./scripts/deploy-test.sh",
     "logs": "wrangler tail iso --format pretty",
     "logs:check": "./scripts/check-logs.sh 10"

@@ -15,7 +15,7 @@ use mesh::{create_cube, create_ground_quad, create_sphere, Mesh};
 use proto::{dequantize_pos, dequantize_yaw, PlayerP, C2S, S2C};
 use std::collections::HashMap;
 use wasm_bindgen::prelude::*;
-use web_sys::{HtmlCanvasElement, WebSocket};
+use web_sys::HtmlCanvasElement;
 use wgpu::*;
 
 /// Game state data for a single player
@@ -93,8 +93,7 @@ pub struct Client {
     player_instance_buffer: Buffer,
     bolt_instance_buffer: Buffer,
     max_instances: usize,
-    // Network
-    ws: Option<WebSocket>,
+    // Network (WebSocket managed in JavaScript)
     player_id: Option<u16>,
     game_state: GameState,
     input_seq: u32,
@@ -409,7 +408,6 @@ impl Client {
             player_instance_buffer,
             bolt_instance_buffer,
             max_instances,
-            ws: None,
             player_id: None,
             game_state: GameState::new(),
             input_seq: 0,
@@ -558,16 +556,11 @@ impl Client {
         Ok(())
     }
 
-    /// Connect to server WebSocket
-    pub fn connect_websocket(&mut self, url: &str) -> Result<(), JsValue> {
-        let ws = WebSocket::new(url)
-            .map_err(|e| JsValue::from_str(&format!("Failed to create WebSocket: {:?}", e)))?;
-
-        ws.set_binary_type(web_sys::BinaryType::Arraybuffer);
-
-        // Set up message handler - will be handled via JavaScript callback
-        // The actual message handling will be done via handle_websocket_message() called from JS
-        self.ws = Some(ws);
+    /// Connect to server WebSocket (called from JS, WebSocket managed in JS)
+    pub fn connect_websocket(&mut self, _url: &str) -> Result<(), JsValue> {
+        // WebSocket is created and managed in JavaScript
+        // This function just marks that we're ready to receive messages
+        // The actual WebSocket connection is handled in the HTML/JS code
         Ok(())
     }
 
@@ -668,71 +661,60 @@ impl Client {
         }
     }
 
-    /// Send input to server
-    pub fn send_input(
+    /// Prepare input message bytes (JavaScript will send via WebSocket)
+    pub fn prepare_input(
         &mut self,
         thrust: f32,
         turn: f32,
         bolt: u8,
         shield: u8,
-    ) -> Result<(), JsValue> {
-        if let Some(ws) = &self.ws {
-            if ws.ready_state() == WebSocket::OPEN {
-                self.input_seq += 1;
-                let t_ms = web_sys::window()
-                    .and_then(|w| w.performance())
-                    .map(|p| p.now() as u32)
-                    .unwrap_or(0);
+    ) -> Result<Vec<u8>, JsValue> {
+        self.input_seq += 1;
+        let t_ms = web_sys::window()
+            .and_then(|w| w.performance())
+            .map(|p| p.now() as u32)
+            .unwrap_or(0);
 
-                let thrust_i8 = (thrust.clamp(-1.0, 1.0) * 127.0) as i8;
-                let turn_i8 = (turn.clamp(-1.0, 1.0) * 127.0) as i8;
+        let thrust_i8 = (thrust.clamp(-1.0, 1.0) * 127.0) as i8;
+        let turn_i8 = (turn.clamp(-1.0, 1.0) * 127.0) as i8;
 
-                let input_msg = C2S::Input {
-                    seq: self.input_seq,
-                    t_ms,
-                    thrust_i8,
-                    turn_i8,
-                    bolt: bolt.min(3),
-                    shield: shield.min(3),
-                };
+        let input_msg = C2S::Input {
+            seq: self.input_seq,
+            t_ms,
+            thrust_i8,
+            turn_i8,
+            bolt: bolt.min(3),
+            shield: shield.min(3),
+        };
 
-                let bytes = input_msg.to_bytes().map_err(|e| {
-                    JsValue::from_str(&format!("Failed to serialize input: {:?}", e))
-                })?;
-
-                ws.send_with_u8_array(&bytes)
-                    .map_err(|e| JsValue::from_str(&format!("Failed to send input: {:?}", e)))?;
-            }
-        }
-        Ok(())
+        input_msg
+            .to_bytes()
+            .map_err(|e| JsValue::from_str(&format!("Failed to serialize input: {:?}", e)))
     }
 
-    /// Send join message
-    pub fn send_join(&mut self, code: &str, avatar: u8, name_id: u8) -> Result<(), JsValue> {
-        if let Some(ws) = &self.ws {
-            if ws.ready_state() == WebSocket::OPEN {
-                let code_bytes = code.as_bytes();
-                if code_bytes.len() != 5 {
-                    return Err(JsValue::from_str("Match code must be 5 characters"));
-                }
-                let mut code_array = [0u8; 5];
-                code_array.copy_from_slice(code_bytes);
-
-                let join_msg = C2S::Join {
-                    code: code_array,
-                    avatar,
-                    name_id,
-                };
-
-                let bytes = join_msg.to_bytes().map_err(|e| {
-                    JsValue::from_str(&format!("Failed to serialize join: {:?}", e))
-                })?;
-
-                ws.send_with_u8_array(&bytes)
-                    .map_err(|e| JsValue::from_str(&format!("Failed to send join: {:?}", e)))?;
-            }
+    /// Prepare join message bytes (JavaScript will send via WebSocket)
+    pub fn prepare_join(
+        &mut self,
+        code: &str,
+        avatar: u8,
+        name_id: u8,
+    ) -> Result<Vec<u8>, JsValue> {
+        let code_bytes = code.as_bytes();
+        if code_bytes.len() != 5 {
+            return Err(JsValue::from_str("Match code must be 5 characters"));
         }
-        Ok(())
+        let mut code_array = [0u8; 5];
+        code_array.copy_from_slice(code_bytes);
+
+        let join_msg = C2S::Join {
+            code: code_array,
+            avatar,
+            name_id,
+        };
+
+        join_msg
+            .to_bytes()
+            .map_err(|e| JsValue::from_str(&format!("Failed to serialize join: {:?}", e)))
     }
 }
 
@@ -766,10 +748,10 @@ pub fn connect_websocket(url: &str) -> Result<(), JsValue> {
 }
 
 #[wasm_bindgen]
-pub fn send_join(code: &str, avatar: u8, name_id: u8) -> Result<(), JsValue> {
+pub fn prepare_join(code: &str, avatar: u8, name_id: u8) -> Result<Vec<u8>, JsValue> {
     unsafe {
         if let Some(ref mut client) = CLIENT {
-            client.send_join(code, avatar, name_id)
+            client.prepare_join(code, avatar, name_id)
         } else {
             Err(JsValue::from_str("Client not initialized"))
         }
@@ -777,10 +759,10 @@ pub fn send_join(code: &str, avatar: u8, name_id: u8) -> Result<(), JsValue> {
 }
 
 #[wasm_bindgen]
-pub fn send_input(thrust: f32, turn: f32, bolt: u8, shield: u8) -> Result<(), JsValue> {
+pub fn prepare_input(thrust: f32, turn: f32, bolt: u8, shield: u8) -> Result<Vec<u8>, JsValue> {
     unsafe {
         if let Some(ref mut client) = CLIENT {
-            client.send_input(thrust, turn, bolt, shield)
+            client.prepare_input(thrust, turn, bolt, shield)
         } else {
             Err(JsValue::from_str("Client not initialized"))
         }
