@@ -150,15 +150,15 @@ iso/
 ```toml
 # wrangler.toml
 name = "iso"
-main = "build/worker/shim.mjs"
-compatibility_date = "2025-11-06"
+main = "worker/index.js"
+compatibility_date = "2024-01-01"
 
 [durable_objects]
-bindings = [{ name = "MATCH", class_name = "Match" }]
+bindings = [{ name = "MATCH", class_name = "MatchDO" }]
 
 [[migrations]]
 tag = "v1"
-new_classes = ["Match"]
+new_sqlite_classes = ["MatchDO"]
 ```
 
 ---

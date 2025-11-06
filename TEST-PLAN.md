@@ -75,6 +75,6 @@ Run with `cargo test --workspace`:
 - ✅ Energy drain
 - ✅ Health damage
 - ✅ Eliminations
-- ⚠️ Pickup collection (edge case)
-- ⚠️ Hill scoring (edge case)
+- ✅ Pickup collection
+- ✅ Hill scoring
 
