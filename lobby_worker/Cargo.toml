@@ -1,0 +1,10 @@
+[package]
+name = "lobby_worker"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+
+# [dependencies]
+# worker = "0.1"  # To be added in M2
+

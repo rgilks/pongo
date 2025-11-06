@@ -1,0 +1,12 @@
+[package]
+name = "server_do"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+
+[dependencies]
+# worker = "0.1"  # To be added in M2
+game_core = { path = "../game_core" }
+proto = { path = "../proto" }
+

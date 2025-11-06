@@ -1,0 +1,9 @@
+(function() {
+    var implementors = Object.fromEntries([["hecs",[["impl <a class=\"trait\" href=\"https://doc.rust-lang.org/1.87.0/core/marker/trait.Copy.html\" title=\"trait core::marker::Copy\">Copy</a> for <a class=\"enum\" href=\"hecs/enum.Access.html\" title=\"enum hecs::Access\">Access</a>"],["impl <a class=\"trait\" href=\"https://doc.rust-lang.org/1.87.0/core/marker/trait.Copy.html\" title=\"trait core::marker::Copy\">Copy</a> for <a class=\"struct\" href=\"hecs/struct.ArchetypesGeneration.html\" title=\"struct hecs::ArchetypesGeneration\">ArchetypesGeneration</a>"],["impl <a class=\"trait\" href=\"https://doc.rust-lang.org/1.87.0/core/marker/trait.Copy.html\" title=\"trait core::marker::Copy\">Copy</a> for <a class=\"struct\" href=\"hecs/struct.Entity.html\" title=\"struct hecs::Entity\">Entity</a>"],["impl&lt;'a&gt; <a class=\"trait\" href=\"https://doc.rust-lang.org/1.87.0/core/marker/trait.Copy.html\" title=\"trait core::marker::Copy\">Copy</a> for <a class=\"struct\" href=\"hecs/struct.EntityRef.html\" title=\"struct hecs::EntityRef\">EntityRef</a>&lt;'a&gt;"],["impl&lt;L: <a class=\"trait\" href=\"https://doc.rust-lang.org/1.87.0/core/marker/trait.Copy.html\" title=\"trait core::marker::Copy\">Copy</a>, R: <a class=\"trait\" href=\"https://doc.rust-lang.org/1.87.0/core/marker/trait.Copy.html\" title=\"trait core::marker::Copy\">Copy</a>&gt; <a class=\"trait\" href=\"https://doc.rust-lang.org/1.87.0/core/marker/trait.Copy.html\" title=\"trait core::marker::Copy\">Copy</a> for <a class=\"enum\" href=\"hecs/enum.Or.html\" title=\"enum hecs::Or\">Or</a>&lt;L, R&gt;"]]]]);
+    if (window.register_implementors) {
+        window.register_implementors(implementors);
+    } else {
+        window.pending_implementors = implementors;
+    }
+})()
+//{"start":57,"fragment_lengths":[1549]}

@@ -1,0 +1,9 @@
+(function() {
+    var implementors = Object.fromEntries([["hecs",[["impl <a class=\"trait\" href=\"https://doc.rust-lang.org/1.87.0/core/error/trait.Error.html\" title=\"trait core::error::Error\">Error</a> for <a class=\"enum\" href=\"hecs/enum.ComponentError.html\" title=\"enum hecs::ComponentError\">ComponentError</a>"],["impl <a class=\"trait\" href=\"https://doc.rust-lang.org/1.87.0/core/error/trait.Error.html\" title=\"trait core::error::Error\">Error</a> for <a class=\"enum\" href=\"hecs/enum.QueryOneError.html\" title=\"enum hecs::QueryOneError\">QueryOneError</a>"],["impl <a class=\"trait\" href=\"https://doc.rust-lang.org/1.87.0/core/error/trait.Error.html\" title=\"trait core::error::Error\">Error</a> for <a class=\"struct\" href=\"hecs/struct.BatchIncomplete.html\" title=\"struct hecs::BatchIncomplete\">BatchIncomplete</a>"],["impl <a class=\"trait\" href=\"https://doc.rust-lang.org/1.87.0/core/error/trait.Error.html\" title=\"trait core::error::Error\">Error</a> for <a class=\"struct\" href=\"hecs/struct.MissingComponent.html\" title=\"struct hecs::MissingComponent\">MissingComponent</a>"],["impl <a class=\"trait\" href=\"https://doc.rust-lang.org/1.87.0/core/error/trait.Error.html\" title=\"trait core::error::Error\">Error</a> for <a class=\"struct\" href=\"hecs/struct.NoSuchEntity.html\" title=\"struct hecs::NoSuchEntity\">NoSuchEntity</a>"]]]]);
+    if (window.register_implementors) {
+        window.register_implementors(implementors);
+    } else {
+        window.pending_implementors = implementors;
+    }
+})()
+//{"start":57,"fragment_lengths":[1323]}

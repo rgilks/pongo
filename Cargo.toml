@@ -1,0 +1,16 @@
+[workspace]
+members = [
+    "game_core",
+    "proto",
+    "client_wasm",
+    "server_do",
+    "lobby_worker",
+]
+resolver = "2"
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+authors = ["ISO Team"]
+license = "MIT"
+
