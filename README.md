@@ -108,7 +108,6 @@ cargo test --package proto      # Protocol serialization
 - **Test Plan**: `TEST-PLAN.md` - Manual and automated test procedures
 - **Deployment**: See "Deploy and test" section above, or `DEPLOY.md` for detailed steps
 - **WebGPU Research**: `WEBGPU_RESEARCH.md` - Historical notes on WebGPU surface creation
-- **Automation Ideas**: `AUTOMATION-IDEAS.md` - Workflow automation suggestions
 
 ## License
 
