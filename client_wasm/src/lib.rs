@@ -15,8 +15,7 @@ use mesh::{create_cube, create_ground_quad, create_sphere, Mesh};
 use proto::{dequantize_pos, dequantize_yaw, PlayerP, C2S, S2C};
 use std::collections::HashMap;
 use wasm_bindgen::prelude::*;
-use wasm_bindgen::JsCast;
-use web_sys::{HtmlCanvasElement, MessageEvent, WebSocket};
+use web_sys::{HtmlCanvasElement, WebSocket};
 use wgpu::*;
 
 /// Game state data for a single player
@@ -40,6 +39,14 @@ struct BoltData {
 struct PickupData {
     pos: [f32; 2],
     kind: u8,
+}
+
+/// Instance data for rendering (matches shader InstanceData)
+#[repr(C)]
+#[derive(Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
+struct Instance {
+    transform: [f32; 4], // x, y, scale, rotation
+    tint: [f32; 4],      // rgba
 }
 
 /// Game state tracking
@@ -82,6 +89,10 @@ pub struct Client {
     light_buffer: Buffer,
     light_count_buffer: Buffer,
     light_bind_group: BindGroup,
+    // Instance buffers
+    player_instance_buffer: Buffer,
+    bolt_instance_buffer: Buffer,
+    max_instances: usize,
     // Network
     ws: Option<WebSocket>,
     player_id: Option<u16>,
@@ -97,17 +108,17 @@ impl Client {
         let height = canvas.height();
 
         // Create instance with web backend
-        let instance = Instance::default();
+        let wgpu_instance = wgpu::Instance::default();
 
         // Create surface from canvas
         // Based on geno-1: wgpu::SurfaceTarget::Canvas(canvas.clone())
         // The "webgpu" feature + wasm32 target enables SurfaceTarget::Canvas variant
-        let surface = instance
+        let surface = wgpu_instance
             .create_surface(wgpu::SurfaceTarget::Canvas(canvas.clone()))
             .map_err(|e| JsValue::from_str(&format!("Failed to create surface: {:?}", e)))?;
 
         // Request adapter
-        let adapter = instance
+        let adapter = wgpu_instance
             .request_adapter(&RequestAdapterOptions {
                 power_preference: PowerPreference::default(),
                 compatible_surface: Some(&surface),
@@ -290,7 +301,25 @@ impl Client {
             push_constant_ranges: &[],
         });
 
-        // Create vertex buffer layout
+        // Create instance buffers (for players and bolts)
+        let max_instances = 64; // Support up to 64 players/bolts
+        let instance_buffer_size = (max_instances * std::mem::size_of::<Instance>()) as u64;
+
+        let player_instance_buffer = device.create_buffer(&BufferDescriptor {
+            label: Some("Player Instance Buffer"),
+            size: instance_buffer_size,
+            usage: BufferUsages::VERTEX | BufferUsages::COPY_DST,
+            mapped_at_creation: false,
+        });
+
+        let bolt_instance_buffer = device.create_buffer(&BufferDescriptor {
+            label: Some("Bolt Instance Buffer"),
+            size: instance_buffer_size,
+            usage: BufferUsages::VERTEX | BufferUsages::COPY_DST,
+            mapped_at_creation: false,
+        });
+
+        // Create vertex buffer layouts (vertex + instance data)
         let vertex_buffer_layout = VertexBufferLayout {
             array_stride: std::mem::size_of::<mesh::Vertex>() as u64,
             step_mode: VertexStepMode::Vertex,
@@ -308,6 +337,23 @@ impl Client {
             ],
         };
 
+        let instance_buffer_layout = VertexBufferLayout {
+            array_stride: std::mem::size_of::<Instance>() as u64,
+            step_mode: VertexStepMode::Instance,
+            attributes: &[
+                VertexAttribute {
+                    offset: 0,
+                    shader_location: 2,
+                    format: VertexFormat::Float32x4, // transform
+                },
+                VertexAttribute {
+                    offset: std::mem::size_of::<[f32; 4]>() as u64,
+                    shader_location: 3,
+                    format: VertexFormat::Float32x4, // tint
+                },
+            ],
+        };
+
         // Create render pipeline
         let render_pipeline = device.create_render_pipeline(&RenderPipelineDescriptor {
             label: Some("Render Pipeline"),
@@ -315,7 +361,7 @@ impl Client {
             vertex: VertexState {
                 module: &shader,
                 entry_point: Some("vs_main"),
-                buffers: &[vertex_buffer_layout],
+                buffers: &[vertex_buffer_layout, instance_buffer_layout],
                 compilation_options: PipelineCompilationOptions::default(),
             },
             fragment: Some(FragmentState {
@@ -360,6 +406,9 @@ impl Client {
             light_buffer,
             light_count_buffer,
             light_bind_group,
+            player_instance_buffer,
+            bolt_instance_buffer,
+            max_instances,
             ws: None,
             player_id: None,
             game_state: GameState::new(),
@@ -386,8 +435,49 @@ impl Client {
         }
     }
 
+    /// Update instance buffers from game state
+    fn update_instance_buffers(&mut self) {
+        // Update player instances
+        let mut player_instances = Vec::new();
+        for player in self.game_state.players.values() {
+            player_instances.push(Instance {
+                transform: [player.pos[0], player.pos[1], 0.6, player.yaw], // x, y, scale (player radius), rotation
+                tint: [1.0, 0.5, 0.5, 1.0],                                 // Red tint for players
+            });
+        }
+        if !player_instances.is_empty() {
+            let instance_data = bytemuck::cast_slice(&player_instances);
+            self.queue
+                .write_buffer(&self.player_instance_buffer, 0, instance_data);
+        }
+
+        // Update bolt instances
+        let mut bolt_instances = Vec::new();
+        for bolt in self.game_state.bolts.values() {
+            // Bolt color based on level (L1=blue, L2=cyan, L3=white)
+            let (r, g, b) = match bolt.level {
+                1 => (0.2, 0.5, 1.0),
+                2 => (0.0, 1.0, 1.0),
+                3 => (1.0, 1.0, 1.0),
+                _ => (0.5, 0.5, 0.5),
+            };
+            bolt_instances.push(Instance {
+                transform: [bolt.pos[0], bolt.pos[1], bolt.radius, 0.0], // x, y, scale (radius), no rotation
+                tint: [r, g, b, 1.0],
+            });
+        }
+        if !bolt_instances.is_empty() {
+            let instance_data = bytemuck::cast_slice(&bolt_instances);
+            self.queue
+                .write_buffer(&self.bolt_instance_buffer, 0, instance_data);
+        }
+    }
+
     /// Render a frame
     pub fn render(&mut self) -> Result<(), JsValue> {
+        // Update instance buffers from game state
+        self.update_instance_buffers();
+
         let output = self
             .surface
             .get_current_texture()
@@ -431,11 +521,35 @@ impl Client {
             render_pass.set_bind_group(0, &self.camera_bind_group, &[]);
             render_pass.set_bind_group(1, &self.light_bind_group, &[]);
 
-            // Draw ground quad
+            // Draw ground quad (non-instanced)
             render_pass.set_vertex_buffer(0, self.ground_mesh.vertex_buffer.slice(..));
             render_pass
                 .set_index_buffer(self.ground_mesh.index_buffer.slice(..), IndexFormat::Uint16);
             render_pass.draw_indexed(0..self.ground_mesh.index_count, 0, 0..1);
+
+            // Draw players as instanced spheres
+            let player_count = self.game_state.players.len().min(self.max_instances);
+            if player_count > 0 {
+                render_pass.set_vertex_buffer(0, self.sphere_mesh.vertex_buffer.slice(..));
+                render_pass.set_vertex_buffer(1, self.player_instance_buffer.slice(..));
+                render_pass
+                    .set_index_buffer(self.sphere_mesh.index_buffer.slice(..), IndexFormat::Uint16);
+                render_pass.draw_indexed(
+                    0..self.sphere_mesh.index_count,
+                    0,
+                    0..player_count as u32,
+                );
+            }
+
+            // Draw bolts as instanced spheres
+            let bolt_count = self.game_state.bolts.len().min(self.max_instances);
+            if bolt_count > 0 {
+                render_pass.set_vertex_buffer(0, self.sphere_mesh.vertex_buffer.slice(..));
+                render_pass.set_vertex_buffer(1, self.bolt_instance_buffer.slice(..));
+                render_pass
+                    .set_index_buffer(self.sphere_mesh.index_buffer.slice(..), IndexFormat::Uint16);
+                render_pass.draw_indexed(0..self.sphere_mesh.index_count, 0, 0..bolt_count as u32);
+            }
         }
 
         self.queue.submit(std::iter::once(encoder.finish()));
