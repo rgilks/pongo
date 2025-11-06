@@ -1,0 +1,6 @@
+# Example environment variables for local development
+# Copy this to .dev.vars and fill in your values
+# .dev.vars is gitignored
+
+# Add any environment variables needed for development here
+

@@ -26,3 +26,8 @@ build/
 *.wasm
 *.js.map
 
+# Cloudflare
+.dev.vars
+.wrangler/
+worker/
+
