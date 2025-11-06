@@ -36,12 +36,12 @@ alwaysApply: true
      - Run `cargo clippy --workspace -- -D warnings` and fix all warnings/errors
      - Run `cargo test --workspace` and ensure all tests pass
 
-3. **Local testing (TEST-PLAN.md)**
+2. **Local testing (TEST-PLAN.md)**
 
    - Follow `TEST-PLAN.md` for manual/local testing
    - Test relevant endpoints and functionality locally if possible
 
-4. **Deploy, test, and check logs** (automated)
+3. **Deploy, test, and check logs** (automated)
 
    - Run `npm run deploy:test` to deploy, test endpoints, and check logs automatically
    - Or manually:
