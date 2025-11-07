@@ -498,6 +498,18 @@ impl Client {
 
     /// Update camera uniform buffer
     fn update_camera_buffer(&mut self) {
+        // Make camera follow the player if we have one
+        if let Some(player_id) = self.player_id {
+            if let Some(player_data) = self.game_state.players.get(&player_id) {
+                // Update camera to follow player (convert 2D pos to 3D, Y=0 for ground level)
+                self.camera.set_target(glam::Vec3::new(
+                    player_data.pos[0],
+                    0.0,
+                    player_data.pos[1],
+                ));
+            }
+        }
+
         let camera_uniform = CameraUniform::from_camera(&self.camera);
         self.queue
             .write_buffer(&self.camera_buffer, 0, bytemuck::bytes_of(&camera_uniform));

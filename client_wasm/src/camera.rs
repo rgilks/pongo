@@ -41,11 +41,13 @@ impl Camera {
 
         // Calculate eye position based on pitch and distance
         // For isometric view, we want to look down at an angle
-        let yaw_offset_f32: f32 = yaw_offset;
+        // Note: In isometric view, we typically look from a 45° angle around the target
+        // Using standard isometric angles: 30° elevation, 45° rotation around Y
+        let iso_angle = 45.0_f32.to_radians(); // 45° rotation around Y axis
         let eye = Vec3::new(
-            distance * pitch.cos() * yaw_offset_f32.cos(),
+            distance * pitch.cos() * iso_angle.cos(),
             distance * pitch.sin(),
-            distance * pitch.cos() * yaw_offset_f32.sin(),
+            distance * pitch.cos() * iso_angle.sin(),
         );
 
         Self {
@@ -77,6 +79,20 @@ impl Camera {
             self.distance * self.pitch.sin(),
             self.distance * self.pitch.cos() * yaw_offset.sin(),
         );
+    }
+
+    /// Update camera to follow a target position (for player following)
+    pub fn set_target(&mut self, target: Vec3) {
+        self.target = target;
+        // Recalculate eye position relative to new target
+        // Use same isometric angle as initial setup (45° rotation around Y)
+        let iso_angle = 45.0_f32.to_radians();
+        self.eye = target
+            + Vec3::new(
+                self.distance * self.pitch.cos() * iso_angle.cos(),
+                self.distance * self.pitch.sin(),
+                self.distance * self.pitch.cos() * iso_angle.sin(),
+            );
     }
 
     /// Get view matrix (world to camera space)
