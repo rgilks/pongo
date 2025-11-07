@@ -224,14 +224,27 @@ async fn handle_websocket(req: Request, ctx: RouteContext<()>) -> Result<Respons
     let do_id = match_do.id_from_name(code)?;
     let stub = do_id.get_stub()?;
 
-    // CRITICAL: Forward the ORIGINAL request object directly to the DO
-    // Do NOT read the body, do NOT modify headers, do NOT construct a new Request
-    // The DO will handle the WebSocket upgrade and return a 101 response
-    //
-    // MOST IMPORTANT: Return the DO response DIRECTLY without any modification
-    // Do NOT wrap it, do NOT add headers, do NOT check status - just return it as-is
-    // Any modification of the 101 response will drop the WebSocket and cause a 500 error
-    stub.fetch_with_request(req).await
+    // Forward the original Request to the DO without modification
+    match stub.fetch_with_request(req).await {
+        Ok(resp) => {
+            console_log!(
+                "Worker: DO responded to WebSocket upgrade for code {}",
+                code
+            );
+            Ok(resp)
+        }
+        Err(err) => {
+            console_error!(
+                "Worker: Error forwarding WebSocket upgrade for code {}: {:?}",
+                code,
+                err
+            );
+            Response::error(
+                format!("Worker failed to forward WebSocket request: {:?}", err),
+                500,
+            )
+        }
+    }
 }
 
 /// Generate a random 5-character match code (A-Z, 0-9)

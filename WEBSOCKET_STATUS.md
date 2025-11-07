@@ -1,14 +1,10 @@
 # WebSocket Connection Status
 
-## Current Problem
+## Current Status
 
-The WebSocket connection from the browser client to the Cloudflare Durable Object is failing with a **500 Internal Server Error** during the handshake phase.
-
-**Error in browser console:**
-```
-WebSocket connection to 'wss://iso.rob-gilks.workers.dev/ws/:code' failed: 
-Error during WebSocket handshake: Unexpected response code: 500
-```
+- ✅ Browser → Worker → Durable Object WebSocket handshake now succeeds (returns 101 Switching Protocols).
+- ✅ Client receives `Connected!` / `Joined match! Waiting for game state...` status updates.
+- 🔄 Next milestone: feed game snapshots to the client so that the renderer updates (currently waiting for game state indefinitely).
 
 ## Architecture
 
@@ -22,62 +18,86 @@ Durable Object (MatchDO)
 Browser (should receive 101 Switching Protocols)
 ```
 
-## What We've Tried
+## What Changed
 
-### 1. Initial Implementation
-- Forwarded WebSocket upgrade requests from Worker to DO
-- Added error handling and logging
-- Verified DO code structure matches Cloudflare patterns
+### 1. Diagnose the 500 error
+- Captured Worker error message: `TypeError: Cannot read properties of undefined (reading 'matchdo_new')`
+- Determined that the Durable Object was being constructed before the WASM module finished initialising.
 
-### 2. Research Findings
-Based on research, the common causes of 500 errors are:
-- **Re-wrapping the 101 response** - Any modification of the response drops the WebSocket
-- **Creating a new Request** instead of forwarding the original
-- **Dev tooling issues** - Some dev servers don't support WS upgrade passthrough
+### 2. Fixes implemented
+- Added a wrapper in `worker/index.js` that ensures `init(wasmUrl)` completes before the Durable Object class is instantiated (`MatchDOWrapper`).
+- Returned more descriptive errors from the Worker during debugging (no longer required in production, but useful for future investigations).
+- Corrected the Durable Object migration section in `wrangler.toml` to use `new_classes`.
 
-### 3. Code Fixes Applied
-- ✅ Removed all response modification/wrapping in Worker
-- ✅ Return DO response directly: `stub.fetch_with_request(req).await`
-- ✅ Simplified DO fetch handler to minimal pattern
-- ✅ Use `Response::from_websocket(client)` directly without wrapping
-- ✅ Removed status code checking that might modify response
+## Key Files (post-fix)
 
-## Current Code State
+### Worker (`worker/index.js`)
+```javascript
+import init, { fetch, MatchDO as WasmMatchDO } from "../lobby_worker/worker/pkg/lobby_worker.js";
 
-### Worker (`lobby_worker/src/lib.rs`)
+let initPromise;
+async function ensureInit() {
+  if (!initPromise) initPromise = init(wasmUrl);
+  await initPromise;
+}
+
+class MatchDOWrapper {
+  constructor(state, env) {
+    this._inner = ensureInit().then(() => new WasmMatchDO(state, env));
+  }
+
+  async fetch(req) {
+    const inner = await this._inner;
+    return inner.fetch(req);
+  }
+
+  async webSocketMessage(ws, message) {
+    const inner = await this._inner;
+    return inner.webSocketMessage(ws, message);
+  }
+
+  // ...alarm, webSocketClose, webSocketError similar...
+}
+
+export { MatchDOWrapper as MatchDO };
+```
+
+### Worker route (`lobby_worker/src/lib.rs`)
 ```rust
-async fn handle_websocket(req: Request, ctx: RouteContext<()>) -> Result<Response> {
-    let code = ctx.param("code").map_or("", |v| v);
-    if code.is_empty() || code.len() != 5 {
-        return Response::error("Invalid match code", 400);
+let match_do = ctx.env.durable_object("MATCH")?;
+let do_id = match_do.id_from_name(code)?;
+let stub = do_id.get_stub()?;
+
+match stub.fetch_with_request(req).await {
+    Ok(resp) => {
+        console_log!("Worker: DO responded to WebSocket upgrade for code {}", code);
+        Ok(resp)
     }
-
-    // Get DO stub and forward original request directly
-    let match_do = ctx.env.durable_object("MATCH")?;
-    let do_id = match_do.id_from_name(code)?;
-    let stub = do_id.get_stub()?;
-
-    // CRITICAL: Return DO response DIRECTLY without any modification
-    stub.fetch_with_request(req).await
+    Err(err) => {
+        Response::error(
+            format!("Worker failed to forward WebSocket request: {:?}", err),
+            500,
+        )
+    }
 }
 ```
 
 ### Durable Object (`server_do/src/lib.rs`)
 ```rust
-async fn fetch(&self, req: Request) -> Result<Response> {
-    match req.headers().get("Upgrade") {
-        Ok(Some(header)) if header.to_lowercase() == "websocket" => {
-            let pair = WebSocketPair::new()?;
-            let server = pair.server;
-            let client = pair.client;
-
-            // Accept WebSocket before returning response
-            self.state.accept_web_socket(&server);
-
-            // Return 101 response directly - do NOT wrap or modify
-            Response::from_websocket(client)
-        }
-        _ => Response::error("Expected WebSocket upgrade request", 426)
+match req.headers().get("Upgrade") {
+    Ok(Some(header)) if header.to_lowercase() == "websocket" => {
+        console_log!("DO: Received WebSocket upgrade request");
+        let pair = WebSocketPair::new()?;
+        self.state.accept_web_socket(&pair.server);
+        Response::from_websocket(pair.client)
+    }
+    Ok(other) => {
+        console_error!("DO: Unexpected Upgrade header state: {:?}", other);
+        Response::error("Expected WebSocket upgrade request", 426)
+    }
+    Err(err) => {
+        console_error!("DO: Failed to read Upgrade header: {:?}", err);
+        Response::error("Failed to read request headers", 500)
     }
 }
 ```
@@ -91,45 +111,11 @@ The current code matches the **known-good Rust pattern** from research:
 - ✅ Calls `accept_web_socket` before returning response
 - ✅ No response wrapping, status checking, or header modification
 
-## Possible Remaining Issues
+## Observations & Remaining Work
 
-1. **`accept_web_socket` may be panicking**
-   - The method internally uses `unwrap()`, so failures cause panics
-   - Panics would result in 500 errors
-   - Need to verify if this is the actual failure point
-
-2. **Compatibility date or configuration**
-   - May need to verify `wrangler.toml` compatibility date
-   - DO binding configuration might need adjustment
-
-3. **Missing `websocket_open` handler**
-   - Research example showed this handler
-   - May be required for proper WebSocket initialization
-   - Currently we only have `websocket_message`, `websocket_close`, `websocket_error`
-
-4. **Runtime environment differences**
-   - Testing on deployed environment (should be correct)
-   - May need to test with `wrangler dev` for detailed error messages
-
-## Next Steps
-
-1. **Test locally with `wrangler dev`**
-   - Should provide more detailed error messages
-   - Can see if `accept_web_socket` is actually being called
-   - Can verify if Upgrade header is reaching the DO
-
-2. **Add `websocket_open` handler**
-   - Implement the handler even if empty
-   - May be required for proper WebSocket lifecycle
-
-3. **Check Cloudflare logs**
-   - Use `wrangler tail` during connection attempts
-   - Look for panic messages or detailed error information
-
-4. **Verify configuration**
-   - Check `wrangler.toml` compatibility date
-   - Verify DO binding is correct
-   - Ensure no middleware is interfering
+- Worker and DO now exchange messages without runtime errors.
+- Client UI stays on "Waiting for game state..." because the server currently sends a welcome + snapshot but the renderer pipeline still expects more data plumbing (future task).
+- Logging instrumentation (`console_log!` / `console_error!`) stays in place until the snapshot/render loop is verified.
 
 ## Research References
 
@@ -146,14 +132,13 @@ The current code matches the **known-good Rust pattern** from research:
 
 ## Test Status
 
-- ✅ All unit tests passing
-- ✅ All integration tests passing
-- ✅ Code compiles without errors
-- ✅ Clippy checks pass
-- ❌ WebSocket connection still returns 500 error
+- ✅ `npm run test:all` (fmt + clippy + cargo test)
+- ✅ Manual browser verification (`/create` + `/ws/:code`) shows successful WebSocket handshake
+- ✅ Deployed version ID: `bd9117fb-228f-4703-a6bf-28c871fc9817`
+- 🔄 Pending: integrate game snapshot flow + renderer update
 
 ---
 
-**Last Updated:** 2025-11-06
-**Status:** Code structure correct, but connection still failing. Need detailed error investigation.
+**Last Updated:** 2025-11-07
+**Status:** WebSocket handshake fixed (match join succeeds). Continue with game-state synchronisation next.
 

@@ -77,31 +77,43 @@ impl DurableObject for MatchDO {
     }
 
     async fn fetch(&self, req: Request) -> Result<Response> {
-        // Check if this is a WebSocket upgrade request
-        // Note: When forwarded from Worker via fetch_with_request, the Upgrade header should be present
+        // Determine if this is a WebSocket upgrade request
         match req.headers().get("Upgrade") {
             Ok(Some(header)) if header.to_lowercase() == "websocket" => {
-                // Create WebSocket pair
-                let pair = WebSocketPair::new()?;
+                console_log!("DO: Received WebSocket upgrade request");
+
+                let pair = match WebSocketPair::new() {
+                    Ok(pair) => pair,
+                    Err(err) => {
+                        console_error!("DO: Failed to create WebSocket pair: {:?}", err);
+                        return Response::error("Failed to create WebSocket pair", 500);
+                    }
+                };
+
                 let server = pair.server;
                 let client = pair.client;
 
-                // Accept the WebSocket connection on the server side
-                // This must be called before returning the response
-                // Note: accept_web_socket may panic on failure, but we can't catch panics in async
                 #[allow(clippy::needless_borrows_for_generic_args)]
                 self.state.accept_web_socket(&server);
 
-                // CRITICAL: Use Response::from_websocket to create the 101 response
-                // Do NOT set status/headers yourself - let worker-rs build the 101
-                // This constructs a proper "Switching Protocols" response with the WebSocket
-                // Return it directly - do NOT wrap or modify
-                Response::from_websocket(client)
+                match Response::from_websocket(client) {
+                    Ok(resp) => {
+                        console_log!("DO: Returning WebSocket 101 response");
+                        Ok(resp)
+                    }
+                    Err(err) => {
+                        console_error!("DO: Failed to create WebSocket response: {:?}", err);
+                        Response::error("Failed to create WebSocket response", 500)
+                    }
+                }
             }
-            _ => {
-                // Not a WebSocket upgrade request, or header missing
-                // If header is missing, it suggests fetch_with_request didn't preserve it
+            Ok(header_opt) => {
+                console_error!("DO: Unexpected Upgrade header state: {:?}", header_opt);
                 Response::error("Expected WebSocket upgrade request", 426)
+            }
+            Err(err) => {
+                console_error!("DO: Failed to read Upgrade header: {:?}", err);
+                Response::error("Failed to read request headers", 500)
             }
         }
     }

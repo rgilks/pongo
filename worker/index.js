@@ -1,18 +1,17 @@
 import init, {
   fetch,
-  MatchDO,
+  MatchDO as WasmMatchDO,
 } from "../lobby_worker/worker/pkg/lobby_worker.js";
 import wasmUrl from "../lobby_worker/worker/pkg/lobby_worker_bg.wasm";
 
 // Initialize WASM module - pass WASM URL explicitly for Workers
-let initialized = false;
+let initPromise;
 
 async function ensureInit() {
-  if (!initialized) {
-    // Pass the WASM URL explicitly to avoid import.meta.url issues
-    await init(wasmUrl);
-    initialized = true;
+  if (!initPromise) {
+    initPromise = init(wasmUrl);
   }
+  await initPromise;
 }
 
 // Export fetch handler
@@ -57,4 +56,35 @@ export default {
 };
 
 // Export the Durable Object
-export { MatchDO };
+class MatchDOWrapper {
+  constructor(state, env) {
+    this._inner = ensureInit().then(() => new WasmMatchDO(state, env));
+  }
+
+  async fetch(req) {
+    const inner = await this._inner;
+    return inner.fetch(req);
+  }
+
+  async alarm() {
+    const inner = await this._inner;
+    return inner.alarm();
+  }
+
+  async webSocketMessage(ws, message) {
+    const inner = await this._inner;
+    return inner.webSocketMessage(ws, message);
+  }
+
+  async webSocketClose(ws, code, reason, wasClean) {
+    const inner = await this._inner;
+    return inner.webSocketClose(ws, code, reason, wasClean);
+  }
+
+  async webSocketError(ws, error) {
+    const inner = await this._inner;
+    return inner.webSocketError(ws, error);
+  }
+}
+
+export { MatchDOWrapper as MatchDO };
