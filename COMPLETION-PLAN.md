@@ -28,7 +28,7 @@
 
 ### 🚧 In Progress
 
-**M3 - Client WebGPU**: **~75% Complete**
+**M3 - Client WebGPU**: **~80% Complete**
 
 **✅ Completed:**
 
@@ -41,9 +41,10 @@
 - ✅ Game state tracking (players, bolts, pickups)
 - ✅ WebSocket message handling (`handle_s2c_message`)
 - ✅ **WGSL shader alignment fixed** (uniform buffer 16-byte alignment)
-- ✅ **Periodic game loop** (Durable Object alarms, 50ms ticks, 20 ticks/sec)
+- ✅ **Periodic game loop** (Durable Object alarms, 200ms ticks, 5 ticks/sec - optimized)
 - ✅ **Snapshot broadcasting** to all connected clients
 - ✅ **Entity rendering** (players as spheres, bolts as spheres, pickups as spheres, blocks as cubes)
+- ✅ **Local development workflow** (documented and tested)
 
 **⏳ Remaining:**
 
@@ -259,5 +260,5 @@
 
 ---
 
-**Last Updated**: 2025-01-XX (placeholder - update with actual date)
-**Status**: M2 complete, M3 ~75% complete, entity rendering complete, game loop running (20 Hz), snapshots broadcasting
+**Last Updated**: 2025-01-07
+**Status**: M2 complete, M3 ~80% complete, entity rendering complete, game loop optimized (5 Hz for free tier), local development workflow documented and tested
