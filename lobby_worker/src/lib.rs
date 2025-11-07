@@ -143,14 +143,27 @@ async fn handle_index(_req: Request, _ctx: RouteContext<()>) -> Result<Response>
                     }
                 };
                 
-                ws.onmessage = (event) => {
+                ws.onmessage = async (event) => {
+                    let bytes;
                     if (event.data instanceof ArrayBuffer) {
-                        const bytes = new Uint8Array(event.data);
-                        try {
-                            handle_websocket_message(bytes);
-                        } catch (e) {
-                            console.error('Message handling error:', e);
+                        bytes = new Uint8Array(event.data);
+                    } else if (event.data instanceof Blob) {
+                        // Convert Blob to ArrayBuffer
+                        const arrayBuffer = await event.data.arrayBuffer();
+                        bytes = new Uint8Array(arrayBuffer);
+                    } else {
+                        console.warn('Client: Received unsupported message type:', event.data);
+                        return;
+                    }
+                    console.log('Client: Received WebSocket message,', bytes.length, 'bytes');
+                    try {
+                        handle_websocket_message(bytes);
+                        // Update status if we received a snapshot (indicates game state received)
+                        if (bytes.length > 20) { // Snapshots are larger than Welcome messages
+                            updateStatus('Game state received!');
                         }
+                    } catch (e) {
+                        console.error('Message handling error:', e);
                     }
                 };
                 

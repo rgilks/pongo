@@ -709,6 +709,7 @@ impl Client {
                 params_hash: _,
                 map_rev: _,
             } => {
+                // Welcome message received - player_id assigned
                 self.player_id = Some(player_id);
             }
             S2C::Snapshot {
@@ -722,6 +723,7 @@ impl Client {
                 hill_owner: _,
                 hill_progress_u16: _,
             } => {
+                // Snapshot received - update game state
                 self.update_game_state(id, players, bolts, pickups);
             }
             S2C::Eliminated { player_id } => {

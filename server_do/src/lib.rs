@@ -112,8 +112,11 @@ impl DurableObject for MatchDO {
                 let server = pair.server;
                 let client = pair.client;
 
+                // Accept the server WebSocket before storing it
                 #[allow(clippy::needless_borrows_for_generic_args)]
                 self.state.accept_web_socket(&server);
+
+                console_log!("DO: WebSocket accepted, server WebSocket ready for messages");
 
                 match Response::from_websocket(client) {
                     Ok(resp) => {
@@ -237,8 +240,15 @@ impl MatchDO {
                     gs.next_player_id = gs.next_player_id.wrapping_add(1);
 
                     // Store WebSocket connection
+                    // Note: In Cloudflare Workers, WebSocket can be cloned and the clone works for sending
                     let was_empty = gs.clients.is_empty();
+                    console_log!(
+                        "DO: Storing WebSocket for player {} (clients was empty: {})",
+                        player_id,
+                        was_empty
+                    );
                     gs.clients.insert(player_id, ws.clone());
+                    console_log!("DO: WebSocket stored, total clients: {}", gs.clients.len());
 
                     // Spawn player entity at a spawn point
                     let spawn_idx = (player_id as usize) % gs.map.map.spawns.len();
@@ -263,11 +273,20 @@ impl MatchDO {
                         Ok(b) => b,
                         Err(e) => {
                             // Log error but don't fail - client can wait for next snapshot
-                            eprintln!("Failed to serialize initial snapshot: {:?}", e);
+                            console_error!("DO: Failed to serialize initial snapshot: {:?}", e);
                             return Ok(());
                         }
                     };
-                    ws.send_with_bytes(&snapshot_bytes)?;
+                    console_log!(
+                        "DO: Sending initial snapshot ({} bytes) to player {}",
+                        snapshot_bytes.len(),
+                        player_id
+                    );
+                    if let Err(e) = ws.send_with_bytes(&snapshot_bytes) {
+                        console_error!("DO: Failed to send initial snapshot: {:?}", e);
+                    } else {
+                        console_log!("DO: Initial snapshot sent successfully");
+                    }
 
                     // Return whether we should start the alarm (drop borrow first)
                     Some(was_empty)
@@ -380,11 +399,41 @@ impl MatchDO {
 
         // Broadcast to all clients
         // Note: Each send might count as a request, but WebSocket sends are more efficient
-        for ws in gs.clients.values() {
-            // Note: In real implementation, we'd need to handle async send
-            // For now, this is a placeholder
-            let _ = ws.send_with_bytes(&bytes);
+        let client_count = gs.clients.len();
+        console_log!(
+            "DO: Broadcasting snapshot {} to {} clients ({} bytes)",
+            gs.snapshot_id,
+            client_count,
+            bytes.len()
+        );
+        let mut success_count = 0;
+        let mut error_count = 0;
+        for (player_id, ws) in &gs.clients {
+            match ws.send_with_bytes(&bytes) {
+                Ok(_) => {
+                    success_count += 1;
+                    console_log!(
+                        "DO: Successfully sent snapshot {} to player {}",
+                        gs.snapshot_id,
+                        player_id
+                    );
+                }
+                Err(e) => {
+                    error_count += 1;
+                    console_error!(
+                        "DO: Failed to send snapshot {} to player {}: {:?}",
+                        gs.snapshot_id,
+                        player_id,
+                        e
+                    );
+                }
+            }
         }
+        console_log!(
+            "DO: Snapshot broadcast complete: {} success, {} errors",
+            success_count,
+            error_count
+        );
     }
 
     /// Generate S2C Snapshot from current game state
