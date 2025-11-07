@@ -29,6 +29,9 @@ struct GameState {
     last_tick_ms: u64,
     snapshot_id: u32,
     tick: u32,
+    // Snapshot throttle: only send snapshot every N ticks to reduce requests
+    snapshot_throttle: u32,
+    snapshot_throttle_counter: u32,
 }
 
 #[durable_object]
@@ -68,6 +71,8 @@ impl DurableObject for MatchDO {
             last_tick_ms: 0,
             snapshot_id: 0,
             tick: 0,
+            snapshot_throttle: 1, // Send snapshot every tick (1 = no throttle, 2 = every other tick, etc.)
+            snapshot_throttle_counter: 0,
         };
 
         Self {
@@ -78,10 +83,23 @@ impl DurableObject for MatchDO {
     }
 
     async fn fetch(&self, req: Request) -> Result<Response> {
+        // Log request details for debugging
+        console_log!("DO: Received request, method: {:?}", req.method());
+        if let Ok(url) = req.url() {
+            console_log!("DO: Request URL: {}", url);
+        }
+
+        // Check for Upgrade header
+        let upgrade_header = req.headers().get("Upgrade");
+        console_log!("DO: Upgrade header result: {:?}", upgrade_header);
+
         // Determine if this is a WebSocket upgrade request
-        match req.headers().get("Upgrade") {
+        match upgrade_header {
             Ok(Some(header)) if header.to_lowercase() == "websocket" => {
-                console_log!("DO: Received WebSocket upgrade request");
+                console_log!(
+                    "DO: Received WebSocket upgrade request with header: {}",
+                    header
+                );
 
                 let pair = match WebSocketPair::new() {
                     Ok(pair) => pair,
@@ -170,23 +188,36 @@ impl DurableObject for MatchDO {
     }
 
     async fn alarm(&self) -> Result<Response> {
-        // Periodic game loop - runs every 50ms (20 ticks/sec)
-        {
-            let mut gs = self.game_state.borrow_mut();
+        // Periodic game loop - runs every 200ms (5 ticks/sec) to reduce request volume
+        // For production, use 50ms (20 ticks/sec)
+        let tick_interval_ms = 200;
 
-            // Only run simulation if there are players
-            if !gs.clients.is_empty() {
+        // Check if we have clients and run simulation
+        let has_clients = {
+            let gs = self.game_state.borrow();
+            !gs.clients.is_empty()
+        };
+
+        if has_clients {
+            // Run simulation (borrow is dropped before this block)
+            {
+                let mut gs = self.game_state.borrow_mut();
                 Self::step_game_simulation(&mut gs);
-            }
-        } // Drop borrow before await
+            } // Drop borrow before await
 
-        // Schedule next alarm (50ms = 50,000,000 nanoseconds)
-        self.state
-            .storage()
-            .set_alarm(Duration::from_millis(50))
-            .await?;
+            // Schedule next alarm only if we have clients
+            // This prevents unnecessary alarms when no one is connected
+            self.state
+                .storage()
+                .set_alarm(Duration::from_millis(tick_interval_ms))
+                .await?;
 
-        Response::ok("Alarm processed")
+            Response::ok("Alarm processed")
+        } else {
+            // No clients - don't schedule another alarm to save requests
+            // Alarm will restart when a player joins
+            Response::ok("No clients, stopping alarm loop")
+        }
     }
 }
 
@@ -287,10 +318,11 @@ impl MatchDO {
         };
 
         // Start game loop alarm if this was the first player (after borrow is dropped)
+        // Use 200ms interval to reduce request volume during development
         if let Some(true) = should_start_alarm {
             self.state
                 .storage()
-                .set_alarm(Duration::from_millis(50))
+                .set_alarm(Duration::from_millis(200))
                 .await?;
         }
 
@@ -299,8 +331,8 @@ impl MatchDO {
 
     /// Step the game simulation
     fn step_game_simulation(gs: &mut GameState) {
-        // Update time
-        gs.time.dt = 0.05; // 50ms step
+        // Update time (200ms step for reduced request volume)
+        gs.time.dt = 0.2; // 200ms step
         gs.tick += 1;
 
         // Run game simulation step
@@ -315,9 +347,13 @@ impl MatchDO {
             &mut gs.net_queue,
         );
 
-        // Generate and broadcast snapshot
-        gs.snapshot_id += 1;
-        Self::broadcast_snapshot(gs);
+        // Generate and broadcast snapshot (throttled to reduce requests)
+        gs.snapshot_throttle_counter += 1;
+        if gs.snapshot_throttle_counter >= gs.snapshot_throttle {
+            gs.snapshot_throttle_counter = 0;
+            gs.snapshot_id += 1;
+            Self::broadcast_snapshot(gs);
+        }
 
         // Clear processed inputs (they're consumed by ingest_inputs)
         gs.net_queue.inputs.clear();
@@ -326,6 +362,11 @@ impl MatchDO {
 
     /// Generate and broadcast snapshot to all connected clients
     fn broadcast_snapshot(gs: &mut GameState) {
+        // Skip if no clients to reduce unnecessary work
+        if gs.clients.is_empty() {
+            return;
+        }
+
         let snapshot = Self::generate_snapshot(gs);
         let bytes = match snapshot.to_bytes() {
             Ok(b) => b,
@@ -333,6 +374,7 @@ impl MatchDO {
         };
 
         // Broadcast to all clients
+        // Note: Each send might count as a request, but WebSocket sends are more efficient
         for ws in gs.clients.values() {
             // Note: In real implementation, we'd need to handle async send
             // For now, this is a placeholder

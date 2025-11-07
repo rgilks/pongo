@@ -237,8 +237,32 @@ async fn handle_websocket(req: Request, ctx: RouteContext<()>) -> Result<Respons
         code
     );
 
-    // Forward the original Request to the DO
-    // Note: fetch_with_request should preserve headers including Upgrade and Connection
+    // Log request details for debugging
+    console_log!("Worker: Request method: {:?}", req.method());
+    if let Ok(url) = req.url() {
+        console_log!("Worker: Request URL: {}", url);
+    }
+    if let Ok(upgrade) = req.headers().get("Upgrade") {
+        console_log!("Worker: Upgrade header: {:?}", upgrade);
+    } else {
+        console_log!("Worker: No Upgrade header found");
+    }
+    if let Ok(connection) = req.headers().get("Connection") {
+        console_log!("Worker: Connection header: {:?}", connection);
+    }
+
+    // Ensure request method is GET (required for WebSocket upgrade)
+    if req.method() != Method::Get {
+        console_error!(
+            "Worker: WebSocket upgrade requires GET method, got: {:?}",
+            req.method()
+        );
+        return Response::error("WebSocket upgrade requires GET method", 405);
+    }
+
+    // Forward the original Request to the DO using fetch_with_request
+    // This should preserve all headers including Upgrade and Connection for WebSocket upgrade
+    console_log!("Worker: About to call fetch_with_request");
     match stub.fetch_with_request(req).await {
         Ok(resp) => {
             console_log!(
@@ -248,15 +272,25 @@ async fn handle_websocket(req: Request, ctx: RouteContext<()>) -> Result<Respons
             Ok(resp)
         }
         Err(err) => {
+            let err_str = format!("{:?}", err);
             console_error!(
-                "Worker: Error forwarding WebSocket upgrade for code {}: {:?}",
+                "Worker: Error forwarding WebSocket upgrade for code {}: {}",
                 code,
-                err
+                err_str
             );
-            Response::error(
-                format!("Worker failed to forward WebSocket request: {:?}", err),
-                500,
-            )
+
+            // Check if this is a rate limit error (free tier limitation)
+            if err_str.contains("Exceeded allowed volume") || err_str.contains("free tier") {
+                Response::error(
+                    "Service temporarily unavailable due to rate limits. Please try again later.",
+                    503,
+                )
+            } else {
+                Response::error(
+                    format!("Worker failed to forward WebSocket request: {}", err_str),
+                    500,
+                )
+            }
         }
     }
 }
