@@ -92,6 +92,7 @@ pub struct Client {
     // Instance buffers
     player_instance_buffer: Buffer,
     bolt_instance_buffer: Buffer,
+    dummy_instance_buffer: Buffer, // For non-instanced draws (ground)
     max_instances: usize,
     // Network (WebSocket managed in JavaScript)
     player_id: Option<u16>,
@@ -318,6 +319,23 @@ impl Client {
             mapped_at_creation: false,
         });
 
+        // Create dummy instance buffer for non-instanced draws (ground)
+        let dummy_instance = Instance {
+            transform: [0.0, 0.0, 1.0, 0.0], // identity transform
+            tint: [1.0, 1.0, 1.0, 1.0],      // white
+        };
+        let dummy_instance_buffer = device.create_buffer(&BufferDescriptor {
+            label: Some("Dummy Instance Buffer"),
+            size: std::mem::size_of::<Instance>() as u64,
+            usage: BufferUsages::VERTEX | BufferUsages::COPY_DST,
+            mapped_at_creation: false,
+        });
+        queue.write_buffer(
+            &dummy_instance_buffer,
+            0,
+            bytemuck::bytes_of(&dummy_instance),
+        );
+
         // Create vertex buffer layouts (vertex + instance data)
         let vertex_buffer_layout = VertexBufferLayout {
             array_stride: std::mem::size_of::<mesh::Vertex>() as u64,
@@ -407,11 +425,19 @@ impl Client {
             light_bind_group,
             player_instance_buffer,
             bolt_instance_buffer,
+            dummy_instance_buffer,
             max_instances,
             player_id: None,
             game_state: GameState::new(),
             input_seq: 0,
         })
+    }
+
+    /// Update camera uniform buffer
+    fn update_camera_buffer(&mut self) {
+        let camera_uniform = CameraUniform::from_camera(&self.camera);
+        self.queue
+            .write_buffer(&self.camera_buffer, 0, bytemuck::bytes_of(&camera_uniform));
     }
 
     /// Resize the rendering surface
@@ -427,9 +453,7 @@ impl Client {
             self.camera.set_aspect(aspect);
 
             // Update camera uniform buffer
-            let camera_uniform = CameraUniform::from_camera(&self.camera);
-            self.queue
-                .write_buffer(&self.camera_buffer, 0, bytemuck::bytes_of(&camera_uniform));
+            self.update_camera_buffer();
         }
     }
 
@@ -473,6 +497,9 @@ impl Client {
 
     /// Render a frame
     pub fn render(&mut self) -> Result<(), JsValue> {
+        // Update camera uniform buffer
+        self.update_camera_buffer();
+
         // Update instance buffers from game state
         self.update_instance_buffers();
 
@@ -519,8 +546,9 @@ impl Client {
             render_pass.set_bind_group(0, &self.camera_bind_group, &[]);
             render_pass.set_bind_group(1, &self.light_bind_group, &[]);
 
-            // Draw ground quad (non-instanced)
+            // Draw ground quad (with dummy instance for pipeline compatibility)
             render_pass.set_vertex_buffer(0, self.ground_mesh.vertex_buffer.slice(..));
+            render_pass.set_vertex_buffer(1, self.dummy_instance_buffer.slice(..));
             render_pass
                 .set_index_buffer(self.ground_mesh.index_buffer.slice(..), IndexFormat::Uint16);
             render_pass.draw_indexed(0..self.ground_mesh.index_count, 0, 0..1);

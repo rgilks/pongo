@@ -18,8 +18,8 @@ struct Light {
     color: vec3<f32>,
     intensity: f32,
 }
-@group(0) @binding(1) var<storage, read> lights: array<Light>;
-@group(0) @binding(2) var<uniform> light_count: u32;
+@group(1) @binding(1) var<storage, read> lights: array<Light>;
+@group(1) @binding(2) var<uniform> light_count: u32;
 
 // Vertex input
 struct VertexInput {
