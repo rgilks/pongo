@@ -38,8 +38,30 @@ alwaysApply: true
 
 2. **Local testing (TEST-PLAN.md)**
 
-   - Follow `TEST-PLAN.md` for manual/local testing
-   - Test relevant endpoints and functionality locally if possible
+   **Setup:**
+   - Build the project: `npm run build`
+   - Start local dev server: `npm run dev` (runs at http://localhost:8787)
+   - Uses Miniflare to simulate Cloudflare Workers and Durable Objects locally
+
+   **Testing steps:**
+   - Follow `TEST-PLAN.md` for manual/local testing procedures
+   - Test relevant endpoints locally: `/`, `/create`, `/join/:code`
+   - Test WebSocket connections (work locally via Miniflare)
+   - Verify rendering and game functionality in browser
+   - Test entity rendering (players, bolts, pickups, blocks)
+   - Test controls if implemented (W/S/A/D, 1/2/3, Q/E/R)
+
+   **Benefits of local testing:**
+   - No rate limits - unlimited testing
+   - Faster iteration - no deployment needed
+   - Better debugging - see logs in terminal
+   - Isolated from production
+
+   **Troubleshooting:**
+   - If server won't start: ensure `npm run build` completed successfully
+   - If port 8787 in use: kill process or use `--port` flag
+   - To reset state: delete `.wrangler/state/` directory
+   - Check terminal for detailed error messages
 
 3. **Deploy, test, and check logs** (automated)
 
