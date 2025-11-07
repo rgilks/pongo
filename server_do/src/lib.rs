@@ -3,6 +3,7 @@ use hecs::World;
 use proto::*;
 use std::cell::RefCell;
 use std::collections::HashMap;
+use std::time::Duration;
 use worker::*;
 
 // Game state wrapper for interior mutability
@@ -133,8 +134,7 @@ impl DurableObject for MatchDO {
                 // Parse C2S message
                 match C2S::from_bytes(&bytes) {
                     Ok(c2s_msg) => {
-                        let mut gs = self.game_state.borrow_mut();
-                        if let Err(e) = Self::handle_c2s_message(&mut gs, ws, c2s_msg) {
+                        if let Err(e) = Self::handle_c2s_message(self, ws, c2s_msg).await {
                             // Log error but don't close connection
                             eprintln!("Error handling C2S message: {:?}", e);
                         }
@@ -168,96 +168,132 @@ impl DurableObject for MatchDO {
         // TODO: Log error and remove client
         Ok(())
     }
+
+    async fn alarm(&self) -> Result<Response> {
+        // Periodic game loop - runs every 50ms (20 ticks/sec)
+        {
+            let mut gs = self.game_state.borrow_mut();
+
+            // Only run simulation if there are players
+            if !gs.clients.is_empty() {
+                Self::step_game_simulation(&mut gs);
+            }
+        } // Drop borrow before await
+
+        // Schedule next alarm (50ms = 50,000,000 nanoseconds)
+        self.state
+            .storage()
+            .set_alarm(Duration::from_millis(50))
+            .await?;
+
+        Response::ok("Alarm processed")
+    }
 }
 
 impl MatchDO {
     /// Handle incoming C2S message
-    fn handle_c2s_message(gs: &mut GameState, ws: WebSocket, msg: C2S) -> Result<()> {
-        match msg {
-            C2S::Join {
-                code: _,
-                avatar,
-                name_id,
-            } => {
-                // Assign player_id
-                let player_id = gs.next_player_id;
-                gs.next_player_id = gs.next_player_id.wrapping_add(1);
+    async fn handle_c2s_message(&self, ws: WebSocket, msg: C2S) -> Result<()> {
+        let should_start_alarm = {
+            let mut gs = self.game_state.borrow_mut();
+            match msg {
+                C2S::Join {
+                    code: _,
+                    avatar,
+                    name_id,
+                } => {
+                    // Assign player_id
+                    let player_id = gs.next_player_id;
+                    gs.next_player_id = gs.next_player_id.wrapping_add(1);
 
-                // Store WebSocket connection
-                gs.clients.insert(player_id, ws.clone());
+                    // Store WebSocket connection
+                    let was_empty = gs.clients.is_empty();
+                    gs.clients.insert(player_id, ws.clone());
 
-                // Spawn player entity at a spawn point
-                let spawn_idx = (player_id as usize) % gs.map.map.spawns.len();
-                let spawn_pos = gs.map.map.spawns[spawn_idx];
-                create_player(&mut gs.world, player_id, avatar, name_id, spawn_pos);
+                    // Spawn player entity at a spawn point
+                    let spawn_idx = (player_id as usize) % gs.map.map.spawns.len();
+                    let spawn_pos = gs.map.map.spawns[spawn_idx];
+                    create_player(&mut gs.world, player_id, avatar, name_id, spawn_pos);
 
-                // Send Welcome message
-                let welcome = S2C::Welcome {
-                    player_id,
-                    params_hash: 0, // TODO: Compute params hash
-                    map_rev: 0,     // TODO: Map revision
-                };
-                let bytes = welcome.to_bytes().map_err(|e| {
-                    Error::RustError(format!("Failed to serialize Welcome: {:?}", e))
-                })?;
-                ws.send_with_bytes(&bytes)?;
+                    // Send Welcome message
+                    let welcome = S2C::Welcome {
+                        player_id,
+                        params_hash: 0, // TODO: Compute params hash
+                        map_rev: 0,     // TODO: Map revision
+                    };
+                    let bytes = welcome.to_bytes().map_err(|e| {
+                        Error::RustError(format!("Failed to serialize Welcome: {:?}", e))
+                    })?;
+                    ws.send_with_bytes(&bytes)?;
 
-                // Send initial snapshot so client can see game state
-                gs.snapshot_id += 1;
-                let snapshot = Self::generate_snapshot(gs);
-                let snapshot_bytes = match snapshot.to_bytes() {
-                    Ok(b) => b,
-                    Err(e) => {
-                        // Log error but don't fail - client can wait for next snapshot
-                        eprintln!("Failed to serialize initial snapshot: {:?}", e);
-                        return Ok(());
+                    // Send initial snapshot so client can see game state
+                    gs.snapshot_id += 1;
+                    let snapshot = Self::generate_snapshot(&mut gs);
+                    let snapshot_bytes = match snapshot.to_bytes() {
+                        Ok(b) => b,
+                        Err(e) => {
+                            // Log error but don't fail - client can wait for next snapshot
+                            eprintln!("Failed to serialize initial snapshot: {:?}", e);
+                            return Ok(());
+                        }
+                    };
+                    ws.send_with_bytes(&snapshot_bytes)?;
+
+                    // Return whether we should start the alarm (drop borrow first)
+                    Some(was_empty)
+                }
+                C2S::Input {
+                    seq,
+                    t_ms,
+                    thrust_i8,
+                    turn_i8,
+                    bolt,
+                    shield,
+                } => {
+                    // Find player_id for this WebSocket
+                    // TODO: Proper WebSocket tracking - need to map WebSocket to player_id
+                    // For now, we'll need to pass player_id in the message or track it differently
+                    // This is a limitation of Cloudflare Workers WebSocket API
+                    // Workaround: Store WebSocket when Join message arrives, then use that mapping
+                    // For now, use the first player (this is a temporary workaround for testing)
+                    let player_id = gs.clients.keys().next().copied();
+
+                    if let Some(pid) = player_id {
+                        // Convert i8 inputs to f32 (-127..127 -> -1.0..1.0)
+                        let thrust = thrust_i8 as f32 / 127.0;
+                        let turn = turn_i8 as f32 / 127.0;
+
+                        // Add to net_queue (will be processed in next alarm tick)
+                        gs.net_queue.inputs.push(InputEvent {
+                            player_id: pid,
+                            seq,
+                            t_ms,
+                            thrust,
+                            turn,
+                            bolt_level: bolt.min(3),
+                            shield_level: shield.min(3),
+                        });
                     }
-                };
-                ws.send_with_bytes(&snapshot_bytes)?;
-            }
-            C2S::Input {
-                seq,
-                t_ms,
-                thrust_i8,
-                turn_i8,
-                bolt,
-                shield,
-            } => {
-                // Find player_id for this WebSocket
-                // TODO: Proper WebSocket tracking - need to map WebSocket to player_id
-                // For now, we'll need to pass player_id in the message or track it differently
-                // This is a limitation of Cloudflare Workers WebSocket API
-                // Workaround: Store WebSocket when Join message arrives, then use that mapping
-                // For now, use the first player (this is a temporary workaround for testing)
-                let player_id = gs.clients.keys().next().copied();
-
-                if let Some(pid) = player_id {
-                    // Convert i8 inputs to f32 (-127..127 -> -1.0..1.0)
-                    let thrust = thrust_i8 as f32 / 127.0;
-                    let turn = turn_i8 as f32 / 127.0;
-
-                    // Add to net_queue
-                    gs.net_queue.inputs.push(InputEvent {
-                        player_id: pid,
-                        seq,
-                        t_ms,
-                        thrust,
-                        turn,
-                        bolt_level: bolt.min(3),
-                        shield_level: shield.min(3),
-                    });
-
-                    // Trigger simulation step
-                    Self::step_game_simulation(gs);
+                    None
+                }
+                C2S::Ping { t_ms: _ } => {
+                    // TODO: Handle ping for latency measurement
+                    None
+                }
+                C2S::Ack { snapshot_id: _ } => {
+                    // TODO: Track ACKs for snapshot reliability
+                    None
                 }
             }
-            C2S::Ping { t_ms: _ } => {
-                // TODO: Handle ping for latency measurement
-            }
-            C2S::Ack { snapshot_id: _ } => {
-                // TODO: Track ACKs for snapshot reliability
-            }
+        };
+
+        // Start game loop alarm if this was the first player (after borrow is dropped)
+        if let Some(true) = should_start_alarm {
+            self.state
+                .storage()
+                .set_alarm(Duration::from_millis(50))
+                .await?;
         }
+
         Ok(())
     }
 
