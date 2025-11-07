@@ -222,9 +222,23 @@ async fn handle_websocket(req: Request, ctx: RouteContext<()>) -> Result<Respons
     // Get the Durable Object stub
     let match_do = ctx.env.durable_object("MATCH")?;
     let do_id = match_do.id_from_name(code)?;
-    let stub = do_id.get_stub()?;
 
-    // Forward the original Request to the DO without modification
+    console_log!("Worker: Getting stub for DO with code {}", code);
+    let stub = match do_id.get_stub() {
+        Ok(s) => s,
+        Err(e) => {
+            console_error!("Worker: Failed to get stub: {:?}", e);
+            return Response::error(format!("Failed to get DO stub: {:?}", e), 500);
+        }
+    };
+
+    console_log!(
+        "Worker: Forwarding WebSocket upgrade request to DO for code {}",
+        code
+    );
+
+    // Forward the original Request to the DO
+    // Note: fetch_with_request should preserve headers including Upgrade and Connection
     match stub.fetch_with_request(req).await {
         Ok(resp) => {
             console_log!(

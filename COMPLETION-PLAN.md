@@ -28,7 +28,7 @@
 
 ### 🚧 In Progress
 
-**M3 - Client WebGPU**: **~70% Complete**
+**M3 - Client WebGPU**: **~75% Complete**
 
 **✅ Completed:**
 
@@ -43,10 +43,10 @@
 - ✅ **WGSL shader alignment fixed** (uniform buffer 16-byte alignment)
 - ✅ **Periodic game loop** (Durable Object alarms, 50ms ticks, 20 ticks/sec)
 - ✅ **Snapshot broadcasting** to all connected clients
+- ✅ **Entity rendering** (players as spheres, bolts as spheres, pickups as spheres, blocks as cubes)
 
 **⏳ Remaining:**
 
-- ⏳ Verify entity rendering (players as spheres, bolts, blocks) - infrastructure ready
 - ⏳ Input handling (W/S/A/D, 1/2/3, Q/E/R) - basic structure exists
 - ⏳ Client prediction (local simulation)
 - ⏳ Reconciliation (server correction)
@@ -82,11 +82,11 @@
 
 **Tasks:**
 
-- [ ] Render players as spheres (with eyeball texture placeholder)
-- [ ] Render bolts as emissive spheres
-- [ ] Render blocks/walls as cubes
-- [ ] Render pickups as floating orbs
-- [ ] Verify all entities update from snapshots
+- [x] Render players as spheres (with eyeball texture placeholder)
+- [x] Render bolts as emissive spheres
+- [x] Render blocks/walls as cubes
+- [x] Render pickups as floating orbs
+- [x] Verify all entities update from snapshots
 
 **Estimated Time**: 4-6 hours
 
@@ -247,15 +247,17 @@
 
 ## Next Session Focus
 
-**Immediate Priority**: Verify entity rendering and ensure players/entities are visible on screen.
+**Immediate Priority**: Complete input handling and test player movement in browser.
 
 **Success Criteria**:
 
-- At least one player sphere visible and moving
-- Camera follows/isometric view working
-- Entities update from snapshots correctly
+- ✅ Players, bolts, pickups, and blocks all render correctly
+- ✅ Camera isometric view working
+- ✅ Entities update from snapshots correctly
+- ⏳ Player can control their tank with keyboard (W/S/A/D, 1/2/3, Q/E/R)
+- ⏳ Inputs are sent to server and processed
 
 ---
 
 **Last Updated**: 2025-01-XX (placeholder - update with actual date)
-**Status**: M2 complete, M3 ~70% complete, game loop running (20 Hz), snapshots broadcasting
+**Status**: M2 complete, M3 ~75% complete, entity rendering complete, game loop running (20 Hz), snapshots broadcasting

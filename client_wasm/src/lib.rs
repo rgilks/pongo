@@ -92,6 +92,8 @@ pub struct Client {
     // Instance buffers
     player_instance_buffer: Buffer,
     bolt_instance_buffer: Buffer,
+    pickup_instance_buffer: Buffer,
+    block_instance_buffer: Buffer,
     dummy_instance_buffer: Buffer, // For non-instanced draws (ground)
     max_instances: usize,
     // Network (WebSocket managed in JavaScript)
@@ -319,6 +321,65 @@ impl Client {
             mapped_at_creation: false,
         });
 
+        let pickup_instance_buffer = device.create_buffer(&BufferDescriptor {
+            label: Some("Pickup Instance Buffer"),
+            size: instance_buffer_size,
+            usage: BufferUsages::VERTEX | BufferUsages::COPY_DST,
+            mapped_at_creation: false,
+        });
+
+        // Block instance buffer (for walls/obstacles - test map has ~8 blocks)
+        let max_blocks = 16;
+        let block_instance_buffer_size = (max_blocks * std::mem::size_of::<Instance>()) as u64;
+        let block_instance_buffer = device.create_buffer(&BufferDescriptor {
+            label: Some("Block Instance Buffer"),
+            size: block_instance_buffer_size,
+            usage: BufferUsages::VERTEX | BufferUsages::COPY_DST,
+            mapped_at_creation: false,
+        });
+
+        // Initialize block instances with test map data
+        // Test map: 4 outer walls + 4 interior obstacles
+        // Convert AABBs to center + average size (shader uses uniform scaling)
+        let mut block_instances = Vec::new();
+        let arena_size = 20.0;
+        let wall_thickness = 1.0;
+
+        // Outer walls (4 walls) - convert AABBs to center + average size
+        // South wall: min=(-20,-20), max=(20,-19) -> center=(0,-19.5), size=(40,1) -> avg=20.5
+        block_instances.push(Instance {
+            transform: [0.0, -arena_size + wall_thickness * 0.5, 20.5, 0.0],
+            tint: [0.4, 0.4, 0.5, 1.0], // Gray walls
+        });
+        // North wall: min=(-20,19), max=(20,20) -> center=(0,19.5), size=(40,1) -> avg=20.5
+        block_instances.push(Instance {
+            transform: [0.0, arena_size - wall_thickness * 0.5, 20.5, 0.0],
+            tint: [0.4, 0.4, 0.5, 1.0],
+        });
+        // West wall: min=(-20,-20), max=(-19,20) -> center=(-19.5,0), size=(1,40) -> avg=20.5
+        block_instances.push(Instance {
+            transform: [-arena_size + wall_thickness * 0.5, 0.0, 20.5, 0.0],
+            tint: [0.4, 0.4, 0.5, 1.0],
+        });
+        // East wall: min=(19,-20), max=(20,20) -> center=(19.5,0), size=(1,40) -> avg=20.5
+        block_instances.push(Instance {
+            transform: [arena_size - wall_thickness * 0.5, 0.0, 20.5, 0.0],
+            tint: [0.4, 0.4, 0.5, 1.0],
+        });
+
+        // Interior obstacles (4 blocks, 2x2 each) - already center + size
+        for (x, y) in [(-8.0, 0.0), (8.0, 0.0), (0.0, -8.0), (0.0, 8.0)] {
+            block_instances.push(Instance {
+                transform: [x, y, 2.0, 0.0], // x, y, scale (size), rotation
+                tint: [0.5, 0.3, 0.2, 1.0],  // Brown obstacles
+            });
+        }
+
+        if !block_instances.is_empty() {
+            let block_data = bytemuck::cast_slice(&block_instances);
+            queue.write_buffer(&block_instance_buffer, 0, block_data);
+        }
+
         // Create dummy instance buffer for non-instanced draws (ground)
         let dummy_instance = Instance {
             transform: [0.0, 0.0, 1.0, 0.0], // identity transform
@@ -425,6 +486,8 @@ impl Client {
             light_bind_group,
             player_instance_buffer,
             bolt_instance_buffer,
+            pickup_instance_buffer,
+            block_instance_buffer,
             dummy_instance_buffer,
             max_instances,
             player_id: None,
@@ -492,6 +555,27 @@ impl Client {
             let instance_data = bytemuck::cast_slice(&bolt_instances);
             self.queue
                 .write_buffer(&self.bolt_instance_buffer, 0, instance_data);
+        }
+
+        // Update pickup instances
+        let mut pickup_instances = Vec::new();
+        for pickup in self.game_state.pickups.values() {
+            // Pickup color based on kind (Health=red, BoltUpgrade=blue, ShieldModule=green)
+            let (r, g, b) = match pickup.kind {
+                0 => (1.0, 0.2, 0.2), // Health - red
+                1 => (0.2, 0.5, 1.0), // BoltUpgrade - blue
+                2 => (0.2, 1.0, 0.2), // ShieldModule - green
+                _ => (0.8, 0.8, 0.8), // Default - light gray
+            };
+            pickup_instances.push(Instance {
+                transform: [pickup.pos[0], pickup.pos[1], 0.4, 0.0], // x, y, scale (radius), no rotation
+                tint: [r, g, b, 1.0],
+            });
+        }
+        if !pickup_instances.is_empty() {
+            let instance_data = bytemuck::cast_slice(&pickup_instances);
+            self.queue
+                .write_buffer(&self.pickup_instance_buffer, 0, instance_data);
         }
     }
 
@@ -576,6 +660,28 @@ impl Client {
                     .set_index_buffer(self.sphere_mesh.index_buffer.slice(..), IndexFormat::Uint16);
                 render_pass.draw_indexed(0..self.sphere_mesh.index_count, 0, 0..bolt_count as u32);
             }
+
+            // Draw pickups as instanced spheres
+            let pickup_count = self.game_state.pickups.len().min(self.max_instances);
+            if pickup_count > 0 {
+                render_pass.set_vertex_buffer(0, self.sphere_mesh.vertex_buffer.slice(..));
+                render_pass.set_vertex_buffer(1, self.pickup_instance_buffer.slice(..));
+                render_pass
+                    .set_index_buffer(self.sphere_mesh.index_buffer.slice(..), IndexFormat::Uint16);
+                render_pass.draw_indexed(
+                    0..self.sphere_mesh.index_count,
+                    0,
+                    0..pickup_count as u32,
+                );
+            }
+
+            // Draw blocks as instanced cubes (8 blocks: 4 walls + 4 obstacles)
+            let block_count = 8u32;
+            render_pass.set_vertex_buffer(0, self.cube_mesh.vertex_buffer.slice(..));
+            render_pass.set_vertex_buffer(1, self.block_instance_buffer.slice(..));
+            render_pass
+                .set_index_buffer(self.cube_mesh.index_buffer.slice(..), IndexFormat::Uint16);
+            render_pass.draw_indexed(0..self.cube_mesh.index_count, 0, 0..block_count);
         }
 
         self.queue.submit(std::iter::once(encoder.finish()));
