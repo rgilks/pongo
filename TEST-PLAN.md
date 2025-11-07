@@ -50,7 +50,10 @@
 - ✅ Basic rendering pipeline (forward pass, lambert lighting)
 - ✅ Mesh generation (sphere, cube, ground quad)
 - ✅ Light buffers (SSBO for up to 8 point lights)
-- ⏳ Game entity rendering (players as spheres, bolts, blocks)
+- ✅ WGSL shader alignment fixed (uniform buffer requirements)
+- ✅ Periodic game loop running (50ms ticks, 20 ticks/sec)
+- ✅ Snapshot broadcasting to clients
+- ⏳ Game entity rendering (players as spheres, bolts, blocks) - infrastructure ready
 - ⏳ Bloom post-processing
 - ⏳ Mobile and desktop controls
 - ⏳ 60fps target (30fps acceptable on mid-range phones)

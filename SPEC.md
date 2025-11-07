@@ -169,9 +169,10 @@ new_sqlite_classes = ["MatchDO"]
 
 **Soft‑tick loop (server DO)**
 
-* Step simulation on **input arrival** or **50 ms heartbeat**.
+* Step simulation on **50 ms alarm** (20 ticks/sec) using Durable Object alarms.
 * Consume real `dt` in **fixed micro‑steps** (e.g., 8–12 ms) → stable physics.
-* Broadcast compact **Snapshot** (≤30/s). Clients ACK.
+* Broadcast compact **Snapshot** (20/s via alarms). Clients ACK.
+* Alarm starts automatically when first player joins.
 
 **Client prediction**
 

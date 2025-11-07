@@ -5,6 +5,7 @@
 ### ✅ Completed Milestones
 
 **M1 - Core Sim (Local)**: ✅ **100% Complete**
+
 - ✅ ECS (`hecs`) with deterministic schedule
 - ✅ Movement system (tank-style, collision)
 - ✅ Bolt firing system (3 levels)
@@ -15,6 +16,7 @@
 - ✅ All unit tests passing (7 integration tests)
 
 **M2 - DO + Net**: ✅ **100% Complete**
+
 - ✅ Cloudflare Workers infrastructure
 - ✅ Durable Object (`MatchDO`) deployed
 - ✅ WebSocket connection (handshake fixed)
@@ -26,9 +28,10 @@
 
 ### 🚧 In Progress
 
-**M3 - Client WebGPU**: **~60% Complete**
+**M3 - Client WebGPU**: **~70% Complete**
 
 **✅ Completed:**
+
 - ✅ WebGPU surface initialization (wgpu 24.0)
 - ✅ Isometric camera (pitch ~35°, yaw offset)
 - ✅ Basic rendering pipeline (forward pass, Lambert lighting)
@@ -37,15 +40,14 @@
 - ✅ Instance buffer infrastructure
 - ✅ Game state tracking (players, bolts, pickups)
 - ✅ WebSocket message handling (`handle_s2c_message`)
-
-**⏳ Current Blocker:**
-- 🔴 **WebGPU render pipeline warnings** - Invalid pipeline preventing rendering
-- ⏳ Game entities not visible on screen (pipeline issue)
+- ✅ **WGSL shader alignment fixed** (uniform buffer 16-byte alignment)
+- ✅ **Periodic game loop** (Durable Object alarms, 50ms ticks, 20 ticks/sec)
+- ✅ **Snapshot broadcasting** to all connected clients
 
 **⏳ Remaining:**
-- ⏳ Fix WebGPU pipeline initialization
-- ⏳ Verify entity rendering (players as spheres, bolts, blocks)
-- ⏳ Input handling (W/S/A/D, 1/2/3, Q/E/R)
+
+- ⏳ Verify entity rendering (players as spheres, bolts, blocks) - infrastructure ready
+- ⏳ Input handling (W/S/A/D, 1/2/3, Q/E/R) - basic structure exists
 - ⏳ Client prediction (local simulation)
 - ⏳ Reconciliation (server correction)
 - ⏳ Bloom post-processing
@@ -55,13 +57,15 @@
 ### ❌ Not Started
 
 **M4 - Bots**: **0% Complete**
-- ❌ A* pathfinding
+
+- ❌ A\* pathfinding
 - ❌ Bot state machine (Seek pickups → Contest Hill → Evade → Engage)
 - ❌ Aim prediction with lead
 - ❌ Shield reaction logic
 - ❌ Bot lifecycle (spawn/despawn)
 
 **M5 - Polish & Ops**: **0% Complete**
+
 - ❌ Spawn protection visual feedback
 - ❌ Share flow (copy link)
 - ❌ Audio pips
@@ -72,23 +76,12 @@
 
 ## Immediate Next Steps (Priority Order)
 
-### 1. Fix WebGPU Rendering Pipeline (CRITICAL - Current Blocker)
-**Goal**: Get entities visible on screen
+### 1. Complete Basic Rendering (M3 Core) - CURRENT FOCUS
 
-**Tasks:**
-- [ ] Debug WebGPU pipeline warnings (invalid render pipeline)
-- [ ] Verify pipeline creation and binding
-- [ ] Check shader compilation
-- [ ] Verify instance buffer data is correct
-- [ ] Test rendering of at least one player entity
-- [ ] Verify camera matrices are correct
-
-**Estimated Time**: 2-4 hours
-
-### 2. Complete Basic Rendering (M3 Core)
 **Goal**: See all game entities rendered correctly
 
 **Tasks:**
+
 - [ ] Render players as spheres (with eyeball texture placeholder)
 - [ ] Render bolts as emissive spheres
 - [ ] Render blocks/walls as cubes
@@ -97,10 +90,12 @@
 
 **Estimated Time**: 4-6 hours
 
-### 3. Input Handling (M3 Core)
+### 2. Input Handling (M3 Core)
+
 **Goal**: Player can control their tank
 
 **Tasks:**
+
 - [ ] Desktop controls (W/S/A/D movement, 1/2/3 bolt, Q/E/R shield)
 - [ ] Send input messages via WebSocket (`prepare_input`)
 - [ ] Verify inputs reach server
@@ -108,10 +103,12 @@
 
 **Estimated Time**: 2-3 hours
 
-### 4. Client Prediction (M3 Core)
+### 3. Client Prediction (M3 Core)
+
 **Goal**: Responsive controls with server authority
 
 **Tasks:**
+
 - [ ] Run local `game_core` simulation
 - [ ] Tag inputs with sequence numbers
 - [ ] Apply server snapshots (reconciliation)
@@ -120,10 +117,12 @@
 
 **Estimated Time**: 6-8 hours
 
-### 5. Bloom Post-Processing (M3 Polish)
+### 4. Bloom Post-Processing (M3 Polish)
+
 **Goal**: Visual polish for bolts
 
 **Tasks:**
+
 - [ ] HDR render target
 - [ ] Threshold pass
 - [ ] Downsample chain
@@ -132,10 +131,12 @@
 
 **Estimated Time**: 4-6 hours
 
-### 6. Mobile Controls (M3 Polish)
+### 5. Mobile Controls (M3 Polish)
+
 **Goal**: Playable on mobile devices
 
 **Tasks:**
+
 - [ ] Touch slider for movement (forward/back)
 - [ ] Touch slider for turning (left/right)
 - [ ] Button UI for bolt levels (1/2/3)
@@ -144,11 +145,13 @@
 
 **Estimated Time**: 4-6 hours
 
-### 7. Bots (M4)
+### 6. Bots (M4)
+
 **Goal**: Populate matches with AI players
 
 **Tasks:**
-- [ ] A* pathfinding on grid
+
+- [ ] A\* pathfinding on grid
 - [ ] Bot state machine implementation
 - [ ] Aim prediction with lead calculation
 - [ ] Shield reaction logic
@@ -157,10 +160,12 @@
 
 **Estimated Time**: 12-16 hours
 
-### 8. Polish & Operations (M5)
+### 7. Polish & Operations (M5)
+
 **Goal**: Production-ready experience
 
 **Tasks:**
+
 - [ ] Spawn protection visual feedback
 - [ ] Share flow (copy match code/link)
 - [ ] Audio pips for events
@@ -174,14 +179,15 @@
 
 ## Estimated Total Remaining Time
 
-**Minimum Viable Product (MVP)**: ~20-30 hours
-- Fix rendering pipeline
-- Complete basic rendering
-- Input handling
+**Minimum Viable Product (MVP)**: ~20-27 hours
+
+- Complete basic rendering (infrastructure ready, verify entities visible)
+- Input handling (structure exists, needs testing)
 - Client prediction
 - Basic bots
 
 **Full v1 Release**: ~40-50 hours
+
 - All of MVP
 - Bloom post-processing
 - Mobile controls
@@ -192,22 +198,22 @@
 
 ## Critical Path to MVP
 
-1. **Fix WebGPU pipeline** (blocker) → 2-4h
-2. **Complete rendering** → 4-6h
-3. **Input handling** → 2-3h
-4. **Client prediction** → 6-8h
-5. **Basic bots** → 8-10h
+1. **Complete rendering** → 4-6h (infrastructure ready, verify entities visible)
+2. **Input handling** → 2-3h (structure exists, needs testing)
+3. **Client prediction** → 6-8h
+4. **Basic bots** → 8-10h
 
-**Total MVP**: ~22-31 hours
+**Total MVP**: ~20-27 hours
 
 ---
 
 ## Acceptance Criteria (from SPEC.md)
 
 **For v1 Release:**
+
 - ✅ Create/join by code
 - ⏳ 2+ human clients + bots
-- ⏳ Stable 20-30 Hz snapshots
+- ✅ Stable 20 Hz snapshots (50ms ticks via Durable Object alarms)
 - ⏳ Client >50 fps on mid-range phone
 - ⏳ Objective mode functional
 - ⏳ Pickups/levels work
@@ -222,16 +228,18 @@
 ## Risk Assessment
 
 **High Risk:**
-- WebGPU pipeline issues (current blocker)
+
 - Client prediction complexity
 - Mobile performance on low-end devices
 
 **Medium Risk:**
+
 - Bot AI complexity
 - Network reconciliation edge cases
 - Bloom performance impact
 
 **Low Risk:**
+
 - Polish features (can be deferred)
 - Metrics/analytics (nice-to-have)
 
@@ -239,15 +247,15 @@
 
 ## Next Session Focus
 
-**Immediate Priority**: Fix WebGPU render pipeline warnings and get at least one entity visible on screen.
+**Immediate Priority**: Verify entity rendering and ensure players/entities are visible on screen.
 
-**Success Criteria**: 
-- No WebGPU warnings in console
+**Success Criteria**:
+
 - At least one player sphere visible and moving
 - Camera follows/isometric view working
+- Entities update from snapshots correctly
 
 ---
 
-**Last Updated**: 2025-11-07
-**Status**: M2 complete, M3 ~60% complete, blocked on WebGPU pipeline
-
+**Last Updated**: 2025-01-XX (placeholder - update with actual date)
+**Status**: M2 complete, M3 ~70% complete, game loop running (20 Hz), snapshots broadcasting

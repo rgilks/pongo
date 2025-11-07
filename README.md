@@ -23,7 +23,10 @@ A mobile-friendly, code-to-join, isometric arena shooter built with Rust + WebGP
 - ✅ Isometric camera with view/projection matrices
 - ✅ Basic rendering pipeline (meshes, shader, forward pass, Lambert lighting)
 - ✅ Light buffers (SSBO for up to 8 point lights)
-- ⏳ Game entity rendering (players, bolts, blocks)
+- ✅ WGSL shader alignment fixed (uniform buffer 16-byte alignment)
+- ✅ Periodic game loop (50ms ticks, 20 ticks/sec) via Durable Object alarms
+- ✅ Snapshot broadcasting to all connected clients
+- ⏳ Game entity rendering (players, bolts, blocks) - infrastructure ready
 - ⏳ Mobile and desktop controls
 - ⏳ Client prediction and reconciliation
 - ⏳ HDR target and bloom post-processing
@@ -110,6 +113,7 @@ cargo test --package proto      # Protocol serialization
 
 - **Specification**: `SPEC.md` - Full game specification and architecture
 - **Test Plan**: `TEST-PLAN.md` - Manual and automated test procedures
+- **Completion Plan**: `COMPLETION-PLAN.md` - Detailed milestone tracking and next steps
 
 ## License
 
