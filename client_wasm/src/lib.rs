@@ -617,14 +617,11 @@ impl Client {
         (players, bolts, pickups)
     }
 
-    /// Update instance buffers from local simulation (client prediction)
-    fn update_instance_buffers(&mut self) {
-        // Extract render data from local world
-        let (local_players, local_bolts, local_pickups) = self.extract_render_data_from_world();
-
-        // Update player instances from local simulation
+    /// Update instance buffers from server state (temporary fallback)
+    fn update_instance_buffers_from_server_state(&mut self) {
+        // Update player instances from server state
         let mut player_instances = Vec::new();
-        for player in &local_players {
+        for player in self.game_state.players.values() {
             player_instances.push(Instance {
                 transform: [player.pos[0], player.pos[1], 0.6, player.yaw], // x, y, scale (player radius), rotation
                 tint: [1.0, 0.5, 0.5, 1.0],                                 // Red tint for players
@@ -636,9 +633,9 @@ impl Client {
                 .write_buffer(&self.player_instance_buffer, 0, instance_data);
         }
 
-        // Update bolt instances from local simulation
+        // Update bolt instances from server state
         let mut bolt_instances = Vec::new();
-        for bolt in &local_bolts {
+        for bolt in self.game_state.bolts.values() {
             // Bolt color based on level (L1=blue, L2=cyan, L3=white)
             let (r, g, b) = match bolt.level {
                 1 => (0.2, 0.5, 1.0),
@@ -657,9 +654,9 @@ impl Client {
                 .write_buffer(&self.bolt_instance_buffer, 0, instance_data);
         }
 
-        // Update pickup instances from local simulation
+        // Update pickup instances from server state
         let mut pickup_instances = Vec::new();
-        for pickup in &local_pickups {
+        for pickup in self.game_state.pickups.values() {
             // Pickup color based on kind (Health=red, BoltUpgrade=blue, ShieldModule=green)
             let (r, g, b) = match pickup.kind {
                 0 => (1.0, 0.2, 0.2), // Health - red
@@ -681,24 +678,15 @@ impl Client {
 
     /// Render a frame
     pub fn render(&mut self) -> Result<(), JsValue> {
-        // Only step local simulation if we have a player and world is initialized
-        // (indicated by having at least one player entity)
-        // Step at render rate for smooth client prediction
-        if self.player_id.is_some() {
-            let has_players = self.local_world.query::<&Player>().iter().next().is_some();
-            if has_players {
-                // Step local simulation continuously (client prediction)
-                // Use frame time estimate (60fps = ~16ms)
-                // This makes controls feel instant while server corrects periodically
-                self.step_local_simulation(0.016);
-            }
-        }
+        // TEMPORARILY DISABLED: Client prediction causing jerky behavior
+        // TODO: Fix reconciliation to prevent jumps when syncing from server
+        // For now, just render from server state (game_state) instead of local simulation
 
         // Update camera uniform buffer
         self.update_camera_buffer();
 
-        // Update instance buffers from local simulation (client prediction)
-        self.update_instance_buffers();
+        // Update instance buffers from server state (temporarily, until client prediction is fixed)
+        self.update_instance_buffers_from_server_state();
 
         let output = self
             .surface
@@ -846,7 +834,8 @@ impl Client {
                 self.sync_local_world_from_snapshot(&players, &bolts, &pickups);
 
                 // Replay unacked inputs after syncing
-                // Clear net_queue first
+                // Clear net_queue first, then queue unacked inputs
+                // They will be applied in the next render frame
                 self.local_net_queue.inputs.clear();
                 for (seq, input) in &self.pending_inputs {
                     if *seq > last_seq_ack {
@@ -854,11 +843,8 @@ impl Client {
                     }
                 }
 
-                // Step simulation once to apply replayed inputs
-                // Use server tick rate (200ms = 0.2s)
-                if !self.local_net_queue.inputs.is_empty() {
-                    self.step_local_simulation(0.2);
-                }
+                // Don't step here - let the render loop step at consistent rate
+                // The sync already updated positions from server, so we're in sync
 
                 // Also update server state for reference
                 self.update_game_state(id, players, bolts, pickups);
@@ -936,10 +922,11 @@ impl Client {
 
     /// Step local simulation (client prediction)
     fn step_local_simulation(&mut self, dt: f32) {
+        // Set dt for this step (step() will update time.now internally)
         self.local_time.dt = dt;
-        self.local_time.now += dt;
 
         // Run game simulation step
+        // Note: step() updates time.now internally, so we don't need to do it here
         step(
             &mut self.local_world,
             &mut self.local_time,
@@ -1081,11 +1068,8 @@ impl Client {
                 self.pending_inputs
                     .push((self.input_seq, input_event.clone()));
 
-                // Apply to local simulation immediately
+                // Queue input for next simulation step (don't step here, let render loop handle it)
                 self.local_net_queue.inputs.push(input_event);
-
-                // Step local simulation with small dt (60fps = ~16ms)
-                self.step_local_simulation(0.016);
             }
         }
 
