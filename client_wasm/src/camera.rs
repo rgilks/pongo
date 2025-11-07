@@ -1,26 +1,17 @@
-//! Isometric camera for ISO game
+//! First-person camera for ISO game
 //!
-//! Camera with pitch ~35° and user yaw offset for map rotation
+//! Camera positioned at player's eye level, looking in the direction they're facing
 
 use glam::{Mat4, Vec3};
 
-/// Isometric camera parameters
+/// First-person camera parameters
 pub struct Camera {
-    /// Camera position in 3D space
+    /// Camera position in 3D space (player eye position)
     pub eye: Vec3,
-    /// Target point to look at (center of arena)
+    /// Target point to look at (forward direction from player)
     pub target: Vec3,
     /// Up vector
     pub up: Vec3,
-    /// Pitch angle in radians (~35° = 0.6109 rad)
-    #[allow(dead_code)] // Used in set_yaw_offset
-    pub pitch: f32,
-    /// User yaw offset for map rotation (in radians)
-    #[allow(dead_code)] // Will be used for map rotation feature
-    pub yaw_offset: f32,
-    /// Distance from target
-    #[allow(dead_code)] // Used in set_yaw_offset
-    pub distance: f32,
     /// Field of view (vertical) in radians
     pub fov: f32,
     /// Aspect ratio (width / height)
@@ -29,38 +20,22 @@ pub struct Camera {
     pub near: f32,
     /// Far clipping plane
     pub far: f32,
+    /// Eye height above ground (for first-person view)
+    pub eye_height: f32,
 }
 
 impl Camera {
-    /// Create a new isometric camera
+    /// Create a new first-person camera
     pub fn new(aspect: f32) -> Self {
-        // Isometric camera: pitch ~35° (0.6109 radians)
-        let pitch = 35.0_f32.to_radians();
-        let distance = 20.0; // Distance from arena center
-        let yaw_offset = 0.0;
-
-        // Calculate eye position based on pitch and distance
-        // For isometric view, we want to look down at an angle
-        // Note: In isometric view, we typically look from a 45° angle around the target
-        // Using standard isometric angles: 30° elevation, 45° rotation around Y
-        let iso_angle = 45.0_f32.to_radians(); // 45° rotation around Y axis
-        let eye = Vec3::new(
-            distance * pitch.cos() * iso_angle.cos(),
-            distance * pitch.sin(),
-            distance * pitch.cos() * iso_angle.sin(),
-        );
-
         Self {
-            eye,
-            target: Vec3::ZERO, // Look at arena center
-            up: Vec3::Y,        // Y is up
-            pitch,
-            yaw_offset,
-            distance,
-            fov: 60.0_f32.to_radians(), // 60° FOV
+            eye: Vec3::new(0.0, 1.0, 0.0),    // Start at origin, eye level
+            target: Vec3::new(1.0, 1.0, 0.0), // Look forward (+X direction)
+            up: Vec3::Y,                      // Y is up
+            fov: 75.0_f32.to_radians(),       // 75° FOV for first-person
             aspect,
             near: 0.1,
             far: 100.0,
+            eye_height: 1.0, // Eye level 1 unit above ground
         }
     }
 
@@ -69,30 +44,20 @@ impl Camera {
         self.aspect = aspect;
     }
 
-    /// Set user yaw offset for map rotation
-    #[allow(dead_code)] // Will be used for map rotation feature
-    pub fn set_yaw_offset(&mut self, yaw_offset: f32) {
-        self.yaw_offset = yaw_offset;
-        // Recalculate eye position
-        self.eye = Vec3::new(
-            self.distance * self.pitch.cos() * yaw_offset.cos(),
-            self.distance * self.pitch.sin(),
-            self.distance * self.pitch.cos() * yaw_offset.sin(),
-        );
-    }
+    /// Update camera to first-person view from player position and yaw
+    /// pos: player position in 3D (x, 0, z)
+    /// yaw: player rotation in radians (0 = +X direction)
+    pub fn set_first_person(&mut self, pos: Vec3, yaw: f32) {
+        // Set eye position at player position + eye height
+        self.eye = Vec3::new(pos.x, self.eye_height, pos.z);
 
-    /// Update camera to follow a target position (for player following)
-    pub fn set_target(&mut self, target: Vec3) {
-        self.target = target;
-        // Recalculate eye position relative to new target
-        // Use same isometric angle as initial setup (45° rotation around Y)
-        let iso_angle = 45.0_f32.to_radians();
-        self.eye = target
-            + Vec3::new(
-                self.distance * self.pitch.cos() * iso_angle.cos(),
-                self.distance * self.pitch.sin(),
-                self.distance * self.pitch.cos() * iso_angle.sin(),
-            );
+        // Calculate forward direction from yaw
+        // In 2D: forward = (cos(yaw), sin(yaw))
+        // In 3D: forward = (cos(yaw), 0, sin(yaw))
+        let forward = Vec3::new(yaw.cos(), 0.0, yaw.sin());
+
+        // Set target to look in forward direction
+        self.target = self.eye + forward;
     }
 
     /// Get view matrix (world to camera space)

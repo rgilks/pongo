@@ -365,29 +365,29 @@ impl Client {
         // South wall: min=(-20,-20), max=(20,-19) -> center=(0,-19.5), size=(40,1) -> avg=20.5
         block_instances.push(Instance {
             transform: [0.0, -arena_size + wall_thickness * 0.5, 20.5, 0.0],
-            tint: [0.4, 0.4, 0.5, 1.0], // Gray walls
+            tint: [0.35, 0.4, 0.45, 1.0], // Darker gray-blue walls for better contrast
         });
         // North wall: min=(-20,19), max=(20,20) -> center=(0,19.5), size=(40,1) -> avg=20.5
         block_instances.push(Instance {
             transform: [0.0, arena_size - wall_thickness * 0.5, 20.5, 0.0],
-            tint: [0.4, 0.4, 0.5, 1.0],
+            tint: [0.35, 0.4, 0.45, 1.0], // Darker gray-blue walls for better contrast
         });
         // West wall: min=(-20,-20), max=(-19,20) -> center=(-19.5,0), size=(1,40) -> avg=20.5
         block_instances.push(Instance {
             transform: [-arena_size + wall_thickness * 0.5, 0.0, 20.5, 0.0],
-            tint: [0.4, 0.4, 0.5, 1.0],
+            tint: [0.35, 0.4, 0.45, 1.0],
         });
         // East wall: min=(19,-20), max=(20,20) -> center=(19.5,0), size=(1,40) -> avg=20.5
         block_instances.push(Instance {
             transform: [arena_size - wall_thickness * 0.5, 0.0, 20.5, 0.0],
-            tint: [0.4, 0.4, 0.5, 1.0],
+            tint: [0.35, 0.4, 0.45, 1.0],
         });
 
         // Interior obstacles (4 blocks, 2x2 each) - already center + size
         for (x, y) in [(-8.0, 0.0), (8.0, 0.0), (0.0, -8.0), (0.0, 8.0)] {
             block_instances.push(Instance {
-                transform: [x, y, 2.0, 0.0], // x, y, scale (size), rotation
-                tint: [0.5, 0.3, 0.2, 1.0],  // Brown obstacles
+                transform: [x, y, 2.0, 0.0],  // x, y, scale (size), rotation
+                tint: [0.45, 0.35, 0.3, 1.0], // Darker brown-gray obstacles for better visibility
             });
         }
 
@@ -399,7 +399,7 @@ impl Client {
         // Create dummy instance buffer for non-instanced draws (ground)
         let dummy_instance = Instance {
             transform: [0.0, 0.0, 1.0, 0.0], // identity transform
-            tint: [0.2, 0.25, 0.3, 1.0],     // Dark blue-gray ground
+            tint: [0.15, 0.2, 0.25, 1.0],    // Darker blue-gray ground for better contrast
         };
         let dummy_instance_buffer = device.create_buffer(&BufferDescriptor {
             label: Some("Dummy Instance Buffer"),
@@ -525,7 +525,7 @@ impl Client {
 
     /// Update camera uniform buffer
     fn update_camera_buffer(&mut self) {
-        // Make camera follow the player if we have one (use local simulation for smooth following)
+        // Make camera follow the player in first-person view
         if let Some(player_id) = self.player_id {
             // Try to get player from local world first (client prediction)
             let mut found = false;
@@ -533,8 +533,9 @@ impl Client {
                 self.local_world.query::<(&Player, &Transform2D)>().iter()
             {
                 if player.id == player_id {
-                    self.camera
-                        .set_target(glam::Vec3::new(transform.pos.x, 0.0, transform.pos.y));
+                    // Simple mapping: game (x, y) -> 3D (x, 0, z)
+                    let pos_3d = glam::Vec3::new(transform.pos.x, 0.0, transform.pos.y);
+                    self.camera.set_first_person(pos_3d, transform.yaw);
                     found = true;
                     break;
                 }
@@ -543,11 +544,9 @@ impl Client {
             // Fallback to server state if not in local world
             if !found {
                 if let Some(player_data) = self.game_state.players.get(&player_id) {
-                    self.camera.set_target(glam::Vec3::new(
-                        player_data.pos[0],
-                        0.0,
-                        player_data.pos[1],
-                    ));
+                    // Simple mapping: game (x, y) -> 3D (x, 0, z)
+                    let pos_3d = glam::Vec3::new(player_data.pos[0], 0.0, player_data.pos[1]);
+                    self.camera.set_first_person(pos_3d, player_data.yaw);
                 }
             }
         }
@@ -622,10 +621,12 @@ impl Client {
         // Update player instances from server state
         let mut player_instances = Vec::new();
         for player in self.game_state.players.values() {
-            // Vibrant player colors - bright orange/red with slight glow
+            // Very vibrant player colors - bright orange/red with strong saturation
+            // Make players stand out more with brighter, more saturated colors
+            // Note: Shader handles coordinate rotation, so pass raw game coordinates
             player_instances.push(Instance {
                 transform: [player.pos[0], player.pos[1], 0.6, player.yaw], // x, y, scale (player radius), rotation
-                tint: [1.0, 0.4, 0.2, 1.0], // Bright orange-red for players
+                tint: [1.0, 0.3, 0.05, 1.0], // Very bright orange-red for players (more red, less orange)
             });
         }
         if !player_instances.is_empty() {
@@ -637,13 +638,14 @@ impl Client {
         // Update bolt instances from server state
         let mut bolt_instances = Vec::new();
         for bolt in self.game_state.bolts.values() {
-            // Bright, glowing bolt colors based on level
+            // Very bright, highly saturated bolt colors for visibility
             let (r, g, b) = match bolt.level {
-                1 => (0.3, 0.7, 1.0), // Bright blue
-                2 => (0.0, 1.0, 1.0), // Cyan
-                3 => (1.0, 0.9, 0.3), // Bright yellow-white
-                _ => (0.8, 0.8, 0.8),
+                1 => (0.4, 0.8, 1.0), // Very bright cyan-blue
+                2 => (0.0, 1.0, 1.0), // Pure cyan
+                3 => (1.0, 1.0, 0.2), // Bright yellow
+                _ => (1.0, 1.0, 1.0), // White
             };
+            // Note: Shader handles coordinate rotation, so pass raw game coordinates
             bolt_instances.push(Instance {
                 transform: [bolt.pos[0], bolt.pos[1], bolt.radius, 0.0], // x, y, scale (radius), no rotation
                 tint: [r, g, b, 1.0],
@@ -658,13 +660,14 @@ impl Client {
         // Update pickup instances from server state
         let mut pickup_instances = Vec::new();
         for pickup in self.game_state.pickups.values() {
-            // Bright, vibrant pickup colors with glow
+            // Very bright, highly saturated pickup colors
             let (r, g, b) = match pickup.kind {
-                0 => (1.0, 0.3, 0.3), // Health - bright red
-                1 => (0.4, 0.7, 1.0), // BoltUpgrade - bright blue
-                2 => (0.3, 1.0, 0.4), // ShieldModule - bright green
-                _ => (0.9, 0.9, 0.9), // Default - bright white
+                0 => (1.0, 0.2, 0.2), // Health - very bright red
+                1 => (0.3, 0.8, 1.0), // BoltUpgrade - bright cyan-blue
+                2 => (0.2, 1.0, 0.3), // ShieldModule - very bright green
+                _ => (1.0, 1.0, 1.0), // Default - pure white
             };
+            // Note: Shader handles coordinate rotation, so pass raw game coordinates
             pickup_instances.push(Instance {
                 transform: [pickup.pos[0], pickup.pos[1], 0.4, 0.0], // x, y, scale (radius), no rotation
                 tint: [r, g, b, 1.0],
@@ -712,9 +715,9 @@ impl Client {
                     resolve_target: None,
                     ops: Operations {
                         load: LoadOp::Clear(Color {
-                            r: 0.05,
-                            g: 0.08,
-                            b: 0.12,
+                            r: 0.03,
+                            g: 0.05,
+                            b: 0.08,
                             a: 1.0,
                         }),
                         store: StoreOp::Store,

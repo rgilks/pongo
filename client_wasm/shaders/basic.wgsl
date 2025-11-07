@@ -53,6 +53,8 @@ fn vs_main(
     let rotation = instance.transform.w;
     
     // Transform to world space (2D game, Y is up in 3D)
+    // Simple mapping: game (x, y) -> 3D (x, 0, z)
+    // Apply player rotation (yaw) around Y axis
     let cos_r = cos(rotation);
     let sin_r = sin(rotation);
     let rot_matrix = mat3x3<f32>(
@@ -61,6 +63,7 @@ fn vs_main(
         vec3<f32>(sin_r, 0.0, cos_r),
     );
     
+    // Map 2D position to 3D: (x, y) -> (x, 0, z)
     let world_pos = rot_matrix * (model.position * scale) + vec3<f32>(pos_2d.x, 0.0, pos_2d.y);
     let world_normal = rot_matrix * model.normal;
     
@@ -75,15 +78,17 @@ fn vs_main(
 @fragment
 fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     // Enhanced ambient lighting with color
-    let ambient_color = vec3<f32>(0.15, 0.18, 0.25); // Cool blue ambient
-    let ambient_strength = 0.4;
+    let ambient_color = vec3<f32>(0.1, 0.13, 0.2); // Deeper cool blue ambient
+    let ambient_strength = 0.6;
     
-    // Directional light from above (sun/moon)
-    let light_dir = normalize(vec3<f32>(0.3, 1.0, 0.3));
-    let light_color = vec3<f32>(1.0, 0.95, 0.85); // Warm sunlight
-    let light_strength = 0.6;
+    // Directional light from above (sun/moon) - stronger and more angled
+    let light_dir = normalize(vec3<f32>(0.2, 1.0, 0.2));
+    let light_color = vec3<f32>(1.0, 0.99, 0.95); // Very warm, bright sunlight
+    let light_strength = 1.0;
     let ndotl = max(dot(in.normal, light_dir), 0.0);
-    let directional = light_color * light_strength * ndotl;
+    // Add specular-like highlight for more depth
+    let specular = pow(max(dot(normalize(light_dir + normalize(camera.eye.xyz - in.world_position)), in.normal), 0.0), 32.0) * 0.3;
+    let directional = light_color * light_strength * (ndotl + specular);
     
     // Accumulate point lights (for glowing effects)
     var light_contrib = vec3<f32>(0.0);
@@ -98,19 +103,27 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
         if (dist < light.radius) {
             let dir = normalize(to_light);
             let ndotl_point = max(dot(in.normal, dir), 0.0);
-            let attenuation = pow(1.0 - (dist / light.radius), 2.0); // Quadratic falloff
-            light_contrib += light.color * light.intensity * ndotl_point * attenuation;
+            let attenuation = pow(1.0 - (dist / light.radius), 2.5); // Stronger falloff
+            light_contrib += light.color * light.intensity * (ndotl_point + 0.3) * attenuation; // Add base glow
         }
     }
     
-    // Combine all lighting
-    let lit_color = in.color.rgb * (ambient_color * ambient_strength + directional + light_contrib);
+    // Combine all lighting with better contrast
+    let base_lighting = ambient_color * ambient_strength + directional;
+    let lit_color = in.color.rgb * base_lighting;
     
-    // Add slight rim lighting for depth
-    let rim = pow(1.0 - max(dot(view_dir, in.normal), 0.0), 2.0);
-    let rim_color = in.color.rgb * rim * 0.3;
+    // Add rim lighting for depth and glow effect
+    let rim = pow(1.0 - max(dot(view_dir, in.normal), 0.0), 3.0);
+    let rim_color = in.color.rgb * rim * 0.4; // Rim for depth
     
-    let final_color = lit_color + rim_color;
-    return vec4<f32>(final_color, in.color.a);
+    // Add point light glow (unlit contribution for emissive feel)
+    let glow = light_contrib * 0.5; // Unlit glow contribution for brighter objects
+    
+    // Final color with better contrast
+    let final_color = lit_color + rim_color + glow + light_contrib;
+    
+    // Slight color boost for saturation (make colors pop more)
+    let boosted = mix(final_color, in.color.rgb * 1.15, 0.15);
+    return vec4<f32>(boosted, in.color.a);
 }
 
