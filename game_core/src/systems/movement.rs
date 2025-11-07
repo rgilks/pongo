@@ -16,9 +16,8 @@ pub fn apply_movement_intent(world: &mut World, time: &Time) {
 
     for entity in entities {
         let intent = *world.get::<&MovementIntent>(entity).unwrap();
-        let transform = *world.get::<&Transform2D>(entity).unwrap();
 
-        // Apply turn
+        // Apply turn FIRST, then get forward vector from updated transform
         let turn_amount = intent.turn * Params::TURN_RATE * time.dt;
         for (e, t) in world.query_mut::<&mut Transform2D>() {
             if e == entity {
@@ -27,7 +26,10 @@ pub fn apply_movement_intent(world: &mut World, time: &Time) {
             }
         }
 
-        // Apply thrust to velocity
+        // Get transform AFTER applying turn to get correct forward direction
+        let transform = *world.get::<&Transform2D>(entity).unwrap();
+
+        // Apply thrust to velocity using updated forward direction
         let forward = transform.forward();
         let speed = intent.thrust * Params::MOVE_SPEED;
         let mut found = false;
