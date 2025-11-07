@@ -2,12 +2,13 @@
 // Simple lambert lighting + ambient
 
 // Camera uniform buffer (binding 0)
+// Note: Uniform buffers require 16-byte alignment, so padding must use vec4<f32> (16 bytes) instead of f32 (4 bytes)
 struct CameraUniform {
     view_proj: mat4x4<f32>,
     view: mat4x4<f32>,
     proj: mat4x4<f32>,
     eye: vec4<f32>,
-    _padding: array<f32, 12>,
+    _padding: array<vec4<f32>, 3>, // 3 * vec4 = 12 floats = 48 bytes, properly aligned
 }
 @group(0) @binding(0) var<uniform> camera: CameraUniform;
 
