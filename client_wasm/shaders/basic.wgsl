@@ -74,10 +74,18 @@ fn vs_main(
 
 @fragment
 fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
-    // Ambient lighting
-    let ambient = 0.2;
+    // Enhanced ambient lighting with color
+    let ambient_color = vec3<f32>(0.15, 0.18, 0.25); // Cool blue ambient
+    let ambient_strength = 0.4;
     
-    // Accumulate point lights
+    // Directional light from above (sun/moon)
+    let light_dir = normalize(vec3<f32>(0.3, 1.0, 0.3));
+    let light_color = vec3<f32>(1.0, 0.95, 0.85); // Warm sunlight
+    let light_strength = 0.6;
+    let ndotl = max(dot(in.normal, light_dir), 0.0);
+    let directional = light_color * light_strength * ndotl;
+    
+    // Accumulate point lights (for glowing effects)
     var light_contrib = vec3<f32>(0.0);
     let view_dir = normalize(camera.eye.xyz - in.world_position);
     
@@ -86,17 +94,23 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
         let to_light = light.pos - in.world_position;
         let dist = length(to_light);
         
-        // Distance attenuation
+        // Distance attenuation with smoother falloff
         if (dist < light.radius) {
             let dir = normalize(to_light);
-            let ndotl = max(dot(in.normal, dir), 0.0);
-            let attenuation = 1.0 - (dist / light.radius);
-            light_contrib += light.color * light.intensity * ndotl * attenuation;
+            let ndotl_point = max(dot(in.normal, dir), 0.0);
+            let attenuation = pow(1.0 - (dist / light.radius), 2.0); // Quadratic falloff
+            light_contrib += light.color * light.intensity * ndotl_point * attenuation;
         }
     }
     
-    // Simple lambert + ambient
-    let final_color = in.color.rgb * (ambient + light_contrib);
+    // Combine all lighting
+    let lit_color = in.color.rgb * (ambient_color * ambient_strength + directional + light_contrib);
+    
+    // Add slight rim lighting for depth
+    let rim = pow(1.0 - max(dot(view_dir, in.normal), 0.0), 2.0);
+    let rim_color = in.color.rgb * rim * 0.3;
+    
+    let final_color = lit_color + rim_color;
     return vec4<f32>(final_color, in.color.a);
 }
 

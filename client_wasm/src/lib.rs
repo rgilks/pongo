@@ -399,7 +399,7 @@ impl Client {
         // Create dummy instance buffer for non-instanced draws (ground)
         let dummy_instance = Instance {
             transform: [0.0, 0.0, 1.0, 0.0], // identity transform
-            tint: [1.0, 1.0, 1.0, 1.0],      // white
+            tint: [0.2, 0.25, 0.3, 1.0],     // Dark blue-gray ground
         };
         let dummy_instance_buffer = device.create_buffer(&BufferDescriptor {
             label: Some("Dummy Instance Buffer"),
@@ -622,9 +622,10 @@ impl Client {
         // Update player instances from server state
         let mut player_instances = Vec::new();
         for player in self.game_state.players.values() {
+            // Vibrant player colors - bright orange/red with slight glow
             player_instances.push(Instance {
                 transform: [player.pos[0], player.pos[1], 0.6, player.yaw], // x, y, scale (player radius), rotation
-                tint: [1.0, 0.5, 0.5, 1.0],                                 // Red tint for players
+                tint: [1.0, 0.4, 0.2, 1.0], // Bright orange-red for players
             });
         }
         if !player_instances.is_empty() {
@@ -636,12 +637,12 @@ impl Client {
         // Update bolt instances from server state
         let mut bolt_instances = Vec::new();
         for bolt in self.game_state.bolts.values() {
-            // Bolt color based on level (L1=blue, L2=cyan, L3=white)
+            // Bright, glowing bolt colors based on level
             let (r, g, b) = match bolt.level {
-                1 => (0.2, 0.5, 1.0),
-                2 => (0.0, 1.0, 1.0),
-                3 => (1.0, 1.0, 1.0),
-                _ => (0.5, 0.5, 0.5),
+                1 => (0.3, 0.7, 1.0), // Bright blue
+                2 => (0.0, 1.0, 1.0), // Cyan
+                3 => (1.0, 0.9, 0.3), // Bright yellow-white
+                _ => (0.8, 0.8, 0.8),
             };
             bolt_instances.push(Instance {
                 transform: [bolt.pos[0], bolt.pos[1], bolt.radius, 0.0], // x, y, scale (radius), no rotation
@@ -657,12 +658,12 @@ impl Client {
         // Update pickup instances from server state
         let mut pickup_instances = Vec::new();
         for pickup in self.game_state.pickups.values() {
-            // Pickup color based on kind (Health=red, BoltUpgrade=blue, ShieldModule=green)
+            // Bright, vibrant pickup colors with glow
             let (r, g, b) = match pickup.kind {
-                0 => (1.0, 0.2, 0.2), // Health - red
-                1 => (0.2, 0.5, 1.0), // BoltUpgrade - blue
-                2 => (0.2, 1.0, 0.2), // ShieldModule - green
-                _ => (0.8, 0.8, 0.8), // Default - light gray
+                0 => (1.0, 0.3, 0.3), // Health - bright red
+                1 => (0.4, 0.7, 1.0), // BoltUpgrade - bright blue
+                2 => (0.3, 1.0, 0.4), // ShieldModule - bright green
+                _ => (0.9, 0.9, 0.9), // Default - bright white
             };
             pickup_instances.push(Instance {
                 transform: [pickup.pos[0], pickup.pos[1], 0.4, 0.0], // x, y, scale (radius), no rotation
@@ -711,9 +712,9 @@ impl Client {
                     resolve_target: None,
                     ops: Operations {
                         load: LoadOp::Clear(Color {
-                            r: 0.1,
-                            g: 0.1,
-                            b: 0.15,
+                            r: 0.05,
+                            g: 0.08,
+                            b: 0.12,
                             a: 1.0,
                         }),
                         store: StoreOp::Store,
