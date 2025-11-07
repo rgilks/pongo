@@ -169,6 +169,7 @@ dependencies = [
  "game_core",
  "getrandom",
  "glam",
+ "hecs",
  "js-sys",
  "proto",
  "wasm-bindgen",

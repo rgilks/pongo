@@ -11,6 +11,8 @@ mod camera;
 mod mesh;
 
 use camera::{Camera, CameraUniform};
+use game_core::*;
+use hecs::World;
 use mesh::{create_cube, create_ground_quad, create_sphere, Mesh};
 use proto::{dequantize_pos, dequantize_yaw, PlayerP, C2S, S2C};
 use std::collections::HashMap;
@@ -98,8 +100,22 @@ pub struct Client {
     max_instances: usize,
     // Network (WebSocket managed in JavaScript)
     player_id: Option<u16>,
-    game_state: GameState,
+    game_state: GameState, // Server state (for reconciliation)
     input_seq: u32,
+
+    // Client prediction: local simulation
+    local_world: World,
+    local_time: Time,
+    local_map: GameMap,
+    local_rng: GameRng,
+    local_score: Score,
+    local_events: Events,
+    local_config: Config,
+    local_net_queue: NetQueue,
+
+    // Pending inputs (for reconciliation)
+    pending_inputs: Vec<(u32, InputEvent)>, // (seq, input) - stored until acked
+    last_acked_seq: u32,                    // Last input sequence acked by server
 }
 
 impl Client {
@@ -493,20 +509,46 @@ impl Client {
             player_id: None,
             game_state: GameState::new(),
             input_seq: 0,
+            // Initialize local simulation
+            local_world: World::new(),
+            local_time: Time::new(),
+            local_map: GameMap::new(Map::test_map()),
+            local_rng: GameRng::new(),
+            local_score: Score::new(),
+            local_events: Events::new(),
+            local_config: Config::new(),
+            local_net_queue: NetQueue::new(),
+            pending_inputs: Vec::new(),
+            last_acked_seq: 0,
         })
     }
 
     /// Update camera uniform buffer
     fn update_camera_buffer(&mut self) {
-        // Make camera follow the player if we have one
+        // Make camera follow the player if we have one (use local simulation for smooth following)
         if let Some(player_id) = self.player_id {
-            if let Some(player_data) = self.game_state.players.get(&player_id) {
-                // Update camera to follow player (convert 2D pos to 3D, Y=0 for ground level)
-                self.camera.set_target(glam::Vec3::new(
-                    player_data.pos[0],
-                    0.0,
-                    player_data.pos[1],
-                ));
+            // Try to get player from local world first (client prediction)
+            let mut found = false;
+            for (_, (player, transform)) in
+                self.local_world.query::<(&Player, &Transform2D)>().iter()
+            {
+                if player.id == player_id {
+                    self.camera
+                        .set_target(glam::Vec3::new(transform.pos.x, 0.0, transform.pos.y));
+                    found = true;
+                    break;
+                }
+            }
+
+            // Fallback to server state if not in local world
+            if !found {
+                if let Some(player_data) = self.game_state.players.get(&player_id) {
+                    self.camera.set_target(glam::Vec3::new(
+                        player_data.pos[0],
+                        0.0,
+                        player_data.pos[1],
+                    ));
+                }
             }
         }
 
@@ -532,11 +574,57 @@ impl Client {
         }
     }
 
-    /// Update instance buffers from game state
+    /// Extract render data from local world (for client prediction)
+    fn extract_render_data_from_world(&self) -> (Vec<PlayerData>, Vec<BoltData>, Vec<PickupData>) {
+        let mut players = Vec::new();
+        let mut bolts = Vec::new();
+        let mut pickups = Vec::new();
+
+        // Extract players
+        for (_, (player, transform, health)) in self
+            .local_world
+            .query::<(&Player, &Transform2D, &Health)>()
+            .iter()
+        {
+            players.push(PlayerData {
+                pos: [transform.pos.x, transform.pos.y],
+                yaw: transform.yaw,
+                hp: 3 - health.damage.min(3), // Convert damage to HP
+            });
+        }
+
+        // Extract bolts
+        for (_, (bolt, transform)) in self.local_world.query::<(&Bolt, &Transform2D)>().iter() {
+            bolts.push(BoltData {
+                pos: [transform.pos.x, transform.pos.y],
+                radius: bolt.radius,
+                level: bolt.level,
+            });
+        }
+
+        // Extract pickups
+        for (_, (pickup, transform)) in self.local_world.query::<(&Pickup, &Transform2D)>().iter() {
+            pickups.push(PickupData {
+                pos: [transform.pos.x, transform.pos.y],
+                kind: match pickup.kind {
+                    game_core::components::PickupKind::Health => 0,
+                    game_core::components::PickupKind::BoltUpgrade => 1,
+                    game_core::components::PickupKind::ShieldModule => 2,
+                },
+            });
+        }
+
+        (players, bolts, pickups)
+    }
+
+    /// Update instance buffers from local simulation (client prediction)
     fn update_instance_buffers(&mut self) {
-        // Update player instances
+        // Extract render data from local world
+        let (local_players, local_bolts, local_pickups) = self.extract_render_data_from_world();
+
+        // Update player instances from local simulation
         let mut player_instances = Vec::new();
-        for player in self.game_state.players.values() {
+        for player in &local_players {
             player_instances.push(Instance {
                 transform: [player.pos[0], player.pos[1], 0.6, player.yaw], // x, y, scale (player radius), rotation
                 tint: [1.0, 0.5, 0.5, 1.0],                                 // Red tint for players
@@ -548,9 +636,9 @@ impl Client {
                 .write_buffer(&self.player_instance_buffer, 0, instance_data);
         }
 
-        // Update bolt instances
+        // Update bolt instances from local simulation
         let mut bolt_instances = Vec::new();
-        for bolt in self.game_state.bolts.values() {
+        for bolt in &local_bolts {
             // Bolt color based on level (L1=blue, L2=cyan, L3=white)
             let (r, g, b) = match bolt.level {
                 1 => (0.2, 0.5, 1.0),
@@ -569,9 +657,9 @@ impl Client {
                 .write_buffer(&self.bolt_instance_buffer, 0, instance_data);
         }
 
-        // Update pickup instances
+        // Update pickup instances from local simulation
         let mut pickup_instances = Vec::new();
-        for pickup in self.game_state.pickups.values() {
+        for pickup in &local_pickups {
             // Pickup color based on kind (Health=red, BoltUpgrade=blue, ShieldModule=green)
             let (r, g, b) = match pickup.kind {
                 0 => (1.0, 0.2, 0.2), // Health - red
@@ -593,10 +681,23 @@ impl Client {
 
     /// Render a frame
     pub fn render(&mut self) -> Result<(), JsValue> {
+        // Only step local simulation if we have a player and world is initialized
+        // (indicated by having at least one player entity)
+        // Step at render rate for smooth client prediction
+        if self.player_id.is_some() {
+            let has_players = self.local_world.query::<&Player>().iter().next().is_some();
+            if has_players {
+                // Step local simulation continuously (client prediction)
+                // Use frame time estimate (60fps = ~16ms)
+                // This makes controls feel instant while server corrects periodically
+                self.step_local_simulation(0.016);
+            }
+        }
+
         // Update camera uniform buffer
         self.update_camera_buffer();
 
-        // Update instance buffers from game state
+        // Update instance buffers from local simulation (client prediction)
         self.update_instance_buffers();
 
         let output = self
@@ -723,19 +824,43 @@ impl Client {
             } => {
                 // Welcome message received - player_id assigned
                 self.player_id = Some(player_id);
+
+                // Initialize local world with player (will be synced from first snapshot)
+                // For now, wait for first snapshot to initialize
             }
             S2C::Snapshot {
                 id,
                 tick: _,
                 t_ms: _,
-                last_seq_ack: _,
+                last_seq_ack,
                 players,
                 bolts,
                 pickups,
                 hill_owner: _,
                 hill_progress_u16: _,
             } => {
-                // Snapshot received - update game state
+                // Snapshot received - reconcile with local simulation
+                self.reconcile(last_seq_ack);
+
+                // Sync local world from server snapshot
+                self.sync_local_world_from_snapshot(&players, &bolts, &pickups);
+
+                // Replay unacked inputs after syncing
+                // Clear net_queue first
+                self.local_net_queue.inputs.clear();
+                for (seq, input) in &self.pending_inputs {
+                    if *seq > last_seq_ack {
+                        self.local_net_queue.inputs.push(input.clone());
+                    }
+                }
+
+                // Step simulation once to apply replayed inputs
+                // Use server tick rate (200ms = 0.2s)
+                if !self.local_net_queue.inputs.is_empty() {
+                    self.step_local_simulation(0.2);
+                }
+
+                // Also update server state for reference
                 self.update_game_state(id, players, bolts, pickups);
             }
             S2C::Eliminated { player_id } => {
@@ -809,7 +934,117 @@ impl Client {
         }
     }
 
+    /// Step local simulation (client prediction)
+    fn step_local_simulation(&mut self, dt: f32) {
+        self.local_time.dt = dt;
+        self.local_time.now += dt;
+
+        // Run game simulation step
+        step(
+            &mut self.local_world,
+            &mut self.local_time,
+            &self.local_map,
+            &mut self.local_rng,
+            &mut self.local_score,
+            &mut self.local_events,
+            &self.local_config,
+            &mut self.local_net_queue,
+        );
+    }
+
+    /// Sync local world from server snapshot (for reconciliation)
+    fn sync_local_world_from_snapshot(
+        &mut self,
+        players: &[PlayerP],
+        bolts: &[proto::BoltP],
+        pickups: &[proto::PickupP],
+    ) {
+        // Sync players: update existing or create new
+        for player in players {
+            let pos = glam::Vec2::new(
+                dequantize_pos(player.pos_q[0]),
+                dequantize_pos(player.pos_q[1]),
+            );
+            let yaw = dequantize_yaw(player.yaw_q);
+
+            // Find or create player entity
+            let mut player_entity = None;
+            for (entity, p) in self.local_world.query::<&Player>().iter() {
+                if p.id == player.id {
+                    player_entity = Some(entity);
+                    break;
+                }
+            }
+
+            if let Some(entity) = player_entity {
+                // Update existing player
+                for (e, transform) in self.local_world.query_mut::<&mut Transform2D>() {
+                    if e == entity {
+                        transform.pos = pos;
+                        transform.yaw = yaw;
+                        break;
+                    }
+                }
+                for (e, health) in self.local_world.query_mut::<&mut Health>() {
+                    if e == entity {
+                        health.damage = 3 - player.hp.min(3);
+                        break;
+                    }
+                }
+            } else {
+                // Create new player
+                create_player(&mut self.local_world, player.id, 0, 0, pos);
+                // Update position/yaw after creation
+                // Find entity first
+                let mut target_entity = None;
+                for (e, p) in self.local_world.query::<&Player>().iter() {
+                    if p.id == player.id {
+                        target_entity = Some(e);
+                        break;
+                    }
+                }
+                // Then update components
+                if let Some(entity) = target_entity {
+                    for (e, transform) in self.local_world.query_mut::<&mut Transform2D>() {
+                        if e == entity {
+                            transform.pos = pos;
+                            transform.yaw = yaw;
+                            break;
+                        }
+                    }
+                    for (e, health) in self.local_world.query_mut::<&mut Health>() {
+                        if e == entity {
+                            health.damage = 3 - player.hp.min(3);
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+
+        // Sync bolts: remove old ones, let local simulation create new ones
+        // (Bolts are created by fire_bolts system, so we just sync positions)
+        // For now, we'll let the local simulation handle bolts naturally
+
+        // Sync pickups: managed by spawn pads, let game systems handle them
+        // Pickups will spawn naturally from spawn pads
+    }
+
+    /// Reconcile local simulation with server snapshot
+    fn reconcile(&mut self, last_seq_ack: u32) {
+        // Update last acked sequence
+        self.last_acked_seq = last_seq_ack;
+
+        // Remove acked inputs from pending list
+        self.pending_inputs.retain(|(seq, _)| *seq > last_seq_ack);
+
+        // If we have unacked inputs, we need to rewind and replay
+        // For now, we'll just sync from server state and replay pending inputs
+        // In a full implementation, we'd save/restore world state
+    }
+
     /// Prepare input message bytes (JavaScript will send via WebSocket)
+    /// Also applies input immediately to local simulation (client prediction)
     pub fn prepare_input(
         &mut self,
         thrust: f32,
@@ -825,6 +1060,34 @@ impl Client {
 
         let thrust_i8 = (thrust.clamp(-1.0, 1.0) * 127.0) as i8;
         let turn_i8 = (turn.clamp(-1.0, 1.0) * 127.0) as i8;
+
+        // Apply input immediately to local simulation (client prediction)
+        if let Some(player_id) = self.player_id {
+            // Only apply if local world is initialized (has players)
+            let has_players = self.local_world.query::<&Player>().iter().next().is_some();
+            if has_players {
+                // Create input event
+                let input_event = InputEvent {
+                    player_id,
+                    seq: self.input_seq,
+                    t_ms,
+                    thrust,
+                    turn,
+                    bolt_level: bolt.min(3),
+                    shield_level: shield.min(3),
+                };
+
+                // Store for reconciliation
+                self.pending_inputs
+                    .push((self.input_seq, input_event.clone()));
+
+                // Apply to local simulation immediately
+                self.local_net_queue.inputs.push(input_event);
+
+                // Step local simulation with small dt (60fps = ~16ms)
+                self.step_local_simulation(0.016);
+            }
+        }
 
         let input_msg = C2S::Input {
             seq: self.input_seq,
