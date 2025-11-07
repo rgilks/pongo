@@ -281,17 +281,20 @@ impl MatchDO {
                     shield,
                 } => {
                     // Find player_id for this WebSocket
-                    // TODO: Proper WebSocket tracking - need to map WebSocket to player_id
-                    // For now, we'll need to pass player_id in the message or track it differently
-                    // This is a limitation of Cloudflare Workers WebSocket API
-                    // Workaround: Store WebSocket when Join message arrives, then use that mapping
-                    // For now, use the first player (this is a temporary workaround for testing)
+                    // For single-player testing, use the first (and only) player
+                    // TODO: Implement proper WebSocket-to-player mapping for multi-player
+                    // (Cloudflare Workers WebSocket API doesn't provide unique IDs)
                     let player_id = gs.clients.keys().next().copied();
 
                     if let Some(pid) = player_id {
                         // Convert i8 inputs to f32 (-127..127 -> -1.0..1.0)
                         let thrust = thrust_i8 as f32 / 127.0;
                         let turn = turn_i8 as f32 / 127.0;
+
+                        console_log!(
+                            "DO: Received input from player {}: thrust={:.2}, turn={:.2}, bolt={}, shield={}",
+                            pid, thrust, turn, bolt, shield
+                        );
 
                         // Add to net_queue (will be processed in next alarm tick)
                         gs.net_queue.inputs.push(InputEvent {
@@ -303,6 +306,8 @@ impl MatchDO {
                             bolt_level: bolt.min(3),
                             shield_level: shield.min(3),
                         });
+                    } else {
+                        console_error!("DO: Received input but no player_id found for WebSocket");
                     }
                     None
                 }

@@ -77,7 +77,7 @@
 
 ## Immediate Next Steps (Priority Order)
 
-### 1. Complete Basic Rendering (M3 Core) - CURRENT FOCUS
+### 1. Complete Basic Rendering (M3 Core) - ✅ COMPLETE
 
 **Goal**: See all game entities rendered correctly
 
@@ -89,20 +89,21 @@
 - [x] Render pickups as floating orbs
 - [x] Verify all entities update from snapshots
 
-**Estimated Time**: 4-6 hours
+**Status**: ✅ Complete - All entities render correctly
 
-### 2. Input Handling (M3 Core)
+### 2. Input Handling (M3 Core) - CURRENT FOCUS
 
 **Goal**: Player can control their tank
 
 **Tasks:**
 
-- [ ] Desktop controls (W/S/A/D movement, 1/2/3 bolt, Q/E/R shield)
-- [ ] Send input messages via WebSocket (`prepare_input`)
-- [ ] Verify inputs reach server
-- [ ] Test movement in browser
+- [x] Desktop controls (W/S/A/D movement, 1/2/3 bolt, Q/E/R shield) - JS handlers exist
+- [x] Send input messages via WebSocket (`prepare_input`) - Function exists
+- [ ] Verify inputs reach server and are processed
+- [ ] Test movement in browser and verify player moves
+- [ ] Debug any issues with input processing
 
-**Estimated Time**: 2-3 hours
+**Estimated Time**: 1-2 hours (structure exists, needs verification)
 
 ### 3. Client Prediction (M3 Core)
 
@@ -261,4 +262,4 @@
 ---
 
 **Last Updated**: 2025-01-07
-**Status**: M2 complete, M3 ~80% complete, entity rendering complete, game loop optimized (5 Hz for free tier), local development workflow documented and tested
+**Status**: M2 complete, M3 ~85% complete, entity rendering complete, input handling structure exists (needs verification), game loop optimized (5 Hz for free tier), local development workflow documented and tested
