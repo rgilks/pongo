@@ -21,10 +21,12 @@ Browser (should receive 101 Switching Protocols)
 ## What Changed
 
 ### 1. Diagnose the 500 error
+
 - Captured Worker error message: `TypeError: Cannot read properties of undefined (reading 'matchdo_new')`
 - Determined that the Durable Object was being constructed before the WASM module finished initialising.
 
 ### 2. Fixes implemented
+
 - Added a wrapper in `worker/index.js` that ensures `init(wasmUrl)` completes before the Durable Object class is instantiated (`MatchDOWrapper`).
 - Returned more descriptive errors from the Worker during debugging (no longer required in production, but useful for future investigations).
 - Corrected the Durable Object migration section in `wrangler.toml` to use `new_classes`.
@@ -32,8 +34,12 @@ Browser (should receive 101 Switching Protocols)
 ## Key Files (post-fix)
 
 ### Worker (`worker/index.js`)
+
 ```javascript
-import init, { fetch, MatchDO as WasmMatchDO } from "../lobby_worker/worker/pkg/lobby_worker.js";
+import init, {
+  fetch,
+  MatchDO as WasmMatchDO,
+} from "../lobby_worker/worker/pkg/lobby_worker.js";
 
 let initPromise;
 async function ensureInit() {
@@ -63,6 +69,7 @@ export { MatchDOWrapper as MatchDO };
 ```
 
 ### Worker route (`lobby_worker/src/lib.rs`)
+
 ```rust
 let match_do = ctx.env.durable_object("MATCH")?;
 let do_id = match_do.id_from_name(code)?;
@@ -83,6 +90,7 @@ match stub.fetch_with_request(req).await {
 ```
 
 ### Durable Object (`server_do/src/lib.rs`)
+
 ```rust
 match req.headers().get("Upgrade") {
     Ok(Some(header)) if header.to_lowercase() == "websocket" => {
@@ -105,6 +113,7 @@ match req.headers().get("Upgrade") {
 ## Code Verification
 
 The current code matches the **known-good Rust pattern** from research:
+
 - ✅ Forwards original `Request` object (not a new one)
 - ✅ Returns DO response directly without modification
 - ✅ Uses `Response::from_websocket(client)` correctly
@@ -141,4 +150,3 @@ The current code matches the **known-good Rust pattern** from research:
 
 **Last Updated:** 2025-11-07
 **Status:** WebSocket handshake fixed (match join succeeds). Continue with game-state synchronisation next.
-
