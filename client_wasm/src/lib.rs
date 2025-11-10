@@ -467,6 +467,21 @@ impl WasmClient {
         // JS will call get_input_bytes() and send via WebSocket
     }
 
+    /// Get Join message bytes
+    #[wasm_bindgen]
+    pub fn get_join_bytes(&self, code: &str) -> Result<Vec<u8>, JsValue> {
+        if code.len() != 5 {
+            return Err("Match code must be 5 characters".into());
+        }
+
+        let mut code_bytes = [0u8; 5];
+        code_bytes.copy_from_slice(code.as_bytes());
+
+        let msg = C2S::Join { code: code_bytes };
+        msg.to_bytes()
+            .map_err(|e| format!("Failed to encode join: {:?}", e).into())
+    }
+
     /// Get current input as bytes for sending
     #[wasm_bindgen]
     pub fn get_input_bytes(&self) -> Result<Vec<u8>, JsValue> {

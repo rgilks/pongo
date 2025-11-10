@@ -109,7 +109,20 @@ async fn handle_index(_req: Request, _ctx: RouteContext<()>) -> Result<Response>
                 const wsUrl = `${protocol}//${window.location.host}/ws/${code}`;
                 ws = new WebSocket(wsUrl);
                 ws.binaryType = 'arraybuffer';
-                ws.onopen = () => { console.log('WS connected'); updateStatus('Connected! Waiting for opponent...'); setupInput(); startRender(); };
+                ws.onopen = () => { 
+                    console.log('WS connected'); 
+                    try { 
+                        ws.send(client.get_join_bytes(code)); 
+                        console.log('Join sent'); 
+                        updateStatus('Connected! Waiting for opponent...'); 
+                    } catch(e) { 
+                        console.error('Join error:', e); 
+                        updateStatus('Error joining'); 
+                        return; 
+                    } 
+                    setupInput(); 
+                    startRender(); 
+                };
                 ws.onmessage = (event) => { if (event.data instanceof ArrayBuffer) { try { client.on_message(new Uint8Array(event.data)); } catch (e) { console.error('Message error:', e); } } };
                 ws.onerror = (error) => { console.error('WS error:', error); updateStatus('Connection error'); };
                 ws.onclose = () => { console.log('WS closed'); updateStatus('Disconnected'); };
