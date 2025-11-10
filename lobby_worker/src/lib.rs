@@ -17,55 +17,53 @@ pub async fn main(req: Request, env: Env, _ctx: worker::Context) -> Result<Respo
 }
 
 async fn handle_index(_req: Request, _ctx: RouteContext<()>) -> Result<Response> {
-    // For now, return a simple HTML page
-    // In production, this would be served from static assets or R2
     let html = r#"<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ISO Game</title>
+    <title>Pong</title>
     <style>
-        body { margin: 0; padding: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; background: #1a1a1a; color: #fff; font-family: monospace; }
-        #canvas { border: 2px solid #444; background: #000; }
-        #ui { margin-top: 20px; text-align: center; }
-        #status { margin: 10px 0; padding: 10px; background: #333; border-radius: 4px; }
-        input, button { padding: 8px 16px; margin: 5px; font-family: monospace; font-size: 14px; }
-        button { background: #4a9eff; color: white; border: none; border-radius: 4px; cursor: pointer; }
-        button:hover { background: #5aaeff; }
-        button:disabled { background: #666; cursor: not-allowed; }
+        body { margin: 0; padding: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; background: #000; color: #fff; font-family: 'Courier New', monospace; }
+        #gameContainer { position: relative; }
+        #canvas { border: 2px solid #fff; background: #000; display: block; }
+        #score { position: absolute; top: 20px; left: 50%; transform: translateX(-50%); font-size: 48px; color: #fff; text-shadow: 0 0 10px #fff; pointer-events: none; }
+        #ui { margin-top: 30px; text-align: center; }
+        #status { margin: 15px 0; padding: 10px 20px; background: #222; border: 2px solid #fff; border-radius: 4px; font-size: 16px; }
+        input, button { padding: 10px 20px; margin: 5px; font-family: 'Courier New', monospace; font-size: 16px; border: 2px solid #fff; background: #000; color: #fff; }
+        button { cursor: pointer; transition: all 0.2s; }
+        button:hover:not(:disabled) { background: #fff; color: #000; }
+        button:disabled { opacity: 0.5; cursor: not-allowed; }
+        .controls { margin-top: 20px; font-size: 14px; color: #888; }
+        #matchCode { text-transform: uppercase; }
     </style>
 </head>
 <body>
-    <canvas id="canvas" width="800" height="600"></canvas>
+    <div id="gameContainer">
+        <canvas id="canvas" width="800" height="600"></canvas>
+        <div id="score">0 : 0</div>
+    </div>
     <div id="ui">
-        <div id="status">Loading WASM...</div>
+        <div id="status">Initializing...</div>
         <div>
-            <input type="text" id="matchCode" placeholder="Match code (5 chars)" maxlength="5" style="text-transform: uppercase;">
-            <button id="joinBtn" onclick="joinMatch()">Join Match</button>
+            <input type="text" id="matchCode" placeholder="MATCH CODE" maxlength="5">
+            <button id="joinBtn" onclick="joinMatch()">JOIN</button>
+            <button id="createBtn" onclick="createMatch()">CREATE</button>
         </div>
-        <div style="margin-top: 10px; font-size: 12px; color: #888;">
-            Controls: W/S (move), A/D (turn), 1/2/3 (fire), Q/E/R (shield)
-        </div>
+        <div class="controls">Controls: ↑/↓ or W/S to move your paddle</div>
     </div>
     <script type="module">
-        import init, { init_client, connect_websocket, prepare_join, prepare_input, render_frame, handle_websocket_message } from '/client_wasm/client_wasm.js';
-
-        let clientInitialized = false;
+        import init, { WasmClient } from '/client_wasm/client_wasm.js';
+        let client = null;
         let ws = null;
-        let inputState = { thrust: 0, turn: 0, bolt: 0, shield: 0 };
+        let scoreLeft = 0;
+        let scoreRight = 0;
 
         async function main() {
             try {
                 await init();
-                updateStatus('WASM loaded');
-                const canvas = document.getElementById('canvas');
-                if (!canvas) throw new Error('Canvas not found');
-                await init_client(canvas);
-                clientInitialized = true;
-                updateStatus('Client initialized - Ready to join');
-                setupInputHandlers();
-                startRenderLoop();
+                updateStatus('Ready to play!');
+                document.getElementById('createBtn').disabled = false;
             } catch (error) {
                 console.error('Error:', error);
                 updateStatus('Error: ' + error.message);
@@ -78,133 +76,67 @@ async fn handle_index(_req: Request, _ctx: RouteContext<()>) -> Result<Response>
             console.log('Status:', msg);
         }
 
-        function setupInputHandlers() {
-            const keys = new Set();
-            let lastSentInput = { thrust: 0, turn: 0, bolt: 0, shield: 0 };
-            
-            window.addEventListener('keydown', (e) => { keys.add(e.key.toLowerCase()); updateInputState(keys); });
-            window.addEventListener('keyup', (e) => { keys.delete(e.key.toLowerCase()); updateInputState(keys); });
-            
-            // Send inputs at 30 Hz (33ms) instead of 60 Hz to reduce request costs
-            // Only send when input state changes (coalescing) to further reduce costs
-            setInterval(() => {
-                if (ws && ws.readyState === WebSocket.OPEN && clientInitialized) {
-                    // Check if input state has changed
-                    const hasChanged = 
-                        inputState.thrust !== lastSentInput.thrust ||
-                        inputState.turn !== lastSentInput.turn ||
-                        inputState.bolt !== lastSentInput.bolt ||
-                        inputState.shield !== lastSentInput.shield;
-                    
-                    if (hasChanged) {
-                        try { 
-                            const inputBytes = prepare_input(inputState.thrust, inputState.turn, inputState.bolt, inputState.shield);
-                            if (inputBytes && ws.readyState === WebSocket.OPEN) {
-                                ws.send(inputBytes);
-                                // Track last sent state
-                                lastSentInput = { ...inputState };
-                            }
-                        } 
-                        catch (e) { console.error('Send input error:', e); }
-                    }
-                }
-            }, 33); // 30 Hz = ~33ms interval (was 16ms = ~60 Hz)
+        function updateScore(left, right) {
+            scoreLeft = left;
+            scoreRight = right;
+            const el = document.getElementById('score');
+            if (el) el.textContent = `${left} : ${right}`;
         }
 
-        function updateInputState(keys) {
-            inputState.thrust = keys.has('w') ? 1 : keys.has('s') ? -1 : 0;
-            inputState.turn = keys.has('a') ? -1 : keys.has('d') ? 1 : 0;
-            inputState.bolt = keys.has('1') ? 1 : keys.has('2') ? 2 : keys.has('3') ? 3 : 0;
-            inputState.shield = keys.has('q') ? 1 : keys.has('e') ? 2 : keys.has('r') ? 3 : 0;
-        }
-
-        function startRenderLoop() {
-            function render() {
-                if (clientInitialized) {
-                    try { render_frame(); } catch (e) { console.error('Render error:', e); }
-                }
-                requestAnimationFrame(render);
+        window.createMatch = async function() {
+            try {
+                updateStatus('Creating match...');
+                const response = await fetch('/create');
+                const data = await response.json();
+                document.getElementById('matchCode').value = data.code;
+                updateStatus(`Match created: ${data.code}`);
+                await joinMatch();
+            } catch (error) {
+                console.error('Create error:', error);
+                updateStatus('Error creating match');
             }
-            render();
-        }
+        };
 
         window.joinMatch = async function() {
             const code = document.getElementById('matchCode').value.trim().toUpperCase();
             if (code.length !== 5) { updateStatus('Match code must be 5 characters'); return; }
-            if (!clientInitialized) { updateStatus('Client not initialized'); return; }
             try {
-                document.getElementById('joinBtn').disabled = true;
-                updateStatus('Connecting to match...');
-                
-                // Construct WebSocket URL
+                updateStatus('Initializing client...');
+                const canvas = document.getElementById('canvas');
+                client = await new WasmClient(canvas);
+                updateStatus('Connecting...');
                 const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
                 const wsUrl = `${protocol}//${window.location.host}/ws/${code}`;
-                
-                // Create WebSocket connection
                 ws = new WebSocket(wsUrl);
-                
-                ws.onopen = () => {
-                    updateStatus('Connected! Sending join message...');
-                    // Send join message via WASM
-                    try {
-                        connect_websocket(wsUrl); // Register with WASM client
-                        const joinBytes = prepare_join(code, 0, 0); // avatar=0, name_id=0
-                        if (joinBytes && ws.readyState === WebSocket.OPEN) {
-                            ws.send(joinBytes);
-                            updateStatus('Joined match! Waiting for game state...');
-                        }
-                    } catch (e) {
-                        console.error('Join error:', e);
-                        updateStatus('Error joining: ' + e.message);
-                    }
-                };
-                
-                ws.onmessage = async (event) => {
-                    let bytes;
-                    if (event.data instanceof ArrayBuffer) {
-                        bytes = new Uint8Array(event.data);
-                    } else if (event.data instanceof Blob) {
-                        // Convert Blob to ArrayBuffer
-                        const arrayBuffer = await event.data.arrayBuffer();
-                        bytes = new Uint8Array(arrayBuffer);
-                    } else {
-                        console.warn('Client: Received unsupported message type:', event.data);
-                        return;
-                    }
-                    console.log('Client: Received WebSocket message,', bytes.length, 'bytes');
-                    try {
-                        handle_websocket_message(bytes);
-                        // Update status if we received a snapshot (indicates game state received)
-                        if (bytes.length > 20) { // Snapshots are larger than Welcome messages
-                            updateStatus('Game state received!');
-                        }
-                    } catch (e) {
-                        console.error('Message handling error:', e);
-                    }
-                };
-                
-                ws.onerror = (error) => {
-                    console.error('WebSocket error:', error);
-                    updateStatus('WebSocket connection error');
-                    document.getElementById('joinBtn').disabled = false;
-                    // Close connection to ensure cleanup
-                    if (ws) {
-                        ws.close();
-                        ws = null;
-                    }
-                };
-                
-                ws.onclose = () => {
-                    updateStatus('Connection closed');
-                    document.getElementById('joinBtn').disabled = false;
-                    ws = null; // Clear reference to prevent reconnection loops
-                };
-                
+                ws.binaryType = 'arraybuffer';
+                ws.onopen = () => { console.log('WS connected'); updateStatus('Connected! Waiting for opponent...'); setupInput(); startRender(); };
+                ws.onmessage = (event) => { if (event.data instanceof ArrayBuffer) { try { client.on_message(new Uint8Array(event.data)); } catch (e) { console.error('Message error:', e); } } };
+                ws.onerror = (error) => { console.error('WS error:', error); updateStatus('Connection error'); };
+                ws.onclose = () => { console.log('WS closed'); updateStatus('Disconnected'); };
             } catch (error) {
+                console.error('Join error:', error);
                 updateStatus('Error: ' + error.message);
-                document.getElementById('joinBtn').disabled = false;
             }
         };
+
+        let renderLoopId = null;
+        function startRender() {
+            function render() {
+                if (client) { try { client.render(); } catch (e) { console.error('Render error:', e); } }
+                renderLoopId = requestAnimationFrame(render);
+            }
+            render();
+        }
+
+        function setupInput() {
+            window.addEventListener('keydown', (e) => { if (client) client.on_key_down(e); });
+            window.addEventListener('keyup', (e) => { if (client) client.on_key_up(e); });
+            setInterval(() => {
+                if (ws && ws.readyState === WebSocket.OPEN && client) {
+                    try { ws.send(client.get_input_bytes()); } catch (e) { console.error('Input error:', e); }
+                }
+            }, 33);
+        }
 
         main();
     </script>
@@ -223,8 +155,10 @@ async fn handle_create(_req: Request, ctx: RouteContext<()>) -> Result<Response>
     // Get DO stub by name (creates if doesn't exist)
     let _stub = match_do.get_by_name(&code)?;
 
-    // Return the match code to the client
-    Response::ok(format!("Match created: {}", code))
+    // Return JSON response with match code
+    Response::from_json(&serde_json::json!({
+        "code": code
+    }))
 }
 
 async fn handle_join(_req: Request, ctx: RouteContext<()>) -> Result<Response> {

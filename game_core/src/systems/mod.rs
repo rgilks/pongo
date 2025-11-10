@@ -1,17 +1,9 @@
-pub mod combat;
-pub mod energy;
-pub mod gc;
-pub mod hill;
+pub mod collision;
 pub mod input;
 pub mod movement;
-pub mod pickups;
-pub mod respawn;
+pub mod scoring;
 
-pub use combat::*;
-pub use energy::*;
-pub use gc::*;
-pub use hill::*;
+pub use collision::*;
 pub use input::*;
 pub use movement::*;
-pub use pickups::*;
-pub use respawn::*;
+pub use scoring::*;

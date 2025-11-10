@@ -1,139 +1,84 @@
-use glam::Vec2;
-use hecs::Entity;
-use rand::Rng as RandRng;
-use std::collections::HashMap;
-
-use crate::components::PickupKind;
-use crate::map::Map;
-use crate::params::Params;
-
-/// Game parameters
-#[derive(Debug)]
-pub struct GameParams {
-    pub params: Params,
-}
-
-impl Default for GameParams {
-    fn default() -> Self {
-        Self { params: Params }
-    }
-}
-
-impl GameParams {
-    pub fn new() -> Self {
-        Self::default()
-    }
-}
-
-/// Map resource
-#[derive(Debug, Clone)]
-pub struct GameMap {
-    pub map: Map,
-}
-
-impl GameMap {
-    pub fn new(map: Map) -> Self {
-        Self { map }
-    }
-}
-
-/// Time resource
-#[derive(Debug, Clone, Copy, Default)]
+/// Time resource for tracking simulation time
+#[derive(Debug, Clone, Copy)]
 pub struct Time {
-    pub dt: f32,
-    pub now: f32, // total elapsed time
+    pub dt: f32,  // Delta time for this step
+    pub now: f32, // Total elapsed time
 }
 
 impl Time {
-    pub fn new() -> Self {
-        Self::default()
+    pub fn new(dt: f32, now: f32) -> Self {
+        Self { dt, now }
     }
 }
 
-/// Deterministic RNG (server authority)
-pub struct GameRng {
-    rng: rand::rngs::ThreadRng,
-}
-
-impl Default for GameRng {
+impl Default for Time {
     fn default() -> Self {
         Self {
-            rng: rand::thread_rng(),
+            dt: 0.016,
+            now: 0.0,
         }
     }
 }
 
-impl GameRng {
-    pub fn new() -> Self {
-        Self::default()
-    }
-
-    pub fn gen(&mut self) -> f32 {
-        self.rng.gen()
-    }
-
-    pub fn gen_range(&mut self, min: f32, max: f32) -> f32 {
-        self.rng.gen_range(min..max)
-    }
-}
-
-/// Score tracking
-#[derive(Debug, Default)]
+/// Game score tracking
+#[derive(Debug, Clone, Copy, Default)]
 pub struct Score {
-    pub hill_points: HashMap<u16, u16>,  // player_id -> points
-    pub eliminations: HashMap<u16, u16>, // player_id -> count
-    pub hill_points_fractional: HashMap<u16, f32>, // player_id -> fractional points accumulator
+    pub left: u8,  // Left player score
+    pub right: u8, // Right player score
 }
 
 impl Score {
     pub fn new() -> Self {
         Self::default()
     }
-}
 
-/// Network queue (for server/client)
-#[derive(Debug, Default)]
-pub struct NetQueue {
-    pub inputs: Vec<InputEvent>,
-    pub acks: Vec<u32>, // snapshot IDs
-}
+    pub fn increment_left(&mut self) {
+        self.left += 1;
+    }
 
-impl NetQueue {
-    pub fn new() -> Self {
-        Self::default()
+    pub fn increment_right(&mut self) {
+        self.right += 1;
+    }
+
+    pub fn has_winner(&self, win_score: u8) -> Option<u8> {
+        if self.left >= win_score {
+            Some(0) // Left player wins
+        } else if self.right >= win_score {
+            Some(1) // Right player wins
+        } else {
+            None
+        }
     }
 }
 
-/// Input event
-#[derive(Debug, Clone)]
-pub struct InputEvent {
-    pub player_id: u16,
-    pub seq: u32,
-    pub t_ms: u32,
-    pub thrust: f32,
-    pub turn: f32,
-    pub bolt_level: u8,
-    pub shield_level: u8,
-}
-
-/// Match configuration
+/// Game configuration
 #[derive(Debug, Clone)]
 pub struct Config {
-    pub objective_on: bool,
-    pub target_actors: u8,
-    pub max_players: u8,
-    pub hill_points_to_win: u16,
-    pub match_time_s: f32,
+    pub arena_width: f32,
+    pub arena_height: f32,
+    pub paddle_width: f32,
+    pub paddle_height: f32,
+    pub paddle_speed: f32,
+    pub ball_radius: f32,
+    pub ball_speed_initial: f32,
+    pub ball_speed_max: f32,
+    pub ball_speed_increase: f32, // Multiplier on paddle hit
+    pub win_score: u8,
 }
 
 impl Default for Config {
     fn default() -> Self {
         Self {
-            objective_on: true,
-            target_actors: Params::TARGET_ACTORS,
-            max_players: Params::MAX_PLAYERS,
-            hill_points_to_win: Params::HILL_POINTS_TO_WIN,
-            match_time_s: Params::MATCH_TIME_S,
+            arena_width: 32.0,
+            arena_height: 24.0,
+            paddle_width: 1.0,
+            paddle_height: 4.0,
+            paddle_speed: 8.0,
+            ball_radius: 0.5,
+            ball_speed_initial: 8.0,
+            ball_speed_max: 16.0,
+            ball_speed_increase: 1.05,
+            win_score: 11,
         }
     }
 }
@@ -142,16 +87,46 @@ impl Config {
     pub fn new() -> Self {
         Self::default()
     }
+
+    /// Get X position for paddle based on player ID
+    pub fn paddle_x(&self, player_id: u8) -> f32 {
+        if player_id == 0 {
+            1.0 // Left paddle
+        } else {
+            self.arena_width - 1.0 // Right paddle
+        }
+    }
+
+    /// Clamp paddle Y to arena bounds
+    pub fn clamp_paddle_y(&self, y: f32) -> f32 {
+        let half_height = self.paddle_height / 2.0;
+        y.clamp(half_height, self.arena_height - half_height)
+    }
 }
 
-/// Game events (collected during frame, processed after)
-#[derive(Debug, Default)]
+/// Random number generator
+pub struct GameRng(pub rand::rngs::StdRng);
+
+impl GameRng {
+    pub fn new(seed: u64) -> Self {
+        use rand::SeedableRng;
+        Self(rand::rngs::StdRng::seed_from_u64(seed))
+    }
+}
+
+impl Default for GameRng {
+    fn default() -> Self {
+        Self::new(12345)
+    }
+}
+
+/// Events that occurred during this frame
+#[derive(Debug, Clone, Default)]
 pub struct Events {
-    pub spawn_bolt: Vec<SpawnBoltEvent>,
-    pub apply_damage: Vec<DamageEvent>,
-    pub eliminated: Vec<u16>, // player IDs
-    pub pickup_taken: Vec<PickupTakenEvent>,
-    pub respawn: Vec<RespawnEvent>,
+    pub left_scored: bool,
+    pub right_scored: bool,
+    pub ball_hit_paddle: bool,
+    pub ball_hit_wall: bool,
 }
 
 impl Events {
@@ -160,42 +135,29 @@ impl Events {
     }
 
     pub fn clear(&mut self) {
-        self.spawn_bolt.clear();
-        self.apply_damage.clear();
-        self.eliminated.clear();
-        self.pickup_taken.clear();
-        self.respawn.clear();
+        self.left_scored = false;
+        self.right_scored = false;
+        self.ball_hit_paddle = false;
+        self.ball_hit_wall = false;
     }
 }
 
-/// Spawn bolt event
-#[derive(Debug, Clone)]
-pub struct SpawnBoltEvent {
-    pub owner: u16,
-    pub level: u8,
-    pub pos: Vec2,
-    pub vel: Vec2,
+/// Network input queue (placeholder for network inputs)
+#[derive(Debug, Clone, Default)]
+pub struct NetQueue {
+    pub inputs: Vec<(u8, i8)>, // (player_id, direction)
 }
 
-/// Damage event
-#[derive(Debug, Clone)]
-pub struct DamageEvent {
-    pub target: u16,
-    pub amount: u8,
-    pub source: u16, // bolt owner
-}
+impl NetQueue {
+    pub fn new() -> Self {
+        Self::default()
+    }
 
-/// Pickup taken event
-#[derive(Debug, Clone)]
-pub struct PickupTakenEvent {
-    pub player_id: u16,
-    pub pickup_entity: Entity,
-    pub kind: PickupKind,
-}
+    pub fn clear(&mut self) {
+        self.inputs.clear();
+    }
 
-/// Respawn event
-#[derive(Debug, Clone)]
-pub struct RespawnEvent {
-    pub player_id: u16,
-    pub spawn_pos: Vec2,
+    pub fn push_input(&mut self, player_id: u8, dir: i8) {
+        self.inputs.push((player_id, dir));
+    }
 }

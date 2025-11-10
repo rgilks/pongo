@@ -1,52 +1,35 @@
-# ISO
+# PONG
 
-A mobile-friendly, code-to-join, isometric arena shooter built with Rust + WebGPU (client) and Cloudflare Durable Objects (server).
+A multiplayer Pong game built with Rust + WebGPU (client) and Cloudflare Durable Objects (server).
+
+This is a simplified version that demonstrates the architecture with the classic 1970s Pong game mechanics.
 
 ## Current Status
 
-**Milestone 2 (M2) - DO + Net: ✅ Complete**
+**Game Mechanics**
 
-- ✅ Cloudflare Workers infrastructure set up
-- ✅ Durable Object created and deployed
-- ✅ WebSocket support implemented
-- ✅ Game simulation integrated into Durable Object
-- ✅ Lobby endpoints (`/create`, `/join/:code`) working
-- ✅ Network protocol implemented (C2S/S2C messages)
-- ✅ Protocol parsing and snapshot generation
-- ✅ Player joining logic
-- ✅ Snapshot broadcasting
+- Two paddles (one per player)
+- Ball bounces between paddles and walls
+- Score tracking
+- Simple physics simulation
 
-**Milestone 3 (M3) - Client WebGPU: 🚧 In Progress**
+**Architecture**
 
-- ✅ Client WASM crate structure created
-- ✅ WebGPU surface initialization (wgpu 24.0 with webgpu feature)
-- ✅ Isometric camera with view/projection matrices
-- ✅ Basic rendering pipeline (meshes, shader, forward pass, Lambert lighting)
-- ✅ Light buffers (SSBO for up to 8 point lights)
-- ✅ WGSL shader alignment fixed (uniform buffer 16-byte alignment)
-- ✅ Periodic game loop (50ms ticks, 20 ticks/sec) via Durable Object alarms
-- ✅ Snapshot broadcasting to all connected clients
-- ⏳ Game entity rendering (players, bolts, blocks) - infrastructure ready
-- ⏳ Mobile and desktop controls
-- ⏳ Client prediction and reconciliation
-- ⏳ HDR target and bloom post-processing
+- ✅ Rust WASM client with WebGPU rendering
+- ✅ Cloudflare Durable Objects for server
+- ✅ WebSocket-based networking
+- ✅ ECS architecture (hecs)
+- ✅ Client-server synchronization
 
 **Deployed at:** https://iso.rob-gilks.workers.dev
 
-## Cost Optimization
+## Game Rules
 
-**ISO is optimized for minimal Cloudflare costs** during development and production:
-
-- ✅ **30 Hz client input rate** with coalescing (only send on change)
-- ✅ **Automatic alarm shutdown** when no players connected
-- ✅ **WebSocket error handling** prevents reconnection loops
-- ✅ **Free tier capacity**: ~10-12 full matches/day (6 players, 10 min each)
-- ✅ **Paid tier costs**: $5-7/month for 10-50 matches/day
-
-**For detailed cost information, see:**
-
-- [`COST-OPTIMIZATION-SUMMARY.md`](./COST-OPTIMIZATION-SUMMARY.md) - Quick overview
-- [`COST-OPTIMIZATION.md`](./COST-OPTIMIZATION.md) - Complete guide
+- Two players control paddles on opposite sides of the screen
+- Ball bounces off walls and paddles
+- Miss the ball and your opponent scores
+- First to 11 points wins (classic Pong rules)
+- Up/Down keys to move your paddle
 
 ## Quick Start
 
@@ -129,9 +112,9 @@ npm run dev
 
 1. Open browser to `http://localhost:8787`
 2. Create a match: Visit `http://localhost:8787/create` to get a match code
-3. Join match: Enter the code in the browser UI and click "Join Match"
-4. Test WebSocket connections - they work locally via Miniflare
-5. Test rendering - all entities should render correctly
+3. Join match: Enter the code in a second browser window/tab
+4. Play Pong: Use Up/Down arrow keys to move your paddle
+5. Watch the ball bounce and score updates
 
 **Verified working locally:**
 
@@ -195,13 +178,13 @@ The hook prevents commits if any check fails, ensuring code quality. See `DEVELO
 ## Project Structure
 
 ```
-iso/
-├── game_core/      # hecs ECS, systems, components, params
-├── proto/          # C2S/S2C, quantization, versioning
-├── client_wasm/    # wgpu renderer, input, prediction, WS
-├── server_do/      # Durable Object Match: WS hub, step, storage, bots
+pong/
+├── game_core/      # hecs ECS, paddle/ball systems, components
+├── proto/          # C2S/S2C messages
+├── client_wasm/    # wgpu renderer, input, WS
+├── server_do/      # Durable Object Match: WS hub, game loop
 ├── lobby_worker/   # /create /join/:code, serves client
-└── assets/         # eyeball textures, meshes, sfx
+└── assets/         # (minimal assets needed)
 ```
 
 ## Testing
@@ -225,9 +208,9 @@ npm run dev
 
 1. Open `http://localhost:8787` in your browser
 2. Create a match: Visit `http://localhost:8787/create` (or use the UI)
-3. Join the match using the code shown
-4. Test WebSocket connection and entity rendering
-5. Test controls: W/S (move), A/D (turn), 1/2/3 (fire), Q/E/R (shield)
+3. Join the match from a second browser window
+4. Test paddle movement with Up/Down arrow keys
+5. Watch the ball bounce and score updates
 
 **Test endpoints locally:**
 

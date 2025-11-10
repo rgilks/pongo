@@ -1,337 +1,54 @@
 use glam::Vec2;
 
-/// 2D transform: position and yaw (rotation around Z axis)
+/// Paddle component - represents a player's paddle
 #[derive(Debug, Clone, Copy)]
-pub struct Transform2D {
+pub struct Paddle {
+    pub player_id: u8, // 0 = left, 1 = right
+    pub y: f32,        // Y position (clamped to arena)
+}
+
+impl Paddle {
+    pub fn new(player_id: u8, y: f32) -> Self {
+        Self { player_id, y }
+    }
+}
+
+/// Ball component - the pong ball
+#[derive(Debug, Clone, Copy)]
+pub struct Ball {
     pub pos: Vec2,
-    pub yaw: f32, // radians, 0 = +X, π/2 = +Y
-}
-
-impl Transform2D {
-    pub fn new(pos: Vec2, yaw: f32) -> Self {
-        Self { pos, yaw }
-    }
-
-    pub fn forward(&self) -> Vec2 {
-        Vec2::new(self.yaw.cos(), self.yaw.sin())
-    }
-}
-
-/// 2D velocity
-#[derive(Debug, Clone, Copy)]
-pub struct Velocity2D {
     pub vel: Vec2,
 }
 
-impl Velocity2D {
-    pub fn new(vel: Vec2) -> Self {
-        Self { vel }
-    }
-}
-
-/// Player identity
-#[derive(Debug, Clone, Copy)]
-pub struct Player {
-    pub id: u16,
-    pub avatar: u8,
-    pub name_id: u8,
-}
-
-/// Health as damage slots (0..3)
-#[derive(Debug, Clone, Copy, Default)]
-pub struct Health {
-    pub damage: u8, // 0 = full health, 3 = eliminated
-}
-
-impl Health {
-    pub fn new() -> Self {
-        Self::default()
+impl Ball {
+    pub fn new(pos: Vec2, vel: Vec2) -> Self {
+        Self { pos, vel }
     }
 
-    pub fn is_eliminated(&self) -> bool {
-        self.damage >= 3
-    }
-}
+    /// Reset ball to center with random direction
+    pub fn reset(&mut self, speed: f32, rng: &mut crate::GameRng) {
+        self.pos = Vec2::new(16.0, 12.0); // Center of 32x24 arena
 
-/// Energy resource (0.0..100.0)
-#[derive(Debug, Clone, Copy)]
-pub struct Energy {
-    pub cur: f32,
-}
-
-impl Default for Energy {
-    fn default() -> Self {
-        Self { cur: 100.0 }
-    }
-}
-
-impl Energy {
-    pub fn new() -> Self {
-        Self::default()
-    }
-
-    pub fn can_afford(&self, cost: f32) -> bool {
-        self.cur >= cost
-    }
-
-    pub fn spend(&mut self, amount: f32) {
-        self.cur = (self.cur - amount).max(0.0);
-    }
-}
-
-/// Shield component
-#[derive(Debug, Clone, Copy)]
-pub struct Shield {
-    pub max: u8,       // max level (0..3, 0 = not unlocked)
-    pub active: u8,    // current active level (0..3)
-    pub t_left: f32,   // time remaining (max 0.6s)
-    pub cooldown: f32, // cooldown timer (0.4s after deactivate)
-}
-
-impl Default for Shield {
-    fn default() -> Self {
-        Self {
-            max: 0,
-            active: 0,
-            t_left: 0.0,
-            cooldown: 0.0,
-        }
-    }
-}
-
-impl Shield {
-    pub fn new() -> Self {
-        Self::default()
-    }
-
-    pub fn can_activate(&self, level: u8) -> bool {
-        level > 0 && level <= self.max && self.cooldown <= 0.0
-    }
-
-    pub fn is_active(&self) -> bool {
-        self.active > 0
-    }
-}
-
-/// Bolt projectile
-#[derive(Debug, Clone, Copy)]
-pub struct Bolt {
-    pub level: u8,   // 1..3
-    pub dmg: u8,     // damage amount
-    pub radius: f32, // collision radius
-    pub owner: u16,  // player ID who fired it
-}
-
-impl Bolt {
-    pub fn new(level: u8, owner: u16) -> Self {
-        let (dmg, radius) = match level {
-            1 => (1, 0.25),
-            2 => (2, 0.30),
-            3 => (3, 0.35),
-            _ => (1, 0.25),
+        // Random angle between -45° and 45°, or 135° and 225°
+        use rand::Rng;
+        let right = rng.0.gen_bool(0.5);
+        let angle: f32 = if right {
+            rng.0.gen_range(-0.785..0.785) // -45° to 45° in radians
+        } else {
+            rng.0.gen_range(2.356..3.927) // 135° to 225° in radians
         };
-        Self {
-            level,
-            dmg,
-            radius,
-            owner,
-        }
+
+        self.vel = Vec2::new(angle.cos(), angle.sin()) * speed;
     }
 }
 
-/// Lifetime component for temporary entities
-#[derive(Debug, Clone, Copy)]
-pub struct Lifetime {
-    pub t_left: f32,
-}
-
-impl Lifetime {
-    pub fn new(duration: f32) -> Self {
-        Self { t_left: duration }
-    }
-
-    pub fn is_expired(&self) -> bool {
-        self.t_left <= 0.0
-    }
-}
-
-/// Pickup item kind
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum PickupKind {
-    Health,
-    BoltUpgrade,
-    ShieldModule,
-}
-
-/// Pickup item
-#[derive(Debug, Clone, Copy)]
-pub struct Pickup {
-    pub kind: PickupKind,
-}
-
-/// Spawn pad for pickups
-#[derive(Debug, Clone)]
-pub struct SpawnPad {
-    pub kind: PickupKind,
-    pub respawn_min: f32,
-    pub respawn_max: f32,
-    pub t_until: f32,
-}
-
-impl SpawnPad {
-    pub fn new(kind: PickupKind, respawn_min: f32, respawn_max: f32) -> Self {
-        Self {
-            kind,
-            respawn_min,
-            respawn_max,
-            t_until: 0.0,
-        }
-    }
-}
-
-/// Hill zone (King of the Hill objective)
-#[derive(Debug, Clone, Copy)]
-pub struct HillZone {
-    pub center: Vec2,
-    pub r: f32, // radius
-}
-
-impl HillZone {
-    pub fn new(center: Vec2, r: f32) -> Self {
-        Self { center, r }
-    }
-
-    pub fn contains(&self, pos: Vec2) -> bool {
-        (pos - self.center).length() <= self.r
-    }
-}
-
-/// Bot AI brain
-#[derive(Debug, Clone)]
-pub struct BotBrain {
-    pub state: BotState,
-    pub reaction_ms: f32,
-    pub aim_err_deg: f32,
-    pub fire_min_gap: f32,
-    pub retreat_threshold: f32,
-    pub hill_obsession: f32,
-    pub last_fire_t: f32,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum BotState {
-    SeekPickups,
-    ContestHill,
-    EvadeBolt,
-    Engage,
-}
-
-impl Default for BotBrain {
-    fn default() -> Self {
-        Self {
-            state: BotState::SeekPickups,
-            reaction_ms: 100.0,
-            aim_err_deg: 5.0,
-            fire_min_gap: 0.2,
-            retreat_threshold: 0.5,
-            hill_obsession: 0.7,
-            last_fire_t: -1.0,
-        }
-    }
-}
-
-impl BotBrain {
-    pub fn new() -> Self {
-        Self::default()
-    }
-}
-
-/// Movement intent (from input)
-#[derive(Debug, Clone, Copy)]
-pub struct MovementIntent {
-    pub thrust: f32, // -1.0 (back) to +1.0 (forward)
-    pub turn: f32,   // -1.0 (left) to +1.0 (right)
-}
-
-impl Default for MovementIntent {
-    fn default() -> Self {
-        Self {
-            thrust: 0.0,
-            turn: 0.0,
-        }
-    }
-}
-
-impl MovementIntent {
-    pub fn new() -> Self {
-        Self::default()
-    }
-}
-
-/// Combat intent (from input)
+/// Movement intent for paddle
 #[derive(Debug, Clone, Copy, Default)]
-pub struct CombatIntent {
-    pub bolt_level: u8,   // 0 = none, 1..3 = fire
-    pub shield_level: u8, // 0 = none, 1..3 = activate
+pub struct PaddleIntent {
+    pub dir: i8, // -1 = up, 0 = stop, 1 = down
 }
 
-impl CombatIntent {
-    pub fn new() -> Self {
-        Self::default()
-    }
-}
-
-/// Bolt cooldown tracker
-#[derive(Debug, Clone, Copy)]
-pub struct BoltCooldown {
-    pub t_left: f32,
-}
-
-impl Default for BoltCooldown {
-    fn default() -> Self {
-        Self { t_left: 0.0 }
-    }
-}
-
-impl BoltCooldown {
-    pub fn new() -> Self {
-        Self::default()
-    }
-
-    pub fn can_fire(&self) -> bool {
-        self.t_left <= 0.0
-    }
-}
-
-/// Respawn timer
-#[derive(Debug, Clone, Copy)]
-pub struct RespawnTimer {
-    pub t_left: f32,
-}
-
-impl RespawnTimer {
-    pub fn new(duration: f32) -> Self {
-        Self { t_left: duration }
-    }
-
-    pub fn is_ready(&self) -> bool {
-        self.t_left <= 0.0
-    }
-}
-
-/// Bolt upgrade level (max level player can fire)
-#[derive(Debug, Clone, Copy)]
-pub struct BoltMaxLevel {
-    pub level: u8, // 1..3
-}
-
-impl Default for BoltMaxLevel {
-    fn default() -> Self {
-        Self { level: 1 } // Start with L1 only
-    }
-}
-
-impl BoltMaxLevel {
+impl PaddleIntent {
     pub fn new() -> Self {
         Self::default()
     }

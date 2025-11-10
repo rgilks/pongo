@@ -1,14 +1,8 @@
-//! Network protocol for ISO game
+//! Network protocol for Pong game
 //!
-//! Uses postcard for serialization with quantization for efficient transfer
+//! Uses postcard for efficient binary serialization
 
 use postcard::{from_bytes, to_allocvec};
-
-// Quantization constants
-pub const WORLD_BOUNDS: f32 = 32.0;
-pub const POS_SCALE: f32 = 1024.0; // i16 → ±32u with 1024 steps/u
-pub const YAW_SCALE: f32 = 65535.0 / (2.0 * std::f32::consts::PI); // u16 → 0..2π
-pub const ENERGY_SCALE: f32 = 10.0; // u16 (0..1000) → 0..100.0
 
 // ============================================================================
 // C2S Messages (Client to Server)
@@ -16,25 +10,14 @@ pub const ENERGY_SCALE: f32 = 10.0; // u16 (0..1000) → 0..100.0
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub enum C2S {
-    Join {
-        code: [u8; 5],
-        avatar: u8,
-        name_id: u8,
-    },
-    Input {
-        seq: u32,
-        t_ms: u32,
-        thrust_i8: i8,
-        turn_i8: i8,
-        bolt: u8,   // 0..3
-        shield: u8, // 0..3
-    },
-    Ping {
-        t_ms: u32,
-    },
-    Ack {
-        snapshot_id: u32,
-    },
+    /// Join a match with code
+    Join { code: [u8; 5] },
+
+    /// Paddle input: -1 = up, 0 = stop, 1 = down
+    Input { paddle_dir: i8 },
+
+    /// Ping for latency measurement
+    Ping { t_ms: u32 },
 }
 
 // ============================================================================
@@ -43,65 +26,31 @@ pub enum C2S {
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub enum S2C {
+    /// Welcome message with player assignment
     Welcome {
-        player_id: u16,
-        params_hash: u32,
-        map_rev: u16,
+        player_id: u8, // 0 = left, 1 = right
     },
-    Snapshot {
-        id: u32,
+
+    /// Game state snapshot
+    GameState {
         tick: u32,
-        t_ms: u32,
-        last_seq_ack: u32,
-        players: Vec<PlayerP>,
-        bolts: Vec<BoltP>,
-        pickups: Vec<PickupP>,
-        hill_owner: Option<u16>,
-        hill_progress_u16: u16,
+        ball_x: f32,
+        ball_y: f32,
+        ball_vx: f32,
+        ball_vy: f32,
+        paddle_left_y: f32,
+        paddle_right_y: f32,
+        score_left: u8,
+        score_right: u8,
     },
-    Eliminated {
-        player_id: u16,
+
+    /// Game over message
+    GameOver {
+        winner: u8, // 0 = left, 1 = right
     },
-    Ended {
-        standings: Vec<(u16, u16)>, // (player_id, points)
-    },
-}
 
-// ============================================================================
-// Quantized Data Types
-// ============================================================================
-
-/// Quantized player data
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
-pub struct PlayerP {
-    pub id: u16,
-    pub pos_q: [i16; 2],
-    pub vel_q: [i16; 2],
-    pub yaw_q: u16,
-    pub bolt_max: u8,
-    pub shield_max: u8,
-    pub hp: u8,
-    pub energy_q: u16,
-    pub flags: u8,
-}
-
-/// Quantized bolt data
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
-pub struct BoltP {
-    pub id: u16,
-    pub pos_q: [i16; 2],
-    pub vel_q: [i16; 2],
-    pub rad_q: u8,
-    pub level: u8,
-    pub owner: u16,
-}
-
-/// Quantized pickup data
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
-pub struct PickupP {
-    pub id: u16,
-    pub pos_q: [i16; 2],
-    pub kind: u8, // 0=Health, 1=BoltUp, 2=ShieldMod
+    /// Pong response to ping
+    Pong { t_ms: u32 },
 }
 
 // ============================================================================
@@ -132,103 +81,44 @@ impl S2C {
     }
 }
 
-// ============================================================================
-// Quantization Helpers
-// ============================================================================
-
-/// Quantize position to i16
-pub fn quantize_pos(pos: f32) -> i16 {
-    (pos * POS_SCALE).clamp(-32768.0, 32767.0) as i16
-}
-
-/// Dequantize position from i16
-pub fn dequantize_pos(pos_q: i16) -> f32 {
-    pos_q as f32 / POS_SCALE
-}
-
-/// Quantize yaw to u16 (0..65535 → 0..2π)
-pub fn quantize_yaw(yaw: f32) -> u16 {
-    let normalized = (yaw % (2.0 * std::f32::consts::PI) + 2.0 * std::f32::consts::PI)
-        % (2.0 * std::f32::consts::PI);
-    (normalized * YAW_SCALE) as u16
-}
-
-/// Dequantize yaw from u16
-pub fn dequantize_yaw(yaw_q: u16) -> f32 {
-    yaw_q as f32 / YAW_SCALE
-}
-
-/// Quantize energy to u16 (0..1000 → 0..100.0)
-pub fn quantize_energy(energy: f32) -> u16 {
-    (energy * ENERGY_SCALE).clamp(0.0, 1000.0) as u16
-}
-
-/// Dequantize energy from u16
-pub fn dequantize_energy(energy_q: u16) -> f32 {
-    energy_q as f32 / ENERGY_SCALE
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
     fn test_c2s_serialization() {
-        let msg = C2S::Input {
-            seq: 1,
-            t_ms: 1000,
-            thrust_i8: 100,
-            turn_i8: -50,
-            bolt: 1,
-            shield: 2,
-        };
+        let msg = C2S::Input { paddle_dir: -1 };
         let bytes = msg.to_bytes().unwrap();
         let decoded = C2S::from_bytes(&bytes).unwrap();
         match (msg, decoded) {
-            (
-                C2S::Input {
-                    seq: s1,
-                    t_ms: t1,
-                    thrust_i8: th1,
-                    turn_i8: tu1,
-                    bolt: b1,
-                    shield: sh1,
-                },
-                C2S::Input {
-                    seq: s2,
-                    t_ms: t2,
-                    thrust_i8: th2,
-                    turn_i8: tu2,
-                    bolt: b2,
-                    shield: sh2,
-                },
-            ) => {
-                assert_eq!(s1, s2);
-                assert_eq!(t1, t2);
-                assert_eq!(th1, th2);
-                assert_eq!(tu1, tu2);
-                assert_eq!(b1, b2);
-                assert_eq!(sh1, sh2);
+            (C2S::Input { paddle_dir: d1 }, C2S::Input { paddle_dir: d2 }) => {
+                assert_eq!(d1, d2);
             }
             _ => panic!("Message type mismatch"),
         }
     }
 
     #[test]
-    fn test_quantization() {
-        let pos = 10.5;
-        let pos_q = quantize_pos(pos);
-        let pos_deq = dequantize_pos(pos_q);
-        assert!((pos - pos_deq).abs() < 0.001);
-
-        let yaw = 1.5;
-        let yaw_q = quantize_yaw(yaw);
-        let yaw_deq = dequantize_yaw(yaw_q);
-        assert!((yaw - yaw_deq).abs() < 0.01);
-
-        let energy = 75.5;
-        let energy_q = quantize_energy(energy);
-        let energy_deq = dequantize_energy(energy_q);
-        assert!((energy - energy_deq).abs() < 0.1);
+    fn test_s2c_serialization() {
+        let msg = S2C::GameState {
+            tick: 100,
+            ball_x: 16.0,
+            ball_y: 12.0,
+            ball_vx: 8.0,
+            ball_vy: 4.0,
+            paddle_left_y: 12.0,
+            paddle_right_y: 12.0,
+            score_left: 5,
+            score_right: 3,
+        };
+        let bytes = msg.to_bytes().unwrap();
+        let decoded = S2C::from_bytes(&bytes).unwrap();
+        match decoded {
+            S2C::GameState { tick, ball_x, .. } => {
+                assert_eq!(tick, 100);
+                assert_eq!(ball_x, 16.0);
+            }
+            _ => panic!("Message type mismatch"),
+        }
     }
 }
