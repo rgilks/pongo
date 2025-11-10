@@ -309,21 +309,32 @@ impl WasmClient {
 
         // Prepare instances
         let paddle_instances = vec![
-            // Left paddle (at x=1.5, width=0.8, height=4.0)
+            // Left paddle (at x=1.5, width=0.8, height=4.0) - RED
             InstanceData {
                 transform: [1.5, client.game_state.paddle_left_y, 0.8, 4.0],
-                tint: [1.0, 1.0, 1.0, 1.0],
+                tint: [1.0, 0.2, 0.2, 1.0], // Reddish
             },
-            // Right paddle (at x=30.5, width=0.8, height=4.0)
+            // Right paddle (at x=30.5, width=0.8, height=4.0) - BLUE
             InstanceData {
                 transform: [30.5, client.game_state.paddle_right_y, 0.8, 4.0],
-                tint: [1.0, 1.0, 1.0, 1.0],
+                tint: [0.2, 0.2, 1.0, 1.0], // Bluish
             },
         ];
 
+        // Debug: log paddle positions once per second
+        if (client.game_state.ball_x * 100.0) as u32 % 100 == 0 {
+            web_sys::console::log_1(
+                &format!(
+                    "🎨 Rendering: L@(1.5,{:.1}) R@(30.5,{:.1})",
+                    client.game_state.paddle_left_y, client.game_state.paddle_right_y
+                )
+                .into(),
+            );
+        }
+
         let ball_instances = vec![InstanceData {
             transform: [client.game_state.ball_x, client.game_state.ball_y, 0.5, 0.5],
-            tint: [1.0, 1.0, 1.0, 1.0],
+            tint: [1.0, 1.0, 0.2, 1.0], // Yellowish
         }];
 
         // Upload instance data
