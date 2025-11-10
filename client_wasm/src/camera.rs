@@ -2,7 +2,7 @@
 //!
 //! Simple 2D orthographic camera
 
-use glam::{Mat4, Vec3};
+use glam::Mat4;
 
 /// Camera struct
 pub struct Camera {
@@ -13,15 +13,17 @@ pub struct Camera {
 impl Camera {
     /// Create an orthographic camera for 2D game
     /// Arena is `width` x `height` units
+    /// Coordinates: (0, 0) is bottom-left, (width, height) is top-right
     pub fn orthographic(width: f32, height: f32) -> Self {
-        // Position camera looking down at the arena
-        let eye = Vec3::new(width / 2.0, height / 2.0, 10.0);
-        let target = Vec3::new(width / 2.0, height / 2.0, 0.0);
-        let up = Vec3::Y;
-        let view = Mat4::look_at_rh(eye, target, up);
+        // For 2D, we don't need a view matrix - just use identity
+        // The projection matrix handles the coordinate transformation
+        let view = Mat4::IDENTITY;
 
-        // Orthographic projection (0, 0) to (width, height)
-        let projection = Mat4::orthographic_rh(0.0, width, 0.0, height, 0.1, 100.0);
+        // Orthographic projection: maps world space (0,0) to (width, height)
+        // to clip space (-1,-1) to (1, 1)
+        // Note: orthographic_rh uses (left, right, bottom, top, near, far)
+        // We want Y=0 at bottom, Y=height at top
+        let projection = Mat4::orthographic_rh(0.0, width, 0.0, height, -1.0, 1.0);
 
         Self { view, projection }
     }

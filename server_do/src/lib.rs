@@ -348,8 +348,12 @@ impl MatchDO {
             &mut gs.rng,
         );
 
-        // Broadcast state
-        Self::broadcast_state(gs);
+        // Broadcast state at 20 Hz (every 3 ticks) instead of 60 Hz to reduce Durable Object requests
+        // This reduces requests by 66% while still maintaining smooth gameplay
+        // Always send on first tick (tick 1) to ensure clients get initial state
+        if gs.tick == 1 || gs.tick % 3 == 0 {
+            Self::broadcast_state(gs);
+        }
 
         // Check win condition
         if let Some(winner) = gs.score.has_winner(gs.config.win_score) {
@@ -369,6 +373,17 @@ impl MatchDO {
             Ok(b) => b,
             Err(_) => return,
         };
+
+        let client_count = gs.clients.len();
+        // Log broadcast frequency for monitoring (every 60 ticks = ~1 second at 20 Hz)
+        if gs.tick % 60 == 0 {
+            console_log!(
+                "DO: Broadcasting state to {} clients (tick={}, ~{} broadcasts/sec)",
+                client_count,
+                gs.tick,
+                if gs.tick > 0 { 20 } else { 0 }
+            );
+        }
 
         for ws in gs.clients.values() {
             let _ = ws.send_with_bytes(&bytes);

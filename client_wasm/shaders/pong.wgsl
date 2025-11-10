@@ -39,9 +39,12 @@ fn vs_main(
         vertex.position.z
     );
     
+    // Flip Y coordinate: game uses Y=0 at bottom, but we need to account for coordinate system
+    // Arena height is 24, so we flip: new_y = 24 - old_y
+    let arena_height = 24.0;
     let world_pos = vec4<f32>(
         scaled_pos.x + instance.transform.x,  // translate x
-        scaled_pos.y + instance.transform.y,  // translate y
+        arena_height - (scaled_pos.y + instance.transform.y),  // flip Y: translate y then flip
         scaled_pos.z,
         1.0
     );
