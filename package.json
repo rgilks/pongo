@@ -1,7 +1,7 @@
 {
   "name": "iso",
   "version": "0.1.0",
-  "description": "Isometric arena shooter with Rust + WebGPU + Cloudflare Durable Objects",
+  "description": "Pong game with Rust + WebGPU + Cloudflare Durable Objects",
   "scripts": {
     "check": "npm run check:rust && npm run check:web",
     "check:rust": "cargo fmt --check && cargo clippy --workspace -- -D warnings && cargo test --workspace",
