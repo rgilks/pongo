@@ -309,14 +309,14 @@ impl WasmClient {
 
         // Prepare instances
         let paddle_instances = vec![
-            // Left paddle
+            // Left paddle (at x=1.5, width=0.8, height=4.0)
             InstanceData {
-                transform: [1.0, client.game_state.paddle_left_y, 1.0, 4.0],
+                transform: [1.5, client.game_state.paddle_left_y, 0.8, 4.0],
                 tint: [1.0, 1.0, 1.0, 1.0],
             },
-            // Right paddle
+            // Right paddle (at x=30.5, width=0.8, height=4.0)
             InstanceData {
-                transform: [31.0, client.game_state.paddle_right_y, 1.0, 4.0],
+                transform: [30.5, client.game_state.paddle_right_y, 0.8, 4.0],
                 tint: [1.0, 1.0, 1.0, 1.0],
             },
         ];

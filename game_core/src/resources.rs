@@ -91,9 +91,9 @@ impl Config {
     /// Get X position for paddle based on player ID
     pub fn paddle_x(&self, player_id: u8) -> f32 {
         if player_id == 0 {
-            1.0 // Left paddle
+            1.5 // Left paddle
         } else {
-            self.arena_width - 1.0 // Right paddle
+            30.5 // Right paddle (arena_width - 1.5)
         }
     }
 

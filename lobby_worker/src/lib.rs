@@ -141,14 +141,27 @@ async fn handle_index(_req: Request, _ctx: RouteContext<()>) -> Result<Response>
             render();
         }
 
+        function sendInput() {
+            if (ws && ws.readyState === WebSocket.OPEN && client) {
+                try { ws.send(client.get_input_bytes()); } catch (e) { console.error('Input error:', e); }
+            }
+        }
+
         function setupInput() {
-            window.addEventListener('keydown', (e) => { if (client) client.on_key_down(e); });
-            window.addEventListener('keyup', (e) => { if (client) client.on_key_up(e); });
-            setInterval(() => {
-                if (ws && ws.readyState === WebSocket.OPEN && client) {
-                    try { ws.send(client.get_input_bytes()); } catch (e) { console.error('Input error:', e); }
-                }
-            }, 33);
+            window.addEventListener('keydown', (e) => { 
+                if (client) { 
+                    client.on_key_down(e); 
+                    sendInput(); // Send immediately on keydown
+                } 
+            });
+            window.addEventListener('keyup', (e) => { 
+                if (client) { 
+                    client.on_key_up(e); 
+                    sendInput(); // Send immediately on keyup
+                } 
+            });
+            // Also send periodically (for holding keys)
+            setInterval(sendInput, 33);
         }
 
         main();

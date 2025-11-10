@@ -8,9 +8,9 @@ impl Params {
     pub const ARENA_HEIGHT: f32 = 24.0;
 
     // Paddle
-    pub const PADDLE_WIDTH: f32 = 1.0;
+    pub const PADDLE_WIDTH: f32 = 0.8;
     pub const PADDLE_HEIGHT: f32 = 4.0;
-    pub const PADDLE_SPEED: f32 = 8.0; // units per second
+    pub const PADDLE_SPEED: f32 = 12.0; // units per second
 
     // Ball
     pub const BALL_RADIUS: f32 = 0.5;
