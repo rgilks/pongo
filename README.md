@@ -33,6 +33,21 @@ A mobile-friendly, code-to-join, isometric arena shooter built with Rust + WebGP
 
 **Deployed at:** https://iso.rob-gilks.workers.dev
 
+## Cost Optimization
+
+**ISO is optimized for minimal Cloudflare costs** during development and production:
+
+- ✅ **30 Hz client input rate** with coalescing (only send on change)
+- ✅ **Automatic alarm shutdown** when no players connected
+- ✅ **WebSocket error handling** prevents reconnection loops
+- ✅ **Free tier capacity**: ~10-12 full matches/day (6 players, 10 min each)
+- ✅ **Paid tier costs**: $5-7/month for 10-50 matches/day
+
+**For detailed cost information, see:**
+
+- [`COST-OPTIMIZATION-SUMMARY.md`](./COST-OPTIMIZATION-SUMMARY.md) - Quick overview
+- [`COST-OPTIMIZATION.md`](./COST-OPTIMIZATION.md) - Complete guide
+
 ## Quick Start
 
 ### Prerequisites

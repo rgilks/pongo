@@ -80,19 +80,35 @@ async fn handle_index(_req: Request, _ctx: RouteContext<()>) -> Result<Response>
 
         function setupInputHandlers() {
             const keys = new Set();
+            let lastSentInput = { thrust: 0, turn: 0, bolt: 0, shield: 0 };
+            
             window.addEventListener('keydown', (e) => { keys.add(e.key.toLowerCase()); updateInputState(keys); });
             window.addEventListener('keyup', (e) => { keys.delete(e.key.toLowerCase()); updateInputState(keys); });
+            
+            // Send inputs at 30 Hz (33ms) instead of 60 Hz to reduce request costs
+            // Only send when input state changes (coalescing) to further reduce costs
             setInterval(() => {
                 if (ws && ws.readyState === WebSocket.OPEN && clientInitialized) {
-                    try { 
-                        const inputBytes = prepare_input(inputState.thrust, inputState.turn, inputState.bolt, inputState.shield);
-                        if (inputBytes && ws.readyState === WebSocket.OPEN) {
-                            ws.send(inputBytes);
-                        }
-                    } 
-                    catch (e) { console.error('Send input error:', e); }
+                    // Check if input state has changed
+                    const hasChanged = 
+                        inputState.thrust !== lastSentInput.thrust ||
+                        inputState.turn !== lastSentInput.turn ||
+                        inputState.bolt !== lastSentInput.bolt ||
+                        inputState.shield !== lastSentInput.shield;
+                    
+                    if (hasChanged) {
+                        try { 
+                            const inputBytes = prepare_input(inputState.thrust, inputState.turn, inputState.bolt, inputState.shield);
+                            if (inputBytes && ws.readyState === WebSocket.OPEN) {
+                                ws.send(inputBytes);
+                                // Track last sent state
+                                lastSentInput = { ...inputState };
+                            }
+                        } 
+                        catch (e) { console.error('Send input error:', e); }
+                    }
                 }
-            }, 16);
+            }, 33); // 30 Hz = ~33ms interval (was 16ms = ~60 Hz)
         }
 
         function updateInputState(keys) {
@@ -171,11 +187,17 @@ async fn handle_index(_req: Request, _ctx: RouteContext<()>) -> Result<Response>
                     console.error('WebSocket error:', error);
                     updateStatus('WebSocket connection error');
                     document.getElementById('joinBtn').disabled = false;
+                    // Close connection to ensure cleanup
+                    if (ws) {
+                        ws.close();
+                        ws = null;
+                    }
                 };
                 
                 ws.onclose = () => {
                     updateStatus('Connection closed');
                     document.getElementById('joinBtn').disabled = false;
+                    ws = null; // Clear reference to prevent reconnection loops
                 };
                 
             } catch (error) {
