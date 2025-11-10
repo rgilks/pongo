@@ -308,10 +308,16 @@ impl WasmClient {
             });
 
         // Prepare instances
+        // TEMP TEST: Force different Y positions to diagnose overlap
+        let test_offset = if client.game_state.ball_x > 16.0 {
+            0.0
+        } else {
+            5.0
+        };
         let paddle_instances = vec![
             // Left paddle (at x=1.5, width=0.8, height=4.0) - RED
             InstanceData {
-                transform: [1.5, client.game_state.paddle_left_y, 0.8, 4.0],
+                transform: [1.5, client.game_state.paddle_left_y + test_offset, 0.8, 4.0],
                 tint: [1.0, 0.2, 0.2, 1.0], // Reddish
             },
             // Right paddle (at x=30.5, width=0.8, height=4.0) - BLUE
@@ -321,12 +327,14 @@ impl WasmClient {
             },
         ];
 
-        // Debug: log paddle positions once per second
+        // Debug: log paddle positions and instance count
         if (client.game_state.ball_x * 100.0) as u32 % 100 == 0 {
             web_sys::console::log_1(
                 &format!(
-                    "🎨 Rendering: L@(1.5,{:.1}) R@(30.5,{:.1})",
-                    client.game_state.paddle_left_y, client.game_state.paddle_right_y
+                    "🎨 Rendering {} paddle instances: L@(1.5,{:.1}) R@(30.5,{:.1})",
+                    paddle_instances.len(),
+                    client.game_state.paddle_left_y,
+                    client.game_state.paddle_right_y
                 )
                 .into(),
             );
