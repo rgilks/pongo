@@ -12,7 +12,7 @@
     "test:game_core": "cargo test --package game_core",
     "test:all": "./scripts/test-all.sh",
     "build:client": "cd client_wasm && wasm-pack build --target web --out-dir ../worker/pkg/client_wasm",
-    "build:server": "wasm-pack build --target web --out-dir worker/pkg lobby_worker",
+    "build:server": "cd lobby_worker && wasm-pack build --target web --out-dir ../worker/pkg",
     "build": "npm run build:server && npm run build:client",
     "dev": "npx wrangler dev --assets worker/pkg",
     "deploy": "npx wrangler publish",
