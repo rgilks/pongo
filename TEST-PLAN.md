@@ -7,6 +7,7 @@ Manual test procedures for the Pong game, executed via browser automation.
 ## Test Environment
 
 ### Local Testing
+
 ```bash
 npm run build
 npm run dev
@@ -14,6 +15,7 @@ npm run dev
 ```
 
 ### Production Testing
+
 ```bash
 npm run deploy
 # Production at https://iso.rob-gilks.workers.dev
@@ -24,9 +26,11 @@ npm run deploy
 ## Core Test Cases
 
 ### TC-001: Match Creation & Join
+
 **Objective**: Verify two players can create and join a match
 
 **Steps**:
+
 1. Navigate to `http://localhost:8787`
 2. Click "Create Match"
 3. Verify 5-character code displayed
@@ -36,6 +40,7 @@ npm run deploy
 7. Verify both players see "Game starting..."
 
 **Expected**:
+
 - Code is exactly 5 characters (Base32, no vowels)
 - Both players receive player ID (0 or 1)
 - Game initializes when both connected
@@ -43,9 +48,11 @@ npm run deploy
 ---
 
 ### TC-002: Paddle Movement
+
 **Objective**: Verify paddles move correctly with input
 
 **Steps**:
+
 1. Join match as left player
 2. Press Up arrow key
 3. Verify paddle moves up
@@ -56,6 +63,7 @@ npm run deploy
 8. Repeat for right player
 
 **Expected**:
+
 - Paddles move smoothly at 8 units/second
 - Paddles stay within arena bounds (Y: 2 to 22)
 - Movement is responsive (< 100ms latency)
@@ -64,9 +72,11 @@ npm run deploy
 ---
 
 ### TC-003: Ball Physics
+
 **Objective**: Verify ball movement and collisions
 
 **Steps**:
+
 1. Start game with 2 players
 2. Observe ball initial position (center: 16, 12)
 3. Let ball hit top wall
@@ -78,6 +88,7 @@ npm run deploy
 9. Continue rally, observe ball speed caps at 16 u/s
 
 **Expected**:
+
 - Ball starts at center with 8 u/s velocity
 - Random initial direction
 - Wall bounce: Y velocity reverses
@@ -88,9 +99,11 @@ npm run deploy
 ---
 
 ### TC-004: Scoring
+
 **Objective**: Verify scoring logic works correctly
 
 **Steps**:
+
 1. Right player misses ball
 2. Ball exits right edge (x > 32)
 3. Verify left score increments
@@ -101,6 +114,7 @@ npm run deploy
 8. Verify ball resets
 
 **Expected**:
+
 - Correct player score increments
 - Score display updates immediately
 - Ball returns to center (16, 12)
@@ -110,15 +124,18 @@ npm run deploy
 ---
 
 ### TC-005: Win Condition
+
 **Objective**: Verify game ends at 11 points
 
 **Steps**:
+
 1. Play until one player reaches 11 points
 2. Verify game over screen appears
 3. Verify correct winner displayed
 4. Verify scores frozen
 
 **Expected**:
+
 - Game stops when score reaches 11
 - Winner message: "Left Player Wins!" or "Right Player Wins!"
 - Game state freezes (no more ball movement)
@@ -126,9 +143,11 @@ npm run deploy
 ---
 
 ### TC-006: Network Synchronization
+
 **Objective**: Verify both clients see same game state
 
 **Steps**:
+
 1. Open two browser windows side by side
 2. Player 1 moves paddle up
 3. Verify Player 2 sees paddle movement
@@ -136,6 +155,7 @@ npm run deploy
 5. Score point, verify both see score update
 
 **Expected**:
+
 - Both clients show identical game state
 - No desynchronization
 - Latency < 100ms
@@ -144,15 +164,18 @@ npm run deploy
 ---
 
 ### TC-007: Player Disconnect
+
 **Objective**: Verify handling when player disconnects
 
 **Steps**:
+
 1. Start game with 2 players
 2. Player 1 closes browser tab
 3. Verify Player 2 sees disconnect indication
 4. Verify game stops or waits for reconnect
 
 **Expected**:
+
 - Disconnection detected within 5 seconds
 - Remaining player notified
 - Server cleans up disconnected player
@@ -161,9 +184,11 @@ npm run deploy
 ---
 
 ### TC-008: Performance
+
 **Objective**: Verify client and server performance
 
 **Steps**:
+
 1. Start game
 2. Open browser performance tools
 3. Play for 2 minutes
@@ -171,6 +196,7 @@ npm run deploy
 5. Check server logs for tick timing
 
 **Expected**:
+
 - Client: Consistent 60 fps, no frame drops
 - Server: Ticks every 16.67ms (60 Hz)
 - No memory leaks
@@ -181,13 +207,16 @@ npm run deploy
 ## Edge Cases
 
 ### TC-009: Corner Collision
+
 **Objective**: Verify ball behavior at corner
 
 **Steps**:
+
 1. Let ball hit corner of paddle (top or bottom edge)
 2. Observe bounce angle
 
 **Expected**:
+
 - Ball bounces at reasonable angle
 - No getting stuck
 - No unexpected physics glitches
@@ -195,13 +224,16 @@ npm run deploy
 ---
 
 ### TC-010: Simultaneous Input
+
 **Objective**: Verify both players can input simultaneously
 
 **Steps**:
+
 1. Both players press Up at same time
 2. Verify both paddles move independently
 
 **Expected**:
+
 - No input conflicts
 - Both paddles respond correctly
 - Server handles concurrent inputs
@@ -209,13 +241,16 @@ npm run deploy
 ---
 
 ### TC-011: Rapid Input Changes
+
 **Objective**: Verify rapid key presses handled correctly
 
 **Steps**:
+
 1. Rapidly alternate Up/Down keys
 2. Verify paddle responds smoothly
 
 **Expected**:
+
 - Paddle doesn't glitch or jump
 - All inputs processed correctly
 - Smooth movement despite rapid changes

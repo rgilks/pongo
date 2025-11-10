@@ -7,6 +7,7 @@ A multiplayer Pong game built with Rust + WebGPU (client) and Cloudflare Durable
 ## What is This?
 
 This is a modern implementation of the classic 1970s Pong game, demonstrating:
+
 - **Rust + WebGPU** for client-side rendering (no game engine)
 - **Cloudflare Durable Objects** for authoritative server
 - **ECS architecture** (hecs) for game simulation
@@ -53,6 +54,7 @@ Visit `http://localhost:8787` to play!
 5. First to 11 points wins!
 
 **Benefits of local testing:**
+
 - No rate limits
 - Faster iteration
 - Better debugging (see logs in terminal)
@@ -100,6 +102,7 @@ git config core.hooksPath .githooks
 ```
 
 The hook runs:
+
 - `cargo fmt --check` - Format verification
 - `cargo clippy --workspace -- -D warnings` - Linting
 - `cargo test --workspace` - All tests
@@ -135,11 +138,13 @@ pong/
 ### Game Logic (game_core)
 
 **Components:**
+
 - `Paddle { player_id, y }` - Left/right paddles
 - `Ball { pos, vel }` - Ball position and velocity
 - `PaddleIntent { dir }` - Player input (-1 up, 0 stop, 1 down)
 
 **Systems (deterministic order):**
+
 1. **IngestInputs** - Apply player paddle commands
 2. **MovePaddles** - Update paddle positions (clamped to arena)
 3. **MoveBall** - Update ball position
@@ -148,6 +153,7 @@ pong/
 6. **ResetBall** - Reset after scoring
 
 **Resources:**
+
 - `Time { dt, now }` - Fixed timestep (16.67ms)
 - `GameMap { width, height }` - Arena dimensions (32 × 24)
 - `Score { left, right }` - Current scores
@@ -156,6 +162,7 @@ pong/
 ### Network Protocol
 
 **Client → Server (C2S):**
+
 ```rust
 enum C2S {
     Join { code: [u8; 5] },
@@ -165,6 +172,7 @@ enum C2S {
 ```
 
 **Server → Client (S2C):**
+
 ```rust
 enum S2C {
     Welcome { player_id: u8 },  // 0 = left, 1 = right
@@ -195,6 +203,7 @@ cargo test --package proto      # Protocol serialization
 ### Manual Testing
 
 See `TEST-PLAN.md` for detailed test procedures covering:
+
 - Match creation and joining
 - Paddle movement and bounds
 - Ball physics and collision
@@ -205,12 +214,14 @@ See `TEST-PLAN.md` for detailed test procedures covering:
 ### Local vs Production
 
 **Local** (`npm run dev`):
+
 - Uses Miniflare to simulate Cloudflare Workers
 - WebSockets work locally
 - No rate limits
 - State in `.wrangler/state/` (delete to reset)
 
 **Production** (`npm run deploy`):
+
 - Deploys to Cloudflare Workers
 - Real Durable Objects
 - Subject to Cloudflare rate limits (free tier: 100k requests/day)
@@ -244,11 +255,13 @@ See `TEST-PLAN.md` for detailed test procedures covering:
 ## Performance
 
 **Client:**
+
 - Target: 60 fps
 - Lightweight rendering (paddles + ball only)
 - Works on mobile devices
 
 **Server:**
+
 - Fixed tick rate: 60 Hz (16.67ms)
 - Snapshot broadcast: 60 Hz to all clients
 - Scales to 2 players per match (no bots)
@@ -258,17 +271,20 @@ See `TEST-PLAN.md` for detailed test procedures covering:
 The game is configured to minimize costs:
 
 **Free Tier (Development):**
+
 - Input rate: 30 Hz with coalescing
 - Server tick: 60 Hz (can reduce to 5 Hz if hitting limits)
 - Alarms stop when no clients connected
 - Capacity: ~10-12 full matches per day
 
 **Paid Tier ($5/mo base):**
+
 - Light usage (10 matches/day): ~$5-6/month
 - Medium usage (50 matches/day): ~$6-7/month
 - Heavy usage (200 matches/day): ~$10-15/month
 
 **Monitor usage:**
+
 - Dashboard: https://dash.cloudflare.com
 - Logs: `npm run logs`
 
@@ -281,6 +297,7 @@ The game is configured to minimize costs:
 ## Future Enhancements
 
 Potential additions:
+
 - AI bot opponent (single player)
 - Power-ups (speed boost, larger paddle)
 - Different game modes (time limit, first to X)
