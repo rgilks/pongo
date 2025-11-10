@@ -292,7 +292,13 @@ impl MatchDO {
 
                     if let Some(pid) = player_id {
                         // Queue input for next tick
+                        console_log!("DO: Player {} input: {}", pid, paddle_dir);
                         gs.net_queue.push_input(pid, paddle_dir);
+                    } else {
+                        console_log!(
+                            "DO: Input from unknown WebSocket, paddle_dir={}",
+                            paddle_dir
+                        );
                     }
                     None
                 }
@@ -326,6 +332,15 @@ impl MatchDO {
 
         gs.time.dt = 0.016; // ~60 Hz
         gs.tick += 1;
+
+        if gs.tick % 60 == 0 {
+            // Log every second
+            console_log!(
+                "DO: Game running, tick={}, clients={}",
+                gs.tick,
+                gs.clients.len()
+            );
+        }
 
         // Run Pong simulation
         game_core::step(

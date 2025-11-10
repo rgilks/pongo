@@ -400,11 +400,18 @@ impl WasmClient {
     #[wasm_bindgen]
     pub fn on_key_down(&mut self, event: KeyboardEvent) {
         let key = event.key();
+        let old_dir = self.0.paddle_dir;
         self.0.paddle_dir = match key.as_str() {
             "ArrowUp" | "w" | "W" => -1,
             "ArrowDown" | "s" | "S" => 1,
             _ => self.0.paddle_dir,
         };
+
+        if self.0.paddle_dir != old_dir {
+            web_sys::console::log_1(
+                &format!("⌨️  Key down: {} -> paddle_dir={}", key, self.0.paddle_dir).into(),
+            );
+        }
 
         // Send input to server
         self.send_input();
@@ -417,6 +424,7 @@ impl WasmClient {
         match key.as_str() {
             "ArrowUp" | "w" | "W" | "ArrowDown" | "s" | "S" => {
                 self.0.paddle_dir = 0;
+                web_sys::console::log_1(&format!("⌨️  Key up: {} -> paddle_dir=0", key).into());
                 self.send_input();
             }
             _ => {}
@@ -432,9 +440,17 @@ impl WasmClient {
         match msg {
             S2C::Welcome { player_id } => {
                 self.0.game_state.my_player_id = Some(player_id);
-                web_sys::console::log_1(&format!("Joined as player {}", player_id).into());
+                web_sys::console::log_1(
+                    &format!(
+                        "✅ Joined as player {} ({})",
+                        player_id,
+                        if player_id == 0 { "LEFT" } else { "RIGHT" }
+                    )
+                    .into(),
+                );
             }
             S2C::GameState {
+                tick,
                 ball_x,
                 ball_y,
                 paddle_left_y,
@@ -449,9 +465,22 @@ impl WasmClient {
                 self.0.game_state.paddle_right_y = paddle_right_y;
                 self.0.game_state.score_left = score_left;
                 self.0.game_state.score_right = score_right;
+
+                if tick == 1 {
+                    web_sys::console::log_1(&"🎮 Game started!".into());
+                }
+                if tick % 60 == 0 {
+                    web_sys::console::log_1(
+                        &format!(
+                            "Game state: ball=({:.1}, {:.1}), paddles=({:.1}, {:.1})",
+                            ball_x, ball_y, paddle_left_y, paddle_right_y
+                        )
+                        .into(),
+                    );
+                }
             }
             S2C::GameOver { winner } => {
-                web_sys::console::log_1(&format!("Game over! Winner: {}", winner).into());
+                web_sys::console::log_1(&format!("🏆 Game over! Winner: player {}", winner).into());
             }
             S2C::Pong { .. } => {
                 // Handle pong response
