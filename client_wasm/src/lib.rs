@@ -65,7 +65,8 @@ pub struct Client {
     // Render pipeline
     render_pipeline: RenderPipeline,
     // Instance buffers
-    paddle_instance_buffer: Buffer,
+    left_paddle_instance_buffer: Buffer,
+    right_paddle_instance_buffer: Buffer,
     ball_instance_buffer: Buffer,
     max_instances: usize,
     // Game state
@@ -215,7 +216,20 @@ impl WasmClient {
                     VertexBufferLayout {
                         array_stride: 32, // 8 floats (transform + tint)
                         step_mode: VertexStepMode::Instance,
-                        attributes: &vertex_attr_array![1 => Float32x4, 2 => Float32x4],
+                        attributes: &[
+                            // Location 1: transform (x, y, scale_x, scale_y)
+                            VertexAttribute {
+                                format: VertexFormat::Float32x4,
+                                offset: 0,
+                                shader_location: 1,
+                            },
+                            // Location 2: tint (r, g, b, a)
+                            VertexAttribute {
+                                format: VertexFormat::Float32x4,
+                                offset: 16,
+                                shader_location: 2,
+                            },
+                        ],
                     },
                 ],
                 compilation_options: Default::default(),
@@ -247,18 +261,31 @@ impl WasmClient {
 
         // Create instance buffers
         let max_instances = 32;
-        let instance_buffer_size = (max_instances * std::mem::size_of::<InstanceData>()) as u64;
+        // Each paddle buffer needs 2 instances: dummy at 0, real at 1
+        let paddle_instance_buffer_size = (2 * std::mem::size_of::<InstanceData>()) as u64;
 
-        let paddle_instance_buffer = device.create_buffer(&BufferDescriptor {
-            label: Some("Paddle Instance Buffer"),
-            size: instance_buffer_size,
+        // Separate buffers for each paddle (non-instanced solution)
+        let left_paddle_instance_buffer = device.create_buffer(&BufferDescriptor {
+            label: Some("Left Paddle Instance Buffer"),
+            size: paddle_instance_buffer_size,
             usage: BufferUsages::VERTEX | BufferUsages::COPY_DST,
             mapped_at_creation: false,
         });
 
+        let right_paddle_instance_buffer = device.create_buffer(&BufferDescriptor {
+            label: Some("Right Paddle Instance Buffer"),
+            size: paddle_instance_buffer_size,
+            usage: BufferUsages::VERTEX | BufferUsages::COPY_DST,
+            mapped_at_creation: false,
+        });
+
+        // Ball still uses instancing (works fine)
+        let ball_instance_buffer_size =
+            (max_instances * std::mem::size_of::<InstanceData>()) as u64;
+
         let ball_instance_buffer = device.create_buffer(&BufferDescriptor {
             label: Some("Ball Instance Buffer"),
-            size: instance_buffer_size,
+            size: ball_instance_buffer_size,
             usage: BufferUsages::VERTEX | BufferUsages::COPY_DST,
             mapped_at_creation: false,
         });
@@ -278,7 +305,8 @@ impl WasmClient {
             rectangle_mesh,
             circle_mesh,
             render_pipeline,
-            paddle_instance_buffer,
+            left_paddle_instance_buffer,
+            right_paddle_instance_buffer,
             ball_instance_buffer,
             max_instances,
             game_state,
@@ -307,49 +335,50 @@ impl WasmClient {
                 label: Some("Render Encoder"),
             });
 
-        // Prepare instances
-        let paddle_instances = vec![
-            // Left paddle (at x=1.5, width=0.8, height=4.0) - RED
+        // Non-instanced solution: Create separate instance data for each paddle
+        // WORKAROUND: Instance 0 doesn't render, so we add a dummy at index 0
+        // and put the real paddle at index 1
+        let left_paddle_instances = vec![
+            // Dummy instance 0 (won't render)
+            InstanceData {
+                transform: [-100.0, -100.0, 0.0, 0.0], // Offscreen
+                tint: [0.0, 0.0, 0.0, 0.0],
+            },
+            // Real left paddle at instance 1
             InstanceData {
                 transform: [1.5, client.game_state.paddle_left_y, 0.8, 4.0],
-                tint: [1.0, 0.2, 0.2, 1.0], // Reddish
-            },
-            // Right paddle (at x=30.5, width=0.8, height=4.0) - BLUE
-            InstanceData {
-                transform: [30.5, client.game_state.paddle_right_y, 0.8, 4.0],
-                tint: [0.2, 0.2, 1.0, 1.0], // Bluish
+                tint: [1.0, 1.0, 1.0, 1.0], // White
             },
         ];
 
-        // Debug: log paddle positions and instance data
-        if (client.game_state.ball_x * 100.0) as u32 % 100 == 0 {
-            web_sys::console::log_1(
-                &format!(
-                    "🎨 {} paddles: [0]=({}|{:.1}|{}|{}) [1]=({}|{:.1}|{}|{})",
-                    paddle_instances.len(),
-                    paddle_instances[0].transform[0],
-                    paddle_instances[0].transform[1],
-                    paddle_instances[0].transform[2],
-                    paddle_instances[0].transform[3],
-                    paddle_instances[1].transform[0],
-                    paddle_instances[1].transform[1],
-                    paddle_instances[1].transform[2],
-                    paddle_instances[1].transform[3],
-                )
-                .into(),
-            );
-        }
+        let right_paddle_instances = vec![
+            // Dummy instance 0 (won't render)
+            InstanceData {
+                transform: [-100.0, -100.0, 0.0, 0.0], // Offscreen
+                tint: [0.0, 0.0, 0.0, 0.0],
+            },
+            // Real right paddle at instance 1
+            InstanceData {
+                transform: [30.5, client.game_state.paddle_right_y, 0.8, 4.0],
+                tint: [1.0, 1.0, 1.0, 1.0], // White
+            },
+        ];
 
         let ball_instances = vec![InstanceData {
             transform: [client.game_state.ball_x, client.game_state.ball_y, 0.5, 0.5],
             tint: [1.0, 1.0, 0.2, 1.0], // Yellowish
         }];
 
-        // Upload instance data
+        // Upload instance data to separate buffers
         client.queue.write_buffer(
-            &client.paddle_instance_buffer,
+            &client.left_paddle_instance_buffer,
             0,
-            bytemuck::cast_slice(&paddle_instances),
+            bytemuck::cast_slice(&left_paddle_instances),
+        );
+        client.queue.write_buffer(
+            &client.right_paddle_instance_buffer,
+            0,
+            bytemuck::cast_slice(&right_paddle_instances),
         );
         client.queue.write_buffer(
             &client.ball_instance_buffer,
@@ -382,9 +411,9 @@ impl WasmClient {
             render_pass.set_pipeline(&client.render_pipeline);
             render_pass.set_bind_group(0, &client.camera_bind_group, &[]);
 
-            // Draw paddles (rectangles)
+            // Draw left paddle (draw instance 1, skip dummy instance 0)
             render_pass.set_vertex_buffer(0, client.rectangle_mesh.vertex_buffer.slice(..));
-            render_pass.set_vertex_buffer(1, client.paddle_instance_buffer.slice(..));
+            render_pass.set_vertex_buffer(1, client.left_paddle_instance_buffer.slice(..));
             render_pass.set_index_buffer(
                 client.rectangle_mesh.index_buffer.slice(..),
                 IndexFormat::Uint16,
@@ -392,7 +421,15 @@ impl WasmClient {
             render_pass.draw_indexed(
                 0..client.rectangle_mesh.index_count,
                 0,
-                0..paddle_instances.len() as u32,
+                1..2, // Draw instance 1 (skip dummy instance 0)
+            );
+
+            // Draw right paddle (draw instance 1, skip dummy instance 0)
+            render_pass.set_vertex_buffer(1, client.right_paddle_instance_buffer.slice(..));
+            render_pass.draw_indexed(
+                0..client.rectangle_mesh.index_count,
+                0,
+                1..2, // Draw instance 1 (skip dummy instance 0)
             );
 
             // Draw ball (circle)
