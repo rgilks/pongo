@@ -20,6 +20,7 @@ struct GameState {
     next_player_id: u8,
     game_started: bool,
     tick: u32,
+    last_input: HashMap<u8, i8>, // Track last input per player to reduce logging
 }
 
 #[durable_object]
@@ -60,6 +61,7 @@ impl DurableObject for MatchDO {
             next_player_id: 0,
             game_started: false,
             tick: 0,
+            last_input: HashMap::new(),
         };
 
         Self {
@@ -284,8 +286,17 @@ impl MatchDO {
                 } => {
                     // Verify the player exists
                     if gs.clients.contains_key(&player_id) {
-                        // Queue input for next tick
-                        console_log!("DO: Player {} input: {}", player_id, paddle_dir);
+                        // Only log when input changes (reduces log spam)
+                        let last_dir = gs.last_input.get(&player_id).copied().unwrap_or(99);
+                        if paddle_dir != last_dir {
+                            console_log!(
+                                "DO: Player {} input changed: {} -> {}",
+                                player_id,
+                                last_dir,
+                                paddle_dir
+                            );
+                            gs.last_input.insert(player_id, paddle_dir);
+                        }
                         gs.net_queue.push_input(player_id, paddle_dir);
                     } else {
                         console_log!(

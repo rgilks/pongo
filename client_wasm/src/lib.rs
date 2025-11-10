@@ -88,17 +88,35 @@ impl WasmClient {
         // Set up panic hook for better error messages
         console_error_panic_hook::set_once();
 
+        // Log canvas info
+        web_sys::console::log_1(
+            &format!(
+                "🎯 WasmClient::new called: canvas size={}x{}",
+                canvas.width(),
+                canvas.height()
+            )
+            .into(),
+        );
+
         // Initialize wgpu
         let instance = wgpu::Instance::new(&InstanceDescriptor {
             backends: Backends::BROWSER_WEBGPU,
             ..Default::default()
         });
 
+        web_sys::console::log_1(&"🔧 Creating WebGPU surface...".into());
+
         let canvas_target = canvas.clone();
         let surface = instance
             .create_surface(SurfaceTarget::Canvas(canvas_target))
-            .map_err(|e| format!("Failed to create surface: {:?}", e))?;
+            .map_err(|e| {
+                web_sys::console::error_1(&format!("❌ Failed to create surface: {:?}", e).into());
+                format!("Failed to create surface: {:?}", e)
+            })?;
 
+        web_sys::console::log_1(&"✅ Surface created".into());
+
+        web_sys::console::log_1(&"🔧 Requesting adapter...".into());
         let adapter = instance
             .request_adapter(&RequestAdapterOptions {
                 power_preference: PowerPreference::default(),
@@ -106,8 +124,14 @@ impl WasmClient {
                 force_fallback_adapter: false,
             })
             .await
-            .ok_or("Failed to find adapter")?;
+            .ok_or_else(|| {
+                web_sys::console::error_1(&"❌ Failed to find adapter".into());
+                "Failed to find adapter"
+            })?;
 
+        web_sys::console::log_1(&"✅ Adapter found".into());
+
+        web_sys::console::log_1(&"🔧 Requesting device...".into());
         let (device, queue) = adapter
             .request_device(
                 &DeviceDescriptor {
@@ -119,7 +143,12 @@ impl WasmClient {
                 None,
             )
             .await
-            .map_err(|e| format!("Failed to create device: {:?}", e))?;
+            .map_err(|e| {
+                web_sys::console::error_1(&format!("❌ Failed to create device: {:?}", e).into());
+                format!("Failed to create device: {:?}", e)
+            })?;
+
+        web_sys::console::log_1(&"✅ Device created".into());
 
         let width = canvas.width();
         let height = canvas.height();
@@ -146,7 +175,19 @@ impl WasmClient {
         surface.configure(&device, &surface_config);
 
         // Create orthographic camera for 2D (32x24 arena)
+        // Note: Canvas aspect ratio might differ, but we keep game coordinates fixed
         let camera = Camera::orthographic(32.0, 24.0);
+
+        // Debug: Log camera setup
+        web_sys::console::log_1(
+            &format!(
+                "📷 Camera: canvas=({}, {}), game=32x24, aspect={:.2}",
+                width,
+                height,
+                width as f32 / height as f32
+            )
+            .into(),
+        );
 
         // Create camera buffer (256 bytes for alignment)
         let camera_uniform = CameraUniform::from_camera(&camera);
@@ -248,7 +289,7 @@ impl WasmClient {
                 topology: PrimitiveTopology::TriangleList,
                 strip_index_format: None,
                 front_face: FrontFace::Ccw,
-                cull_mode: Some(Face::Back),
+                cull_mode: None, // Disable culling to debug rendering
                 polygon_mode: PolygonMode::Fill,
                 unclipped_depth: false,
                 conservative: false,
@@ -261,8 +302,8 @@ impl WasmClient {
 
         // Create instance buffers
         let max_instances = 32;
-        // Each paddle buffer needs 2 instances: dummy at 0, real at 1
-        let paddle_instance_buffer_size = (2 * std::mem::size_of::<InstanceData>()) as u64;
+        // Each paddle buffer needs 1 instance
+        let paddle_instance_buffer_size = std::mem::size_of::<InstanceData>() as u64;
 
         // Separate buffers for each paddle (non-instanced solution)
         let left_paddle_instance_buffer = device.create_buffer(&BufferDescriptor {
@@ -279,9 +320,8 @@ impl WasmClient {
             mapped_at_creation: false,
         });
 
-        // Ball still uses instancing (works fine)
-        let ball_instance_buffer_size =
-            (max_instances * std::mem::size_of::<InstanceData>()) as u64;
+        // Ball buffer needs 1 instance
+        let ball_instance_buffer_size = std::mem::size_of::<InstanceData>() as u64;
 
         let ball_instance_buffer = device.create_buffer(&BufferDescriptor {
             label: Some("Ball Instance Buffer"),
@@ -318,12 +358,35 @@ impl WasmClient {
     /// Render a frame
     #[wasm_bindgen]
     pub fn render(&mut self) -> Result<(), JsValue> {
+        // Log immediately to verify function is called
+        web_sys::console::log_1(&"🎨 RENDER CALLED".into());
+
         let client = &mut self.0;
 
-        let output = client
-            .surface
-            .get_current_texture()
-            .map_err(|e| format!("Failed to get current texture: {:?}", e))?;
+        // Debug: Log render call occasionally
+        static mut FRAME_COUNT: u32 = 0;
+        unsafe {
+            FRAME_COUNT += 1;
+            // Log first frame and every 60 frames
+            if FRAME_COUNT == 1 || FRAME_COUNT % 60 == 0 {
+                web_sys::console::log_1(
+                    &format!(
+                        "🎨 Render frame {}: ball=({:.1}, {:.1}), paddles=({:.1}, {:.1})",
+                        FRAME_COUNT,
+                        client.game_state.ball_x,
+                        client.game_state.ball_y,
+                        client.game_state.paddle_left_y,
+                        client.game_state.paddle_right_y
+                    )
+                    .into(),
+                );
+            }
+        }
+
+        let output = client.surface.get_current_texture().map_err(|e| {
+            web_sys::console::error_1(&format!("❌ Failed to get current texture: {:?}", e).into());
+            format!("Failed to get current texture: {:?}", e)
+        })?;
 
         let view = output
             .texture
@@ -335,34 +398,16 @@ impl WasmClient {
                 label: Some("Render Encoder"),
             });
 
-        // Non-instanced solution: Create separate instance data for each paddle
-        // WORKAROUND: Instance 0 doesn't render, so we add a dummy at index 0
-        // and put the real paddle at index 1
-        let left_paddle_instances = vec![
-            // Dummy instance 0 (won't render)
-            InstanceData {
-                transform: [-100.0, -100.0, 0.0, 0.0], // Offscreen
-                tint: [0.0, 0.0, 0.0, 0.0],
-            },
-            // Real left paddle at instance 1
-            InstanceData {
-                transform: [1.5, client.game_state.paddle_left_y, 0.8, 4.0],
-                tint: [1.0, 1.0, 1.0, 1.0], // White
-            },
-        ];
+        // Simple approach: Just create instance data directly (no dummy workaround)
+        let left_paddle_instances = vec![InstanceData {
+            transform: [1.5, client.game_state.paddle_left_y, 0.8, 4.0],
+            tint: [1.0, 1.0, 1.0, 1.0], // White
+        }];
 
-        let right_paddle_instances = vec![
-            // Dummy instance 0 (won't render)
-            InstanceData {
-                transform: [-100.0, -100.0, 0.0, 0.0], // Offscreen
-                tint: [0.0, 0.0, 0.0, 0.0],
-            },
-            // Real right paddle at instance 1
-            InstanceData {
-                transform: [30.5, client.game_state.paddle_right_y, 0.8, 4.0],
-                tint: [1.0, 1.0, 1.0, 1.0], // White
-            },
-        ];
+        let right_paddle_instances = vec![InstanceData {
+            transform: [30.5, client.game_state.paddle_right_y, 0.8, 4.0],
+            tint: [1.0, 1.0, 1.0, 1.0], // White
+        }];
 
         let ball_instances = vec![InstanceData {
             transform: [client.game_state.ball_x, client.game_state.ball_y, 0.5, 0.5],
@@ -408,29 +453,80 @@ impl WasmClient {
                 occlusion_query_set: None,
             });
 
+            // Set viewport to match canvas size (important for proper rendering)
+            render_pass.set_viewport(
+                0.0,
+                0.0,
+                client.size.0 as f32,
+                client.size.1 as f32,
+                0.0,
+                1.0,
+            );
+
             render_pass.set_pipeline(&client.render_pipeline);
             render_pass.set_bind_group(0, &client.camera_bind_group, &[]);
 
-            // Draw left paddle (draw instance 1, skip dummy instance 0)
+            // Debug: Log instance data on first frame
+            static mut LOGGED_INSTANCES: bool = false;
+            unsafe {
+                if !LOGGED_INSTANCES {
+                    web_sys::console::log_1(
+                        &format!(
+                            "🔍 Left paddle: x={:.1}, y={:.1}, scale=({:.1}, {:.1}), tint=({:.1}, {:.1}, {:.1}, {:.1})",
+                            left_paddle_instances[0].transform[0],
+                            left_paddle_instances[0].transform[1],
+                            left_paddle_instances[0].transform[2],
+                            left_paddle_instances[0].transform[3],
+                            left_paddle_instances[0].tint[0],
+                            left_paddle_instances[0].tint[1],
+                            left_paddle_instances[0].tint[2],
+                            left_paddle_instances[0].tint[3],
+                        )
+                        .into(),
+                    );
+                    web_sys::console::log_1(
+                        &format!(
+                            "🔍 Right paddle: x={:.1}, y={:.1}, scale=({:.1}, {:.1})",
+                            right_paddle_instances[0].transform[0],
+                            right_paddle_instances[0].transform[1],
+                            right_paddle_instances[0].transform[2],
+                            right_paddle_instances[0].transform[3],
+                        )
+                        .into(),
+                    );
+                    web_sys::console::log_1(
+                        &format!(
+                            "🔍 Ball: x={:.1}, y={:.1}, scale=({:.1}, {:.1})",
+                            ball_instances[0].transform[0],
+                            ball_instances[0].transform[1],
+                            ball_instances[0].transform[2],
+                            ball_instances[0].transform[3],
+                        )
+                        .into(),
+                    );
+                    web_sys::console::log_1(
+                        &format!(
+                            "🔍 Rectangle mesh: {} indices",
+                            client.rectangle_mesh.index_count
+                        )
+                        .into(),
+                    );
+                    LOGGED_INSTANCES = true;
+                }
+            }
+
+            // Draw left paddle
             render_pass.set_vertex_buffer(0, client.rectangle_mesh.vertex_buffer.slice(..));
             render_pass.set_vertex_buffer(1, client.left_paddle_instance_buffer.slice(..));
             render_pass.set_index_buffer(
                 client.rectangle_mesh.index_buffer.slice(..),
                 IndexFormat::Uint16,
             );
-            render_pass.draw_indexed(
-                0..client.rectangle_mesh.index_count,
-                0,
-                1..2, // Draw instance 1 (skip dummy instance 0)
-            );
+            render_pass.draw_indexed(0..client.rectangle_mesh.index_count, 0, 0..1);
 
-            // Draw right paddle (draw instance 1, skip dummy instance 0)
+            // Draw right paddle
             render_pass.set_vertex_buffer(1, client.right_paddle_instance_buffer.slice(..));
-            render_pass.draw_indexed(
-                0..client.rectangle_mesh.index_count,
-                0,
-                1..2, // Draw instance 1 (skip dummy instance 0)
-            );
+            render_pass.draw_indexed(0..client.rectangle_mesh.index_count, 0, 0..1);
 
             // Draw ball (circle)
             render_pass.set_vertex_buffer(0, client.circle_mesh.vertex_buffer.slice(..));
@@ -439,15 +535,25 @@ impl WasmClient {
                 client.circle_mesh.index_buffer.slice(..),
                 IndexFormat::Uint16,
             );
-            render_pass.draw_indexed(
-                0..client.circle_mesh.index_count,
-                0,
-                0..ball_instances.len() as u32,
-            );
+            render_pass.draw_indexed(0..client.circle_mesh.index_count, 0, 0..1);
         }
 
-        client.queue.submit(std::iter::once(encoder.finish()));
+        let command_buffer = encoder.finish();
+        client.queue.submit(std::iter::once(command_buffer));
+
+        // Present the frame
         output.present();
+
+        // Log occasionally to verify present is being called
+        static mut PRESENT_COUNT: u32 = 0;
+        unsafe {
+            PRESENT_COUNT += 1;
+            if PRESENT_COUNT == 1 || PRESENT_COUNT % 60 == 0 {
+                web_sys::console::log_1(
+                    &format!("✅ Frame presented (frame {})", PRESENT_COUNT).into(),
+                );
+            }
+        }
 
         Ok(())
     }

@@ -22,7 +22,10 @@ impl Camera {
         // Orthographic projection: maps world space (0,0) to (width, height)
         // to clip space (-1,-1) to (1, 1)
         // Note: orthographic_rh uses (left, right, bottom, top, near, far)
-        // We want Y=0 at bottom, Y=height at top
+        // For 2D: left=0, right=width, bottom=0, top=height
+        // orthographic_rh maps: bottom -> clip Y=-1, top -> clip Y=1
+        // We want: world Y=0 (bottom) -> clip Y=-1, world Y=height (top) -> clip Y=1
+        // So: bottom=0, top=height
         let projection = Mat4::orthographic_rh(0.0, width, 0.0, height, -1.0, 1.0);
 
         Self { view, projection }

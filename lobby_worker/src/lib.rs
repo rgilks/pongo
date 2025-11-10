@@ -26,7 +26,7 @@ async fn handle_index(_req: Request, _ctx: RouteContext<()>) -> Result<Response>
     <style>
         body { margin: 0; padding: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; background: #000; color: #fff; font-family: 'Courier New', monospace; }
         #gameContainer { position: relative; }
-        #canvas { border: 2px solid #fff; background: #000; display: block; }
+        #canvas { border: 2px solid #fff; display: block; }
         #score { position: absolute; top: 20px; left: 50%; transform: translateX(-50%); font-size: 48px; color: #fff; text-shadow: 0 0 10px #fff; pointer-events: none; }
         #ui { margin-top: 30px; text-align: center; }
         #status { margin: 15px 0; padding: 10px 20px; background: #222; border: 2px solid #fff; border-radius: 4px; font-size: 16px; }
@@ -47,28 +47,37 @@ async fn handle_index(_req: Request, _ctx: RouteContext<()>) -> Result<Response>
         <div id="status">Initializing...</div>
         <div>
             <input type="text" id="matchCode" placeholder="MATCH CODE" maxlength="5">
-            <button id="joinBtn" onclick="joinMatch()">JOIN</button>
-            <button id="createBtn" onclick="createMatch()">CREATE</button>
+            <button id="joinBtn">JOIN</button>
+            <button id="createBtn">CREATE</button>
         </div>
         <div class="controls">Controls: ↑/↓ or W/S to move your paddle</div>
     </div>
     <script type="module">
-        import init, { WasmClient } from '/client_wasm/client_wasm.js';
+        // Cache busting for local development: use timestamp to force reload
+        // This ensures browser always loads latest WASM files during development
+        const CACHE_BUST = new URLSearchParams(window.location.search).get('v') || Date.now();
+        const wasmUrl = '/client_wasm/client_wasm.js?v=' + CACHE_BUST;
+        
+        let init, WasmClient;
+        try {
+            console.log('📦 Loading WASM module from:', wasmUrl);
+            const module = await import(wasmUrl);
+            init = module.default;
+            WasmClient = module.WasmClient;
+            console.log('✅ WASM module loaded successfully');
+        } catch (error) {
+            console.error('❌ Failed to load WASM module:', error);
+            const statusEl = document.getElementById('status');
+            if (statusEl) {
+                statusEl.textContent = 'Error: Failed to load game (check console)';
+            }
+            throw error;
+        }
+        
         let client = null;
         let ws = null;
         let scoreLeft = 0;
         let scoreRight = 0;
-
-        async function main() {
-            try {
-                await init();
-                updateStatus('Ready to play!');
-                document.getElementById('createBtn').disabled = false;
-            } catch (error) {
-                console.error('Error:', error);
-                updateStatus('Error: ' + error.message);
-            }
-        }
 
         function updateStatus(msg) {
             const el = document.getElementById('status');
@@ -134,8 +143,17 @@ async fn handle_index(_req: Request, _ctx: RouteContext<()>) -> Result<Response>
 
         let renderLoopId = null;
         function startRender() {
+            console.log('startRender called, client exists:', !!client);
             function render() {
-                if (client) { try { client.render(); } catch (e) { console.error('Render error:', e); } }
+                if (client) { 
+                    try { 
+                        client.render(); 
+                    } catch (e) { 
+                        console.error('Render error:', e); 
+                    } 
+                } else {
+                    console.warn('Render called but client is null');
+                }
                 renderLoopId = requestAnimationFrame(render);
             }
             render();
@@ -164,7 +182,31 @@ async fn handle_index(_req: Request, _ctx: RouteContext<()>) -> Result<Response>
             setInterval(sendInput, 33);
         }
 
-        main();
+        async function main() {
+            try {
+                console.log('🚀 Starting main()...');
+                await init();
+                console.log('✅ WASM initialized');
+                updateStatus('Ready to play!');
+                const createBtn = document.getElementById('createBtn');
+                const joinBtn = document.getElementById('joinBtn');
+                createBtn.disabled = false;
+                joinBtn.disabled = false;
+                // Use event listeners instead of onclick to avoid timing issues
+                createBtn.addEventListener('click', window.createMatch);
+                joinBtn.addEventListener('click', window.joinMatch);
+                console.log('✅ UI initialized');
+            } catch (error) {
+                console.error('❌ Error in main():', error);
+                updateStatus('Error: ' + error.message);
+            }
+        }
+
+        // Start immediately (top-level await in module)
+        main().catch(error => {
+            console.error('❌ Fatal error:', error);
+            document.getElementById('status').textContent = 'Fatal error: ' + error.message;
+        });
     </script>
 </body>
 </html>"#;

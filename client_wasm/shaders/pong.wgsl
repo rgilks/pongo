@@ -39,17 +39,20 @@ fn vs_main(
         vertex.position.z
     );
     
-    // Flip Y coordinate: game uses Y=0 at bottom, but we need to account for coordinate system
-    // Arena height is 24, so we flip: new_y = 24 - old_y
-    let arena_height = 24.0;
+    // World position in game coordinates (Y=0 at bottom, Y=24 at top)
     let world_pos = vec4<f32>(
         scaled_pos.x + instance.transform.x,  // translate x
-        arena_height - (scaled_pos.y + instance.transform.y),  // flip Y: translate y then flip
+        scaled_pos.y + instance.transform.y,  // translate y
         scaled_pos.z,
         1.0
     );
     
-    out.clip_position = camera.view_proj * world_pos;
+    // Transform to clip space using camera projection
+    let clip_pos = camera.view_proj * world_pos;
+    // Flip Y because WebGPU clip space has Y=0 at top, but we want Y=0 at bottom
+    clip_pos.y = -clip_pos.y;
+    
+    out.clip_position = clip_pos;
     out.color = instance.tint;
     
     return out;
