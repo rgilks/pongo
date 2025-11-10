@@ -514,7 +514,9 @@ impl WasmClient {
     /// Get current input as bytes for sending
     #[wasm_bindgen]
     pub fn get_input_bytes(&self) -> Result<Vec<u8>, JsValue> {
+        let player_id = self.0.game_state.my_player_id.unwrap_or(0);
         let msg = C2S::Input {
+            player_id,
             paddle_dir: self.0.paddle_dir,
         };
         msg.to_bytes()

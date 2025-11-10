@@ -14,7 +14,7 @@ pub enum C2S {
     Join { code: [u8; 5] },
 
     /// Paddle input: -1 = up, 0 = stop, 1 = down
-    Input { paddle_dir: i8 },
+    Input { player_id: u8, paddle_dir: i8 },
 
     /// Ping for latency measurement
     Ping { t_ms: u32 },
@@ -87,11 +87,24 @@ mod tests {
 
     #[test]
     fn test_c2s_serialization() {
-        let msg = C2S::Input { paddle_dir: -1 };
+        let msg = C2S::Input {
+            player_id: 0,
+            paddle_dir: -1,
+        };
         let bytes = msg.to_bytes().unwrap();
         let decoded = C2S::from_bytes(&bytes).unwrap();
         match (msg, decoded) {
-            (C2S::Input { paddle_dir: d1 }, C2S::Input { paddle_dir: d2 }) => {
+            (
+                C2S::Input {
+                    player_id: p1,
+                    paddle_dir: d1,
+                },
+                C2S::Input {
+                    player_id: p2,
+                    paddle_dir: d2,
+                },
+            ) => {
+                assert_eq!(p1, p2);
                 assert_eq!(d1, d2);
             }
             _ => panic!("Message type mismatch"),

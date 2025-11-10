@@ -278,25 +278,19 @@ impl MatchDO {
 
                     Some(was_empty)
                 }
-                C2S::Input { paddle_dir } => {
-                    // Find which player this WebSocket belongs to
-                    let player_id = gs
-                        .clients
-                        .iter()
-                        .find(|(_pid, client_ws)| {
-                            // Compare WebSocket addresses (this is a workaround)
-                            // In practice, we'd need better WebSocket identification
-                            std::ptr::eq(*client_ws as *const _, &ws as *const _)
-                        })
-                        .map(|(pid, _)| *pid);
-
-                    if let Some(pid) = player_id {
+                C2S::Input {
+                    player_id,
+                    paddle_dir,
+                } => {
+                    // Verify the player exists
+                    if gs.clients.contains_key(&player_id) {
                         // Queue input for next tick
-                        console_log!("DO: Player {} input: {}", pid, paddle_dir);
-                        gs.net_queue.push_input(pid, paddle_dir);
+                        console_log!("DO: Player {} input: {}", player_id, paddle_dir);
+                        gs.net_queue.push_input(player_id, paddle_dir);
                     } else {
                         console_log!(
-                            "DO: Input from unknown WebSocket, paddle_dir={}",
+                            "DO: Input from unknown player_id={}, paddle_dir={}",
+                            player_id,
                             paddle_dir
                         );
                     }
@@ -395,13 +389,24 @@ impl MatchDO {
         // Get paddle positions
         let mut paddle_left_y = 12.0;
         let mut paddle_right_y = 12.0;
+        let mut paddle_count = 0;
 
         for (_e, paddle) in gs.world.query::<&Paddle>().iter() {
+            paddle_count += 1;
             if paddle.player_id == 0 {
                 paddle_left_y = paddle.y;
             } else if paddle.player_id == 1 {
                 paddle_right_y = paddle.y;
             }
+        }
+
+        if gs.tick % 60 == 0 {
+            console_log!(
+                "DO: Paddle state - count={}, left_y={:.1}, right_y={:.1}",
+                paddle_count,
+                paddle_left_y,
+                paddle_right_y
+            );
         }
 
         S2C::GameState {
