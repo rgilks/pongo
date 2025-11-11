@@ -3,35 +3,49 @@
 
 set -e
 
-echo "Running pre-commit checks..."
+echo "🔍 Running pre-commit checks..."
+echo ""
 
-# Run Rust formatting check
-echo "Checking Rust formatting..."
-cargo fmt --check || {
-    echo "❌ Formatting check failed. Run 'cargo fmt' to fix."
+# Step 1: Format check
+echo "1️⃣  Checking code formatting..."
+if cargo fmt --check; then
+    echo "   ✅ Code is properly formatted"
+else
+    echo "   ❌ Code formatting issues found"
+    echo "   Run 'cargo fmt' to fix"
     exit 1
-}
+fi
+echo ""
 
-# Run cargo check first to catch compilation errors
-echo "Checking compilation..."
-cargo check --workspace || {
-    echo "❌ Compilation check failed. Fix errors before committing."
+# Step 2: Compilation check
+echo "2️⃣  Checking compilation..."
+if cargo check --workspace; then
+    echo "   ✅ Code compiles successfully"
+else
+    echo "   ❌ Compilation errors found"
     exit 1
-}
+fi
+echo ""
 
-# Run Clippy with deny warnings
-echo "Running Clippy..."
-cargo clippy --workspace -- -D warnings || {
-    echo "❌ Clippy check failed. Fix warnings before committing."
+# Step 3: Clippy check
+echo "3️⃣  Running clippy (linter)..."
+if cargo clippy --workspace -- -D warnings; then
+    echo "   ✅ No clippy warnings or errors"
+else
+    echo "   ❌ Clippy found warnings or errors"
     exit 1
-}
+fi
+echo ""
 
-# Run tests
-echo "Running tests..."
-cargo test --workspace || {
-    echo "❌ Tests failed. Fix tests before committing."
+# Step 4: Run tests
+echo "4️⃣  Running unit tests..."
+if cargo test --workspace; then
+    echo "   ✅ All tests passed"
+else
+    echo "   ❌ Some tests failed"
     exit 1
-}
+fi
+echo ""
 
 echo "✅ All pre-commit checks passed!"
 exit 0

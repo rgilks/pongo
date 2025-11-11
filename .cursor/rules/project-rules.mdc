@@ -6,7 +6,7 @@ alwaysApply: true
 
 - Keep changes small and test each step.
 - Refactor for clarity: simple, elegant, maintainable.
-- Improve tests, docs, and diagrams continuously.
+- Improve tests and docs continuously.
 - Remove dead or commented-out code.
 - Use whitespace for readability.
 - Keep functions < 20 lines; files < 200 lines.
@@ -31,18 +31,15 @@ alwaysApply: true
 1. **Fix linting errors and run tests** (automated)
 
    - Run `npm run test:all` to run all checks (format, check, clippy, tests)
-   - Or manually:
-     - Run `cargo fmt` to format code
-     - Run `cargo check --workspace` to verify compilation
-     - Run `cargo clippy --workspace -- -D warnings` and fix all warnings/errors
-     - Run `cargo test --workspace` and ensure all tests pass
+   - To format code: `npm run fmt`
+   - To run individual checks: `npm run fmt`, `npm run clippy`, `npm run test`
 
 2. **Local testing (TEST-PLAN.md)**
 
    **Setup:**
 
-   - Build the project: `npm run build`
-   - Start local dev server: `npm run dev` (runs at http://localhost:8787)
+   - Run `npm run start` to build and start local dev server (runs at http://localhost:8787)
+   - Or separately: `npm run build` then `npm run dev`
    - Uses Miniflare to simulate Cloudflare Workers and Durable Objects locally
 
    **Testing steps:**
@@ -51,8 +48,8 @@ alwaysApply: true
    - Test relevant endpoints locally: `/`, `/create`, `/join/:code`
    - Test WebSocket connections (work locally via Miniflare)
    - Verify rendering and game functionality in browser
-   - Test entity rendering (players, bolts, pickups, blocks)
-   - Test controls if implemented (W/S/A/D, 1/2/3, Q/E/R)
+   - Test entity rendering (paddles, ball)
+   - Test controls: Up/Down arrow keys or W/S (desktop), touch buttons (mobile)
 
    **Benefits of local testing:**
 
@@ -75,7 +72,7 @@ alwaysApply: true
      - Run `npx wrangler deploy` to deploy to production
      - Test deployed endpoints: `/`, `/create`, `/join/:code`
      - Run `npm run logs:check` to check for errors in logs
-   - Verify all M2 endpoints work correctly
+   - Verify all endpoints work correctly
    - Test WebSocket connections if applicable
 
 4. **Documentation updates**

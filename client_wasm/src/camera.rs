@@ -10,9 +10,7 @@ pub struct Camera {
 impl Camera {
     pub fn orthographic(width: f32, height: f32) -> Self {
         let view = Mat4::IDENTITY;
-        // Orthographic projection: maps world space (0,0) to (width, height)
-        // to clip space (-1,-1) to (1, 1)
-        // For 2D: left=0, right=width, bottom=0, top=height
+        // Orthographic projection: left=0, right=width, bottom=0, top=height
         let projection = Mat4::orthographic_rh(0.0, width, 0.0, height, -1.0, 1.0);
 
         Self { view, projection }

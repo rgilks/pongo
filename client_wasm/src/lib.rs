@@ -655,14 +655,6 @@ impl WasmClient {
                 let score_right = score.right;
                 let has_winner = score.has_winner(config.win_score);
 
-                // Release borrows
-                drop(world);
-                drop(time);
-                drop(score);
-                drop(events);
-                drop(net_queue);
-                drop(rng);
-
                 // Update local_score
                 match &mut client.local_score {
                     Some(ref mut local_score) => {
@@ -1171,44 +1163,6 @@ impl WasmClient {
             }
         } else {
             0 // No ball or paddle found
-        }
-    }
-
-    /// Update game state from local world for rendering
-    fn update_game_state_from_world(client: &mut Client, world: &World, score: &Score) {
-        // Get ball position
-        let ball_data = world
-            .query::<&Ball>()
-            .iter()
-            .next()
-            .map(|(_e, ball)| (ball.pos, ball.vel));
-
-        // Get paddle positions
-        let mut paddle_left_y = 12.0;
-        let mut paddle_right_y = 12.0;
-        for (_e, paddle) in world.query::<&Paddle>().iter() {
-            if paddle.player_id == 0 {
-                paddle_left_y = paddle.y;
-            } else if paddle.player_id == 1 {
-                paddle_right_y = paddle.y;
-            }
-        }
-
-        if let Some((ball_pos, ball_vel)) = ball_data {
-            // Update current state using public method (handles interpolation setup)
-            let snapshot = GameStateSnapshot {
-                ball_x: ball_pos.x,
-                ball_y: ball_pos.y,
-                paddle_left_y,
-                paddle_right_y,
-                ball_vx: ball_vel.x,
-                ball_vy: ball_vel.y,
-                tick: 0, // Not used in local mode
-            };
-            client.game_state.set_current(snapshot);
-
-            // Update scores
-            client.game_state.set_scores(score.left, score.right);
         }
     }
 

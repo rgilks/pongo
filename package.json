@@ -14,6 +14,7 @@
     "build:server": "cd lobby_worker && wasm-pack build --target web --out-dir ../worker/pkg",
     "build": "npm run build:server && npm run build:client",
     "dev": "npx wrangler dev --assets worker/pkg",
+    "start": "npm run build && npm run dev",
     "deploy": "npx wrangler deploy",
     "deploy:test": "./scripts/deploy-test.sh",
     "logs": "wrangler tail iso --format pretty",

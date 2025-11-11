@@ -113,6 +113,7 @@ git config core.hooksPath .githooks
 The hook runs:
 
 - `cargo fmt --check` - Format verification
+- `cargo check --workspace` - Compilation check
 - `cargo clippy --workspace -- -D warnings` - Linting
 - `cargo test --workspace` - All tests
 
