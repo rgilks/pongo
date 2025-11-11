@@ -48,6 +48,7 @@ async fn handle_index(_req: Request, _ctx: RouteContext<()>) -> Result<Response>
         <div id="metrics">
             <div>FPS: <span id="fps">--</span></div>
             <div>Ping: <span id="ping">--</span>ms</div>
+            <div>Update: <span id="update">--</span>ms</div>
         </div>
     </div>
     <div id="ui">
@@ -103,11 +104,13 @@ async fn handle_index(_req: Request, _ctx: RouteContext<()>) -> Result<Response>
             if (client) {
                 try {
                     const metrics = client.get_metrics();
-                    if (metrics.length >= 2) {
+                    if (metrics.length >= 3) {
                         const fpsEl = document.getElementById('fps');
                         const pingEl = document.getElementById('ping');
+                        const updateEl = document.getElementById('update');
                         if (fpsEl) fpsEl.textContent = Math.round(metrics[0]);
                         if (pingEl) pingEl.textContent = Math.round(metrics[1]);
+                        if (updateEl) updateEl.textContent = Math.round(metrics[2]);
                     }
                 } catch (e) {
                     console.error('Metrics error:', e);

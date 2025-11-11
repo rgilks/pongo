@@ -936,10 +936,15 @@ impl WasmClient {
         vec![self.0.game_state.score_left, self.0.game_state.score_right]
     }
 
-    /// Get performance metrics: [fps, ping_ms]
+    /// Get performance metrics: [fps, ping_ms, state_delay_ms]
+    /// state_delay_ms: Time since last game state update from server (in milliseconds)
     #[wasm_bindgen]
     pub fn get_metrics(&self) -> Vec<f32> {
-        vec![self.0.fps, self.0.ping_ms]
+        vec![
+            self.0.fps,
+            self.0.ping_ms,
+            self.0.game_state.time_since_update * 1000.0, // Convert to milliseconds
+        ]
     }
 
     /// Send ping to server for latency measurement
