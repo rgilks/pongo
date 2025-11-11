@@ -17,4 +17,5 @@ glam = "0.27"
 game_core = { path = "../game_core" }
 proto = { path = "../proto" }
 getrandom = { version = "0.2", features = ["js"] }
+js-sys = "0.3"
 

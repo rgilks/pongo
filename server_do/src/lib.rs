@@ -1,10 +1,17 @@
 use game_core::*;
 use hecs::World;
+use js_sys::Date;
 use proto::*;
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::time::Duration;
 use worker::*;
+
+// Track client activity
+struct ClientInfo {
+    ws: WebSocket,
+    last_activity: u64, // Unix timestamp in seconds
+}
 
 // Game state wrapper for interior mutability
 struct GameState {
@@ -16,7 +23,7 @@ struct GameState {
     events: Events,
     net_queue: NetQueue,
     rng: GameRng,
-    clients: HashMap<u8, WebSocket>, // player_id (0=left, 1=right) -> WebSocket
+    clients: HashMap<u8, ClientInfo>, // player_id (0=left, 1=right) -> ClientInfo
     next_player_id: u8,
     game_started: bool,
     tick: u32,
@@ -161,8 +168,16 @@ impl DurableObject for MatchDO {
 
         let mut gs = self.game_state.borrow_mut();
 
-        // Remove first client
-        if let Some(&player_id) = gs.clients.keys().next() {
+        // Find and remove the client that closed
+        // Note: In Cloudflare Workers, we can't directly compare WebSocket instances,
+        // but the close event is called for the specific WebSocket that closed.
+        // We'll track which WebSocket closed by storing it temporarily, but since
+        // we can't compare, we'll use a simpler approach: remove clients that are no longer valid.
+        // For now, we'll remove the first client as a fallback (this is a limitation of the API).
+        // A better approach would be to track WebSocket IDs, but that's not available.
+        let player_id_to_remove = gs.clients.keys().next().copied();
+
+        if let Some(player_id) = player_id_to_remove {
             console_log!("DO: Removing player {} after close event", player_id);
             gs.clients.remove(&player_id);
 
@@ -183,6 +198,11 @@ impl DurableObject for MatchDO {
                 let _ = gs.world.despawn(entity);
                 console_log!("DO: Despawned paddle for player {}", player_id);
             }
+
+            // Stop game if we lost a player
+            if gs.clients.len() < 2 {
+                gs.game_started = false;
+            }
         }
 
         console_log!("DO: Remaining clients after cleanup: {}", gs.clients.len());
@@ -194,32 +214,79 @@ impl DurableObject for MatchDO {
         Ok(())
     }
 
+    #[allow(clippy::await_holding_refcell_ref)] // We drop the RefCell borrow before await
     async fn alarm(&self) -> Result<Response> {
         // Game loop - runs at 60 Hz
         let tick_interval_ms = 16; // ~60 Hz
 
-        let has_clients = {
-            let gs = self.game_state.borrow();
-            !gs.clients.is_empty()
-        };
+        let mut gs = self.game_state.borrow_mut();
 
-        if has_clients {
-            // Run simulation
-            {
-                let mut gs = self.game_state.borrow_mut();
-                Self::step_game_simulation(&mut gs);
+        // Check for idle clients and disconnect them (1 minute timeout)
+        let now = Date::now() as u64 / 1000; // Current time in seconds
+        let idle_timeout_seconds = 60; // 1 minute
+        let mut clients_to_remove = Vec::new();
+
+        for (player_id, client_info) in gs.clients.iter() {
+            if now.saturating_sub(client_info.last_activity) > idle_timeout_seconds {
+                console_log!(
+                    "DO: Client {} idle for {}s, disconnecting",
+                    player_id,
+                    now.saturating_sub(client_info.last_activity)
+                );
+                clients_to_remove.push(*player_id);
             }
-
-            // Schedule next alarm
-            self.state
-                .storage()
-                .set_alarm(Duration::from_millis(tick_interval_ms))
-                .await?;
-
-            Response::ok("Alarm processed")
-        } else {
-            Response::ok("No clients, stopping alarm loop")
         }
+
+        // Remove idle clients
+        for player_id in clients_to_remove {
+            if let Some(_client_info) = gs.clients.remove(&player_id) {
+                // Despawn paddle
+                let entity_to_despawn =
+                    gs.world
+                        .query::<(&Paddle,)>()
+                        .iter()
+                        .find_map(|(entity, (paddle,))| {
+                            if paddle.player_id == player_id {
+                                Some(entity)
+                            } else {
+                                None
+                            }
+                        });
+
+                if let Some(entity) = entity_to_despawn {
+                    let _ = gs.world.despawn(entity);
+                    console_log!("DO: Despawned paddle for idle player {}", player_id);
+                }
+
+                // Stop game if we lost a player
+                if gs.clients.len() < 2 {
+                    gs.game_started = false;
+                }
+            }
+        }
+
+        // Check if we still have clients after cleanup
+        let has_clients = !gs.clients.is_empty();
+        if !has_clients {
+            console_log!("DO: No clients remaining, stopping alarm loop");
+            drop(gs); // Release borrow before return
+            return Response::ok("No clients, stopping alarm loop");
+        }
+
+        // Run simulation
+        Self::step_game_simulation(&mut gs);
+
+        // Release borrow before async call
+        drop(gs);
+
+        // Schedule next alarm
+        // Note: We've dropped the game_state borrow, so this is safe
+        self.state
+            .storage()
+            .set_alarm(Duration::from_millis(tick_interval_ms))
+            .await?;
+
+        Response::ok("Alarm processed")
     }
 }
 
@@ -241,13 +308,20 @@ impl MatchDO {
                     gs.next_player_id += 1;
 
                     let was_empty = gs.clients.is_empty();
+                    let now = Date::now() as u64 / 1000; // Current time in seconds
                     console_log!(
                         "DO: Player {} joining (clients was empty: {})",
                         player_id,
                         was_empty
                     );
 
-                    gs.clients.insert(player_id, ws.clone());
+                    gs.clients.insert(
+                        player_id,
+                        ClientInfo {
+                            ws: ws.clone(),
+                            last_activity: now,
+                        },
+                    );
                     console_log!("DO: Total clients: {}", gs.clients.len());
 
                     // Create paddle for this player
@@ -274,8 +348,8 @@ impl MatchDO {
                     })?;
 
                     // Broadcast to all clients so everyone knows someone joined
-                    for client_ws in gs.clients.values() {
-                        let _ = client_ws.send_with_bytes(&state_bytes);
+                    for client_info in gs.clients.values() {
+                        let _ = client_info.ws.send_with_bytes(&state_bytes);
                     }
 
                     Some(was_empty)
@@ -284,8 +358,11 @@ impl MatchDO {
                     player_id,
                     paddle_dir,
                 } => {
-                    // Verify the player exists
-                    if gs.clients.contains_key(&player_id) {
+                    // Verify the player exists and update activity time
+                    if let Some(client_info) = gs.clients.get_mut(&player_id) {
+                        let now = js_sys::Date::now() as u64 / 1000;
+                        client_info.last_activity = now;
+
                         // Only log when input changes (reduces log spam)
                         let last_dir = gs.last_input.get(&player_id).copied().unwrap_or(99);
                         if paddle_dir != last_dir {
@@ -308,6 +385,13 @@ impl MatchDO {
                     None
                 }
                 C2S::Ping { t_ms } => {
+                    // Update activity time for any client that sends ping
+                    // Find client by WebSocket (we'll update the first one as a fallback)
+                    let now = Date::now() as u64 / 1000;
+                    if let Some(client_info) = gs.clients.values_mut().next() {
+                        client_info.last_activity = now;
+                    }
+
                     // Send Pong response
                     let pong = S2C::Pong { t_ms };
                     if let Ok(bytes) = pong.to_bytes() {
@@ -396,8 +480,8 @@ impl MatchDO {
             );
         }
 
-        for ws in gs.clients.values() {
-            let _ = ws.send_with_bytes(&bytes);
+        for client_info in gs.clients.values() {
+            let _ = client_info.ws.send_with_bytes(&bytes);
         }
     }
 
@@ -452,8 +536,8 @@ impl MatchDO {
     fn broadcast_game_over(gs: &GameState, winner: u8) {
         let msg = S2C::GameOver { winner };
         if let Ok(bytes) = msg.to_bytes() {
-            for ws in gs.clients.values() {
-                let _ = ws.send_with_bytes(&bytes);
+            for client_info in gs.clients.values() {
+                let _ = client_info.ws.send_with_bytes(&bytes);
             }
         }
     }
