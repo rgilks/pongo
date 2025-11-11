@@ -68,9 +68,11 @@ pub struct Client {
     // Input state
     paddle_dir: i8, // -1 = up, 0 = stop, 1 = down
     // Frame timing for interpolation (using performance.now() for better precision)
-    last_frame_time: f64, // Last render frame time (in milliseconds)
-    last_sim_time: f64,   // Last simulation step time (in milliseconds)
-    sim_accumulator: f32, // Accumulated time for fixed timestep simulation
+    last_frame_time: f64,        // Last render frame time (in milliseconds)
+    last_sim_time: f64,          // Last simulation step time (in milliseconds)
+    sim_accumulator: f32,        // Accumulated time for fixed timestep simulation
+    last_prediction_time: f64,   // Last prediction step time (in milliseconds)
+    prediction_accumulator: f32, // Accumulated time for fixed timestep prediction
     // Performance metrics
     fps: f32,
     fps_frame_count: u32,
@@ -553,6 +555,8 @@ impl WasmClient {
             last_frame_time: 0.0,
             last_sim_time: 0.0,
             sim_accumulator: 0.0,
+            last_prediction_time: 0.0,
+            prediction_accumulator: 0.0,
             fps: 0.0,
             fps_frame_count: 0,
             fps_last_update: 0.0,
@@ -728,6 +732,11 @@ impl WasmClient {
 
         // Run simulation at fixed 60 Hz (separate from rendering)
         Self::step_simulation(client);
+
+        // Run client prediction continuously at 60 Hz for online games
+        if !client.is_local_game && client.predicted_world.is_some() {
+            Self::step_client_prediction(client);
+        }
 
         // Get high-precision timestamp for rendering
         let now_ms = Self::performance_now();
@@ -1235,7 +1244,7 @@ impl WasmClient {
         client.predicted_tick = snapshot.tick;
     }
 
-    /// Run client prediction: simulate locally when input changes
+    /// Run client prediction: simulate locally when input changes (one step)
     fn run_client_prediction(client: &mut Client, player_id: u8, paddle_dir: i8) {
         // Skip if prediction not initialized
         if client.predicted_world.is_none() {
@@ -1275,6 +1284,70 @@ impl WasmClient {
 
             // Increment predicted tick
             client.predicted_tick += 1;
+        }
+    }
+
+    /// Step client prediction continuously at 60 Hz (called from render loop)
+    fn step_client_prediction(client: &mut Client) {
+        if client.predicted_world.is_none() {
+            return;
+        }
+
+        const SIM_FIXED_DT: f32 = 1.0 / 60.0; // 60 Hz fixed timestep
+        let now_ms = Self::performance_now();
+
+        // Initialize last_prediction_time if needed
+        if client.last_prediction_time == 0.0 {
+            client.last_prediction_time = now_ms;
+            return;
+        }
+
+        // Accumulate time for fixed timestep (same pattern as local game)
+        let frame_time_ms = (now_ms - client.last_prediction_time) / 1000.0; // Convert to seconds
+        client.prediction_accumulator += frame_time_ms as f32;
+        client.last_prediction_time = now_ms;
+
+        let player_id = client.game_state.get_player_id().unwrap_or(0);
+        let paddle_dir = client.paddle_dir;
+
+        // Run simulation steps at fixed 60 Hz
+        while client.prediction_accumulator >= SIM_FIXED_DT {
+            client.prediction_accumulator -= SIM_FIXED_DT;
+
+            if let (
+                Some(ref mut world),
+                Some(ref mut time),
+                Some(ref map),
+                Some(ref config),
+                Some(ref mut score),
+                Some(ref mut events),
+                Some(ref mut net_queue),
+                Some(ref mut rng),
+            ) = (
+                &mut client.predicted_world,
+                &mut client.predicted_time,
+                &client.predicted_map,
+                &client.predicted_config,
+                &mut client.predicted_score,
+                &mut client.predicted_events,
+                &mut client.predicted_net_queue,
+                &mut client.predicted_rng,
+            ) {
+                // Clear queue before adding new input (prevents accumulation)
+                net_queue.clear();
+                // Add current player input (continuously while key is held)
+                net_queue.push_input(player_id, paddle_dir);
+                // Opponent input is unknown, so we don't add it (will be corrected by server)
+
+                // Update time
+                *time = Time::new(SIM_FIXED_DT, time.now + SIM_FIXED_DT);
+
+                // Run simulation step
+                step(world, time, map, config, score, events, net_queue, rng);
+
+                // Increment predicted tick
+                client.predicted_tick += 1;
+            }
         }
     }
 
