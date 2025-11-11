@@ -142,6 +142,12 @@ pub struct Client {
     paddle_dir: i8, // -1 = up, 0 = stop, 1 = down
     // Frame timing for interpolation
     last_frame_time: f64,
+    // Performance metrics
+    fps: f32,
+    fps_frame_count: u32,
+    fps_last_update: f64,
+    ping_ms: f32,              // Current ping in milliseconds
+    ping_pending: Option<u32>, // Timestamp when ping was sent (for round-trip calculation)
 }
 
 #[wasm_bindgen]
@@ -582,6 +588,11 @@ impl WasmClient {
             game_state: GameState::new(),
             paddle_dir: 0,
             last_frame_time: 0.0,
+            fps: 0.0,
+            fps_frame_count: 0,
+            fps_last_update: 0.0,
+            ping_ms: 0.0,
+            ping_pending: None,
         }))
     }
 
@@ -620,6 +631,14 @@ impl WasmClient {
             0.016 // ~60fps default
         };
         client.last_frame_time = now;
+
+        // Update FPS tracking (update every second)
+        client.fps_frame_count += 1;
+        if now - client.fps_last_update >= 1.0 {
+            client.fps = client.fps_frame_count as f32 / (now - client.fps_last_update) as f32;
+            client.fps_frame_count = 0;
+            client.fps_last_update = now;
+        }
 
         // Update interpolation
         client.game_state.update_interpolation(dt);
@@ -873,8 +892,15 @@ impl WasmClient {
                 // Game over - winner determined
                 // Could update UI here if needed
             }
-            S2C::Pong { .. } => {
-                // Handle pong
+            S2C::Pong { t_ms } => {
+                // Calculate round-trip latency
+                // t_ms is the timestamp we sent in the ping
+                if let Some(sent_time) = client.ping_pending {
+                    let current_time = js_sys::Date::now() as u32;
+                    let rtt = current_time.saturating_sub(sent_time);
+                    client.ping_ms = rtt as f32;
+                    client.ping_pending = None;
+                }
             }
         }
 
@@ -908,6 +934,21 @@ impl WasmClient {
     #[wasm_bindgen]
     pub fn get_score(&self) -> Vec<u8> {
         vec![self.0.game_state.score_left, self.0.game_state.score_right]
+    }
+
+    /// Get performance metrics: [fps, ping_ms]
+    #[wasm_bindgen]
+    pub fn get_metrics(&self) -> Vec<f32> {
+        vec![self.0.fps, self.0.ping_ms]
+    }
+
+    /// Send ping to server for latency measurement
+    #[wasm_bindgen]
+    pub fn send_ping(&mut self) -> Vec<u8> {
+        let client = &mut self.0;
+        let t_ms = js_sys::Date::now() as u32;
+        client.ping_pending = Some(t_ms);
+        C2S::Ping { t_ms }.to_bytes().unwrap_or_default()
     }
 
     /// Handle key down event

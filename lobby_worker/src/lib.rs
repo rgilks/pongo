@@ -28,6 +28,9 @@ async fn handle_index(_req: Request, _ctx: RouteContext<()>) -> Result<Response>
         #gameContainer { position: relative; }
         #canvas { border: 2px solid #fff; display: block; }
         #score { position: absolute; top: 20px; left: 50%; transform: translateX(-50%); font-size: 48px; color: #fff; text-shadow: 0 0 10px #fff; pointer-events: none; }
+        #metrics { position: absolute; top: 20px; right: 20px; font-size: 14px; color: #fff; text-shadow: 0 0 5px #fff; pointer-events: none; background: rgba(0, 0, 0, 0.5); padding: 10px; border-radius: 4px; }
+        #metrics div { margin: 5px 0; }
+        #metrics span { font-weight: bold; color: #0f0; }
         #ui { margin-top: 30px; text-align: center; }
         #status { margin: 15px 0; padding: 10px 20px; background: #222; border: 2px solid #fff; border-radius: 4px; font-size: 16px; }
         input, button { padding: 10px 20px; margin: 5px; font-family: 'Courier New', monospace; font-size: 16px; border: 2px solid #fff; background: #000; color: #fff; }
@@ -42,6 +45,10 @@ async fn handle_index(_req: Request, _ctx: RouteContext<()>) -> Result<Response>
     <div id="gameContainer">
         <canvas id="canvas" width="800" height="600"></canvas>
         <div id="score">0 : 0</div>
+        <div id="metrics">
+            <div>FPS: <span id="fps">--</span></div>
+            <div>Ping: <span id="ping">--</span>ms</div>
+        </div>
     </div>
     <div id="ui">
         <div id="status">Initializing...</div>
@@ -90,6 +97,22 @@ async fn handle_index(_req: Request, _ctx: RouteContext<()>) -> Result<Response>
             scoreRight = right;
             const el = document.getElementById('score');
             if (el) el.textContent = `${left} : ${right}`;
+        }
+
+        function updateMetrics() {
+            if (client) {
+                try {
+                    const metrics = client.get_metrics();
+                    if (metrics.length >= 2) {
+                        const fpsEl = document.getElementById('fps');
+                        const pingEl = document.getElementById('ping');
+                        if (fpsEl) fpsEl.textContent = Math.round(metrics[0]);
+                        if (pingEl) pingEl.textContent = Math.round(metrics[1]);
+                    }
+                } catch (e) {
+                    console.error('Metrics error:', e);
+                }
+            }
         }
 
         window.createMatch = async function() {
@@ -175,12 +198,14 @@ async fn handle_index(_req: Request, _ctx: RouteContext<()>) -> Result<Response>
         };
 
         let renderLoopId = null;
+        let pingIntervalId = null;
         function startRender() {
             console.log('startRender called, client exists:', !!client);
             function render() {
                 if (client) { 
                     try { 
-                        client.render(); 
+                        client.render();
+                        updateMetrics(); // Update metrics display every frame
                     } catch (e) { 
                         console.error('Render error:', e); 
                     } 
@@ -190,6 +215,18 @@ async fn handle_index(_req: Request, _ctx: RouteContext<()>) -> Result<Response>
                 renderLoopId = requestAnimationFrame(render);
             }
             render();
+            
+            // Send ping every 2 seconds to measure latency
+            pingIntervalId = setInterval(() => {
+                if (ws && ws.readyState === WebSocket.OPEN && client) {
+                    try {
+                        const pingBytes = client.send_ping();
+                        ws.send(pingBytes);
+                    } catch (e) {
+                        console.error('Ping error:', e);
+                    }
+                }
+            }, 2000);
         }
 
         function sendInput() {
