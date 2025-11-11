@@ -59,6 +59,7 @@ async fn handle_index(_req: Request, _ctx: RouteContext<()>) -> Result<Response>
             <input type="text" id="matchCode" placeholder="MATCH CODE" maxlength="5">
             <button id="joinBtn">JOIN</button>
             <button id="createBtn">CREATE</button>
+            <button id="localBtn">VS AI</button>
         </div>
         <div class="controls">Controls: ↑/↓ or W/S to move your paddle</div>
     </div>
@@ -131,6 +132,29 @@ async fn handle_index(_req: Request, _ctx: RouteContext<()>) -> Result<Response>
             } catch (error) {
                 console.error('Create error:', error);
                 updateStatus('Error creating match');
+            }
+        };
+
+        window.startLocalGame = async function() {
+            try {
+                updateStatus('Starting local game...');
+                const canvas = document.getElementById('canvas');
+                // Ensure canvas has correct size
+                if (!canvas.width || !canvas.height) {
+                    canvas.width = 800;
+                    canvas.height = 600;
+                }
+                if (!client) {
+                    client = await new WasmClient(canvas);
+                    console.log('✅ Client initialized');
+                }
+                client.start_local_game();
+                updateStatus('Playing vs AI');
+                setupInput();
+                startRender();
+            } catch (error) {
+                console.error('Local game error:', error);
+                updateStatus('Error starting local game');
             }
         };
 
@@ -211,6 +235,11 @@ async fn handle_index(_req: Request, _ctx: RouteContext<()>) -> Result<Response>
                     try { 
                         client.render();
                         updateMetrics(); // Update metrics display every frame
+                        // Update score display (works for both online and local games)
+                        const score = client.get_score();
+                        if (score.length >= 2) {
+                            updateScore(score[0], score[1]);
+                        }
                     } catch (e) { 
                         console.error('Render error:', e); 
                     } 
@@ -272,11 +301,14 @@ async fn handle_index(_req: Request, _ctx: RouteContext<()>) -> Result<Response>
                 updateStatus('Ready to play!');
                 const createBtn = document.getElementById('createBtn');
                 const joinBtn = document.getElementById('joinBtn');
+                const localBtn = document.getElementById('localBtn');
                 createBtn.disabled = false;
                 joinBtn.disabled = false;
+                if (localBtn) localBtn.disabled = false;
                 // Use event listeners instead of onclick to avoid timing issues
                 createBtn.addEventListener('click', window.createMatch);
                 joinBtn.addEventListener('click', window.joinMatch);
+                if (localBtn) localBtn.addEventListener('click', window.startLocalGame);
                 console.log('✅ UI initialized');
             } catch (error) {
                 console.error('❌ Error in main():', error);

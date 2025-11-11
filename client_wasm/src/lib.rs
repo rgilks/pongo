@@ -6,6 +6,11 @@ mod camera;
 mod mesh;
 
 use camera::{Camera, CameraUniform};
+use game_core::{
+    create_ball, create_paddle, step, Ball, Config, Events, GameMap, GameRng, NetQueue, Paddle,
+    PaddleIntent, Params, Score, Time,
+};
+use hecs::World;
 use mesh::{create_circle, create_rectangle, Mesh, Vertex};
 use proto::{C2S, S2C};
 use wasm_bindgen::prelude::*;
@@ -150,6 +155,16 @@ pub struct Client {
     ping_pending: Option<f64>, // Timestamp when ping was sent (in milliseconds since epoch)
     update_display_ms: f32,    // Throttled update delay for display (updates slower)
     update_last_display: f64,  // Last time we updated the display value
+    // Local game mode (AI opponent)
+    is_local_game: bool,
+    local_world: Option<World>,
+    local_time: Option<Time>,
+    local_map: Option<GameMap>,
+    local_config: Option<Config>,
+    local_score: Option<Score>,
+    local_events: Option<Events>,
+    local_net_queue: Option<NetQueue>,
+    local_rng: Option<GameRng>,
 }
 
 #[wasm_bindgen]
@@ -597,6 +612,15 @@ impl WasmClient {
             ping_pending: None,
             update_display_ms: 0.0,
             update_last_display: 0.0,
+            is_local_game: false,
+            local_world: None,
+            local_time: None,
+            local_map: None,
+            local_config: None,
+            local_score: None,
+            local_events: None,
+            local_net_queue: None,
+            local_rng: None,
         }))
     }
 
@@ -635,6 +659,102 @@ impl WasmClient {
             0.016 // ~60fps default
         };
         client.last_frame_time = now;
+
+        // Handle local game mode
+        if client.is_local_game {
+            if let (
+                Some(ref mut world),
+                Some(ref mut time),
+                Some(ref map),
+                Some(ref config),
+                Some(ref mut score),
+                Some(ref mut events),
+                Some(ref mut net_queue),
+                Some(ref mut rng),
+            ) = (
+                &mut client.local_world,
+                &mut client.local_time,
+                &client.local_map,
+                &client.local_config,
+                &mut client.local_score,
+                &mut client.local_events,
+                &mut client.local_net_queue,
+                &mut client.local_rng,
+            ) {
+                // Add player input to queue
+                net_queue.push_input(0, client.paddle_dir);
+
+                // AI: Control right paddle (player_id=1)
+                let ai_dir = Self::calculate_ai_input(world, config);
+                net_queue.push_input(1, ai_dir);
+
+                // Update time
+                *time = Time::new(dt, time.now + dt);
+
+                // Run game simulation step (this will increment score if ball exits arena)
+                step(world, time, map, config, score, events, net_queue, rng);
+
+                // Extract data needed for update (before releasing borrows)
+                let ball_data = world
+                    .query::<&Ball>()
+                    .iter()
+                    .next()
+                    .map(|(_e, ball)| (ball.pos, ball.vel));
+                let mut paddle_left_y = 12.0;
+                let mut paddle_right_y = 12.0;
+                for (_e, paddle) in world.query::<&Paddle>().iter() {
+                    if paddle.player_id == 0 {
+                        paddle_left_y = paddle.y;
+                    } else if paddle.player_id == 1 {
+                        paddle_right_y = paddle.y;
+                    }
+                }
+                // Extract score values (score has been updated by step() if ball exited)
+                let score_left = score.left;
+                let score_right = score.right;
+                let has_winner = score.has_winner(config.win_score);
+
+                // Release borrows (but score is already updated in place, so we just need to ensure
+                // client.local_score reflects the current values - but it's the same Score struct!)
+                // Actually, since score is a mutable reference to client.local_score.as_mut().unwrap(),
+                // the score is already updated in place! We just need to make sure get_score() reads it.
+                drop(world);
+                drop(time);
+                drop(score); // This drops the mutable reference, but the Score in local_score is already updated
+                drop(events);
+                drop(net_queue);
+                drop(rng);
+
+                // Update game state (for rendering)
+                if let Some((ball_pos, ball_vel)) = ball_data {
+                    client.game_state.previous = client.game_state.current.clone();
+                    client.game_state.current = GameStateSnapshot {
+                        ball_x: ball_pos.x,
+                        ball_y: ball_pos.y,
+                        paddle_left_y,
+                        paddle_right_y,
+                        ball_vx: ball_vel.x,
+                        ball_vy: ball_vel.y,
+                        tick: 0,
+                    };
+                    client.game_state.time_since_update = 0.0;
+                    client.game_state.interpolation_alpha = 0.0;
+                    client.game_state.score_left = score_left;
+                    client.game_state.score_right = score_right;
+                }
+
+                // Check for win condition (reset scores if someone won)
+                if has_winner.is_some() {
+                    if let Some(ref mut local_score) = client.local_score {
+                        local_score.left = 0;
+                        local_score.right = 0;
+                    }
+                    // Also reset game_state scores
+                    client.game_state.score_left = 0;
+                    client.game_state.score_right = 0;
+                }
+            }
+        }
 
         // Update FPS tracking (update every second, cap at 120)
         client.fps_frame_count += 1;
@@ -945,18 +1065,172 @@ impl WasmClient {
     /// Get current score (for UI updates)
     #[wasm_bindgen]
     pub fn get_score(&self) -> Vec<u8> {
-        vec![self.0.game_state.score_left, self.0.game_state.score_right]
+        if self.0.is_local_game {
+            if let Some(ref score) = self.0.local_score {
+                vec![score.left, score.right]
+            } else {
+                vec![0, 0]
+            }
+        } else {
+            vec![self.0.game_state.score_left, self.0.game_state.score_right]
+        }
+    }
+
+    /// Start local game with AI opponent
+    #[wasm_bindgen]
+    pub fn start_local_game(&mut self) {
+        let client = &mut self.0;
+        client.is_local_game = true;
+
+        // Initialize game resources
+        let map = GameMap::new();
+        let config = Config::new();
+        let mut world = World::new();
+        let mut rng = GameRng::new(js_sys::Date::now() as u64);
+
+        // Create paddles
+        let left_paddle_y = map.paddle_spawn(0).y;
+        let right_paddle_y = map.paddle_spawn(1).y;
+        create_paddle(&mut world, 0, left_paddle_y);
+        create_paddle(&mut world, 1, right_paddle_y);
+
+        // Create ball with random direction
+        let mut ball = Ball::new(glam::f32::Vec2::ZERO, glam::f32::Vec2::ZERO);
+        ball.reset(config.ball_speed_initial, &mut rng);
+        create_ball(&mut world, ball.pos, ball.vel);
+
+        // Initialize game state
+        client.local_world = Some(world);
+        client.local_time = Some(Time::new(0.016, 0.0));
+        client.local_map = Some(map);
+        client.local_config = Some(config);
+        client.local_score = Some(Score::new());
+        client.local_events = Some(Events::new());
+        client.local_net_queue = Some(NetQueue::new());
+        client.local_rng = Some(rng);
+
+        // Set player ID for local game
+        client.game_state.my_player_id = Some(0); // Player is left paddle
+    }
+
+    /// Calculate AI input for opponent paddle
+    /// Simple AI: move toward ball's Y position with some prediction
+    fn calculate_ai_input(world: &World, config: &Config) -> i8 {
+        // Find ball and right paddle
+        let ball_data = world
+            .query::<&Ball>()
+            .iter()
+            .next()
+            .map(|(_e, ball)| (ball.pos, ball.vel));
+        let paddle_data = world
+            .query::<&Paddle>()
+            .iter()
+            .find(|(_e, p)| p.player_id == 1)
+            .map(|(_e, p)| p.y);
+
+        if let (Some((ball_pos, ball_vel)), Some(paddle_y)) = (ball_data, paddle_data) {
+            // Only move if ball is moving toward AI (positive X velocity)
+            if ball_vel.x > 0.0 {
+                // Predict where ball will be when it reaches paddle
+                let paddle_x = config.paddle_x(1);
+                let time_to_reach = (paddle_x - ball_pos.x) / ball_vel.x.max(0.1);
+                let predicted_y = ball_pos.y + ball_vel.y * time_to_reach;
+
+                // Add some imperfection (AI isn't perfect)
+                let target_y = predicted_y + (ball_vel.y * 0.3); // Slight over/under correction
+
+                // Move toward target with deadzone
+                let diff = target_y - paddle_y;
+                let deadzone = 0.3; // Don't move if very close
+
+                if diff > deadzone {
+                    1 // Move down
+                } else if diff < -deadzone {
+                    -1 // Move up
+                } else {
+                    0 // Stop
+                }
+            } else {
+                // Ball moving away, move toward center
+                let center_y = 12.0; // Arena center
+                let diff = center_y - paddle_y;
+                if diff.abs() > 0.5 {
+                    if diff > 0.0 {
+                        1
+                    } else {
+                        -1
+                    }
+                } else {
+                    0
+                }
+            }
+        } else {
+            0 // No ball or paddle found
+        }
+    }
+
+    /// Update game state from local world for rendering
+    fn update_game_state_from_world(client: &mut Client, world: &World, score: &Score) {
+        // Get ball position
+        let ball_data = world
+            .query::<&Ball>()
+            .iter()
+            .next()
+            .map(|(_e, ball)| (ball.pos, ball.vel));
+
+        // Get paddle positions
+        let mut paddle_left_y = 12.0;
+        let mut paddle_right_y = 12.0;
+        for (_e, paddle) in world.query::<&Paddle>().iter() {
+            if paddle.player_id == 0 {
+                paddle_left_y = paddle.y;
+            } else if paddle.player_id == 1 {
+                paddle_right_y = paddle.y;
+            }
+        }
+
+        if let Some((ball_pos, ball_vel)) = ball_data {
+            // Store previous state for interpolation
+            client.game_state.previous = client.game_state.current.clone();
+
+            // Update current state
+            client.game_state.current = GameStateSnapshot {
+                ball_x: ball_pos.x,
+                ball_y: ball_pos.y,
+                paddle_left_y,
+                paddle_right_y,
+                ball_vx: ball_vel.x,
+                ball_vy: ball_vel.y,
+                tick: 0, // Not used in local mode
+            };
+
+            // Reset interpolation timer
+            client.game_state.time_since_update = 0.0;
+            client.game_state.interpolation_alpha = 0.0;
+
+            // Update scores
+            client.game_state.score_left = score.left;
+            client.game_state.score_right = score.right;
+        }
     }
 
     /// Get performance metrics: [fps, ping_ms, state_delay_ms]
     /// state_delay_ms: Time since last game state update from server (in milliseconds, throttled)
+    /// In local mode, ping and update are 0
     #[wasm_bindgen]
     pub fn get_metrics(&self) -> Vec<f32> {
-        vec![
-            self.0.fps,
-            self.0.ping_ms,
-            self.0.update_display_ms, // Throttled display value
-        ]
+        if self.0.is_local_game {
+            vec![
+                self.0.fps, 0.0, // No ping in local mode
+                0.0, // No update delay in local mode
+            ]
+        } else {
+            vec![
+                self.0.fps,
+                self.0.ping_ms,
+                self.0.update_display_ms, // Throttled display value
+            ]
+        }
     }
 
     /// Send ping to server for latency measurement
