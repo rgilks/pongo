@@ -91,8 +91,8 @@ mod tests {
             player_id: 0,
             paddle_dir: -1,
         };
-        let bytes = msg.to_bytes().unwrap();
-        let decoded = C2S::from_bytes(&bytes).unwrap();
+        let bytes = msg.to_bytes().expect("Serialization should succeed");
+        let decoded = C2S::from_bytes(&bytes).expect("Deserialization should succeed");
         match (msg, decoded) {
             (
                 C2S::Input {
@@ -124,8 +124,8 @@ mod tests {
             score_left: 5,
             score_right: 3,
         };
-        let bytes = msg.to_bytes().unwrap();
-        let decoded = S2C::from_bytes(&bytes).unwrap();
+        let bytes = msg.to_bytes().expect("Serialization should succeed");
+        let decoded = S2C::from_bytes(&bytes).expect("Deserialization should succeed");
         match decoded {
             S2C::GameState { tick, ball_x, .. } => {
                 assert_eq!(tick, 100);

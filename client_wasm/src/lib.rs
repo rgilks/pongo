@@ -3,7 +3,10 @@
 #![cfg(target_arch = "wasm32")]
 
 mod camera;
+mod input;
 mod mesh;
+mod network;
+mod state;
 
 use camera::{Camera, CameraUniform};
 use game_core::{
@@ -12,7 +15,9 @@ use game_core::{
 };
 use hecs::World;
 use mesh::{create_circle, create_rectangle, Mesh, Vertex};
-use proto::{C2S, S2C};
+use network::handle_message;
+use proto::S2C;
+use state::GameState;
 use wasm_bindgen::prelude::*;
 use web_sys::{HtmlCanvasElement, KeyboardEvent};
 use wgpu::util::DeviceExt;
@@ -24,89 +29,6 @@ use wgpu::*;
 struct InstanceData {
     transform: [f32; 4], // x, y, scale_x, scale_y
     tint: [f32; 4],      // rgba
-}
-
-/// Previous and current game state for interpolation
-#[derive(Clone)]
-struct GameStateSnapshot {
-    ball_x: f32,
-    ball_y: f32,
-    paddle_left_y: f32,
-    paddle_right_y: f32,
-    ball_vx: f32,
-    ball_vy: f32,
-    tick: u32,
-}
-
-/// Game state tracking with interpolation
-struct GameState {
-    // Current authoritative state from server
-    current: GameStateSnapshot,
-    // Previous state for interpolation
-    previous: GameStateSnapshot,
-    // Interpolation time (0.0 = previous, 1.0 = current)
-    interpolation_alpha: f32,
-    // Time since last state update
-    time_since_update: f32,
-    // Score (doesn't need interpolation)
-    score_left: u8,
-    score_right: u8,
-    my_player_id: Option<u8>,
-}
-
-impl GameState {
-    fn new() -> Self {
-        let initial = GameStateSnapshot {
-            ball_x: 16.0,
-            ball_y: 12.0,
-            paddle_left_y: 12.0,
-            paddle_right_y: 12.0,
-            ball_vx: 0.0,
-            ball_vy: 0.0,
-            tick: 0,
-        };
-        Self {
-            current: initial.clone(),
-            previous: initial,
-            interpolation_alpha: 1.0,
-            time_since_update: 0.0,
-            score_left: 0,
-            score_right: 0,
-            my_player_id: None,
-        }
-    }
-
-    /// Update interpolation based on elapsed time
-    /// Target: 60fps render, 20-60Hz server updates
-    fn update_interpolation(&mut self, dt: f32) {
-        self.time_since_update += dt;
-        // Interpolate over ~60ms (20Hz update rate = 1/20 = 0.05s)
-        // Use slightly longer duration to handle jitter and ensure smoothness
-        let interpolation_duration = 0.06; // 60ms for smoother interpolation
-        self.interpolation_alpha = (self.time_since_update / interpolation_duration).min(1.0);
-    }
-
-    /// Get interpolated position
-    fn interpolate(&self, prev: f32, curr: f32) -> f32 {
-        prev + (curr - prev) * self.interpolation_alpha
-    }
-
-    /// Get current interpolated positions
-    fn get_ball_x(&self) -> f32 {
-        self.interpolate(self.previous.ball_x, self.current.ball_x)
-    }
-
-    fn get_ball_y(&self) -> f32 {
-        self.interpolate(self.previous.ball_y, self.current.ball_y)
-    }
-
-    fn get_paddle_left_y(&self) -> f32 {
-        self.interpolate(self.previous.paddle_left_y, self.current.paddle_left_y)
-    }
-
-    fn get_paddle_right_y(&self) -> f32 {
-        self.interpolate(self.previous.paddle_right_y, self.current.paddle_right_y)
-    }
 }
 
 /// Main client state
@@ -219,7 +141,13 @@ impl WasmClient {
             .iter()
             .copied()
             .find(|f| f.is_srgb())
-            .unwrap_or(surface_caps.formats[0]);
+            .unwrap_or_else(|| {
+                surface_caps
+                    .formats
+                    .first()
+                    .copied()
+                    .expect("No surface formats available")
+            });
 
         let surface_config = SurfaceConfiguration {
             usage: TextureUsages::RENDER_ATTACHMENT,
@@ -710,25 +638,41 @@ impl WasmClient {
                     }
                 }
                 // Extract score values (score has been updated by step() if ball exited)
+                // Since score is a mutable reference to client.local_score, it's already updated in place
                 let score_left = score.left;
                 let score_right = score.right;
                 let has_winner = score.has_winner(config.win_score);
 
-                // Release borrows (but score is already updated in place, so we just need to ensure
-                // client.local_score reflects the current values - but it's the same Score struct!)
-                // Actually, since score is a mutable reference to client.local_score.as_mut().unwrap(),
-                // the score is already updated in place! We just need to make sure get_score() reads it.
+                // Release borrows - score is already updated in place since it's a mutable reference
                 drop(world);
                 drop(time);
-                drop(score); // This drops the mutable reference, but the Score in local_score is already updated
+                drop(score); // Score in local_score is already updated
                 drop(events);
                 drop(net_queue);
                 drop(rng);
 
-                // Update game state (for rendering)
+                // Always update local_score first (this is what get_score() reads from)
+                // The score was already updated in place through the mutable reference,
+                // but we explicitly update it here to ensure it's current
+                // IMPORTANT: Update local_score BEFORE any other operations to ensure get_score() reads the latest values
+                match &mut client.local_score {
+                    Some(ref mut local_score) => {
+                        local_score.left = score_left;
+                        local_score.right = score_right;
+                    }
+                    None => {
+                        // This shouldn't happen, but create it if missing
+                        client.local_score = Some(Score {
+                            left: score_left,
+                            right: score_right,
+                        });
+                    }
+                }
+
+                // Update game state (for rendering) - also update score here for consistency
                 if let Some((ball_pos, ball_vel)) = ball_data {
-                    client.game_state.previous = client.game_state.current.clone();
-                    client.game_state.current = GameStateSnapshot {
+                    use state::GameStateSnapshot;
+                    client.game_state.set_current(GameStateSnapshot {
                         ball_x: ball_pos.x,
                         ball_y: ball_pos.y,
                         paddle_left_y,
@@ -736,12 +680,10 @@ impl WasmClient {
                         ball_vx: ball_vel.x,
                         ball_vy: ball_vel.y,
                         tick: 0,
-                    };
-                    client.game_state.time_since_update = 0.0;
-                    client.game_state.interpolation_alpha = 0.0;
-                    client.game_state.score_left = score_left;
-                    client.game_state.score_right = score_right;
+                    });
                 }
+                // Always update game_state scores, even if ball_data is None
+                client.game_state.set_scores(score_left, score_right);
 
                 // Check for win condition (reset scores if someone won)
                 if has_winner.is_some() {
@@ -750,8 +692,7 @@ impl WasmClient {
                         local_score.right = 0;
                     }
                     // Also reset game_state scores
-                    client.game_state.score_left = 0;
-                    client.game_state.score_right = 0;
+                    client.game_state.set_scores(0, 0);
                 }
             }
         }
@@ -768,7 +709,7 @@ impl WasmClient {
 
         // Throttle update delay display (update every 200ms)
         if now - client.update_last_display >= 0.2 {
-            client.update_display_ms = client.game_state.time_since_update * 1000.0;
+            client.update_display_ms = client.game_state.time_since_update() * 1000.0;
             client.update_last_display = now;
         }
 
@@ -983,58 +924,19 @@ impl WasmClient {
         let msg = S2C::from_bytes(&bytes)
             .map_err(|e| format!("Failed to deserialize message: {:?}", e))?;
 
-        match msg {
-            S2C::Welcome { player_id } => {
-                client.game_state.my_player_id = Some(player_id);
+        // Handle ping response separately
+        if let S2C::Pong { t_ms: _ } = msg {
+            if let Some(sent_time) = client.ping_pending {
+                let current_time = js_sys::Date::now(); // milliseconds since epoch
+                let rtt = current_time - sent_time;
+                client.ping_ms = rtt as f32;
+                client.ping_pending = None;
             }
-            S2C::GameState {
-                ball_x,
-                ball_y,
-                paddle_left_y,
-                paddle_right_y,
-                score_left,
-                score_right,
-                ball_vx,
-                ball_vy,
-                tick,
-            } => {
-                // Store previous state for interpolation
-                client.game_state.previous = client.game_state.current.clone();
-
-                // Update current state
-                client.game_state.current = GameStateSnapshot {
-                    ball_x,
-                    ball_y,
-                    paddle_left_y,
-                    paddle_right_y,
-                    ball_vx,
-                    ball_vy,
-                    tick,
-                };
-
-                // Reset interpolation timer
-                client.game_state.time_since_update = 0.0;
-                client.game_state.interpolation_alpha = 0.0;
-
-                // Update scores
-                client.game_state.score_left = score_left;
-                client.game_state.score_right = score_right;
-            }
-            S2C::GameOver { winner } => {
-                // Game over - winner determined
-                // Could update UI here if needed
-            }
-            S2C::Pong { t_ms: _ } => {
-                // Calculate round-trip latency
-                // We sent the timestamp in the ping, now calculate RTT
-                if let Some(sent_time) = client.ping_pending {
-                    let current_time = js_sys::Date::now(); // milliseconds since epoch
-                    let rtt = current_time - sent_time;
-                    client.ping_ms = rtt as f32;
-                    client.ping_pending = None;
-                }
-            }
+            return Ok(());
         }
+
+        handle_message(msg, &mut client.game_state)
+            .map_err(|e| JsValue::from_str(&format!("Failed to handle message: {}", e)))?;
 
         Ok(())
     }
@@ -1042,37 +944,30 @@ impl WasmClient {
     /// Get join message bytes
     #[wasm_bindgen]
     pub fn get_join_bytes(&self, code: String) -> Vec<u8> {
-        let code_bytes: Vec<u8> = code.bytes().take(5).collect();
-        let mut code_array = [0u8; 5];
-        code_array.copy_from_slice(&code_bytes[..5]);
-        C2S::Join { code: code_array }
-            .to_bytes()
-            .unwrap_or_default()
+        network::create_join_message(&code).unwrap_or_default()
     }
 
     /// Get input message bytes
     #[wasm_bindgen]
     pub fn get_input_bytes(&self) -> Vec<u8> {
-        let player_id = self.0.game_state.my_player_id.unwrap_or(0);
-        C2S::Input {
-            player_id,
-            paddle_dir: self.0.paddle_dir,
-        }
-        .to_bytes()
-        .unwrap_or_default()
+        let player_id = self.0.game_state.get_player_id().unwrap_or(0);
+        network::create_input_message(player_id, self.0.paddle_dir).unwrap_or_default()
     }
 
     /// Get current score (for UI updates)
     #[wasm_bindgen]
     pub fn get_score(&self) -> Vec<u8> {
         if self.0.is_local_game {
-            if let Some(ref score) = self.0.local_score {
-                vec![score.left, score.right]
-            } else {
-                vec![0, 0]
+            // For local games, always read from local_score
+            // This is updated every frame in the render loop
+            match &self.0.local_score {
+                Some(score) => vec![score.left, score.right],
+                None => vec![0, 0],
             }
         } else {
-            vec![self.0.game_state.score_left, self.0.game_state.score_right]
+            // For online games, read from game_state
+            let (left, right) = self.0.game_state.get_scores();
+            vec![left, right]
         }
     }
 
@@ -1110,7 +1005,7 @@ impl WasmClient {
         client.local_rng = Some(rng);
 
         // Set player ID for local game
-        client.game_state.my_player_id = Some(0); // Player is left paddle
+        client.game_state.set_player_id(0); // Player is left paddle
     }
 
     /// Calculate AI input for opponent paddle
@@ -1240,29 +1135,20 @@ impl WasmClient {
         let now_ms = js_sys::Date::now(); // milliseconds since epoch
         let t_ms = now_ms as u32; // Send as u32 for protocol compatibility
         client.ping_pending = Some(now_ms); // Store full precision for calculation
-        C2S::Ping { t_ms }.to_bytes().unwrap_or_default()
+        network::create_ping_message(t_ms).unwrap_or_default()
     }
 
     /// Handle key down event
     #[wasm_bindgen]
     pub fn on_key_down(&mut self, event: KeyboardEvent) {
-        let key = event.key();
-        self.0.paddle_dir = match key.as_str() {
-            "ArrowUp" | "w" | "W" => -1,
-            "ArrowDown" | "s" | "S" => 1,
-            _ => self.0.paddle_dir,
-        };
+        let key = input::get_key_from_event(&event);
+        self.0.paddle_dir = input::handle_key_down(&key, self.0.paddle_dir);
     }
 
     /// Handle key up event
     #[wasm_bindgen]
     pub fn on_key_up(&mut self, event: KeyboardEvent) {
-        let key = event.key();
-        match key.as_str() {
-            "ArrowUp" | "w" | "W" | "ArrowDown" | "s" | "S" => {
-                self.0.paddle_dir = 0;
-            }
-            _ => {}
-        }
+        let key = input::get_key_from_event(&event);
+        self.0.paddle_dir = input::handle_key_up(&key, self.0.paddle_dir);
     }
 }
