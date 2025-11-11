@@ -34,8 +34,11 @@
 ### Physics
 - Simple AABB collision detection
 - Ball bounces reflect velocity: `vel.y = -vel.y` for walls
-- Paddle hits reflect and add paddle velocity influence
-- No spin or complex physics
+- **Paddle physics**: Ball trajectory affected by:
+  - **Hit position**: Top of paddle deflects ball upward, bottom deflects downward
+  - **Paddle movement**: Moving paddle adds 30% of its velocity to the ball
+  - Maximum deflection angle: ~45 degrees
+- Speed increases on each paddle hit (1.05x multiplier, max 16 u/s)
 
 ---
 
@@ -64,9 +67,9 @@ pong/
 
 ### Transport
 - **WebSocket** (binary via postcard)
-- Fixed tick rate: **60 Hz** (16.67ms per tick)
+- Fixed tick rate: **60 Hz** (16.67ms per tick) for simulation
 - Server is authoritative
-- Broadcast game state to both clients
+- Broadcast game state at **20 Hz** (every 3 ticks) to reduce costs
 
 ### Messages
 
@@ -85,7 +88,6 @@ enum S2C {
     Welcome { player_id: u8 },  // 0 = left, 1 = right
     GameState {
         tick: u32,
-        t_ms: u32,
         ball_x: f32,
         ball_y: f32,
         ball_vx: f32,
@@ -150,21 +152,22 @@ NetQueue { inputs: Vec<PaddleInputEvent> }
 - No camera movement
 
 ### Meshes
-- **Paddle**: Rectangle (1 × 4 units)
+- **Paddle**: Rectangle (0.8 × 4 units)
 - **Ball**: Circle (0.5 unit radius)
 - Simple colored shapes, no textures
 
 ### Render Pipeline
-- Single pass
-- Flat colors (white on black)
+- Multi-pass rendering with ping-pong textures
+- Motion blur trails for ball and paddles
+- Client-side interpolation for smooth 60fps movement
 - Instanced rendering for paddles
 - Vertex shader: 2D transform (x, y, scale_x, scale_y)
-- Fragment shader: Solid color output
+- Fragment shader: Solid color output with trail accumulation
 
 ### Performance
-- Target: 60 fps
+- Target: 60 fps with interpolation
 - Extremely lightweight (< 100 vertices total)
-- No bloom, no fancy effects
+- Trail effects using ping-pong texture accumulation
 
 ---
 
@@ -203,10 +206,10 @@ Currently not implemented. When added:
 
 ## Performance Targets
 
-- **Client**: 60 fps stable on mid-range devices
-- **Server**: 60 Hz tick rate (16.67ms per tick)
-- **Network**: < 100ms latency for responsive controls
-- **Bandwidth**: ~5KB/s per client (60 state updates/sec)
+- **Client**: 60 fps stable on mid-range devices with client-side interpolation
+- **Server**: 60 Hz tick rate (16.67ms per tick) for physics accuracy
+- **Network**: 20 Hz state broadcasts (every 3 ticks) to reduce costs
+- **Bandwidth**: ~1.7KB/s per client (20 state updates/sec)
 
 ---
 
@@ -235,5 +238,5 @@ Currently not implemented. When added:
 
 ---
 
-**Last Updated**: 2025-11-10  
-**Status**: Core implementation complete
+**Last Updated**: 2025-11-11  
+**Status**: Core implementation complete with paddle physics and trail effects

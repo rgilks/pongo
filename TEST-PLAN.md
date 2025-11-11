@@ -82,10 +82,12 @@ npm run deploy
 3. Let ball hit top wall
 4. Verify ball bounces (velocity.y reverses)
 5. Position paddle to intercept ball
-6. Let ball hit paddle
-7. Verify ball bounces back
-8. Verify ball speed increases slightly
-9. Continue rally, observe ball speed caps at 16 u/s
+6. Let ball hit paddle at different positions (top, middle, bottom)
+7. Verify ball trajectory changes based on hit position
+8. Move paddle up/down while hitting ball
+9. Verify paddle movement affects ball trajectory
+10. Verify ball speed increases slightly on each hit
+11. Continue rally, observe ball speed caps at 16 u/s
 
 **Expected**:
 
@@ -93,6 +95,8 @@ npm run deploy
 - Random initial direction
 - Wall bounce: Y velocity reverses
 - Paddle bounce: X velocity reverses, speed increases 1.05x
+- **Paddle physics**: Hit position affects trajectory (top = up, bottom = down)
+- **Paddle movement**: Moving paddle adds velocity to ball
 - Speed capped at 16 units/second
 - No ball stuck in walls or paddles
 
@@ -301,5 +305,5 @@ Before each commit/deploy:
 
 ---
 
-**Last Updated**: 2025-11-10  
-**Status**: Core test plan for Pong
+**Last Updated**: 2025-11-11  
+**Status**: Core test plan for Pong with paddle physics

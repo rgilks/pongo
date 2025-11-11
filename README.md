@@ -12,11 +12,16 @@ This is a modern implementation of the classic 1970s Pong game, demonstrating:
 - **Cloudflare Durable Objects** for authoritative server
 - **ECS architecture** (hecs) for game simulation
 - **WebSocket** networking with client-server synchronization
+- **Paddle physics** - ball trajectory affected by hit position and paddle movement
 
 ## Game Rules
 
 - Two players control paddles on opposite sides of the screen
 - Ball bounces off walls and paddles
+- **Paddle physics**: Where you hit the ball and how you're moving affects trajectory
+  - Hit top of paddle → ball deflects upward
+  - Hit bottom of paddle → ball deflects downward
+  - Moving paddle up/down adds velocity to the ball
 - Miss the ball and your opponent scores
 - First to 11 points wins
 - **Controls**: Up/Down arrow keys or W/S keys
@@ -48,10 +53,11 @@ Visit `http://localhost:8787` to play!
 ### Local Testing
 
 1. Open browser to `http://localhost:8787`
-2. Create a match (or visit `/create` endpoint to get a code)
-3. Join from a second browser window
-4. Use Up/Down arrow keys to control your paddle
-5. First to 11 points wins!
+2. Click "CREATE" to start a match and get a 5-character code
+3. Open a second browser window/tab
+4. Enter the match code and click "JOIN"
+5. Use Up/Down arrow keys or W/S to control your paddle
+6. First to 11 points wins!
 
 **Benefits of local testing:**
 
@@ -113,7 +119,7 @@ The hook runs:
 pong/
 ├── game_core/      # ECS (hecs): components, systems, game logic
 ├── proto/          # C2S/S2C network messages (postcard)
-├── client_wasm/    # WebGPU renderer, input, WebSocket client
+├── client_wasm/     # WebGPU renderer, input, WebSocket client
 ├── server_do/      # Durable Object: game loop, WebSocket hub
 ├── lobby_worker/   # HTTP endpoints (/create, /join/:code)
 └── worker/         # Built WASM packages + static assets
@@ -125,15 +131,18 @@ pong/
 
 - **Rendering**: WebGPU via wgpu (v24.0)
 - **Graphics**: 2D orthographic camera, simple colored shapes
+- **Effects**: Motion blur trails on ball and paddles
+- **Interpolation**: Client-side interpolation for smooth 60fps movement
 - **Input**: Keyboard events (Up/Down or W/S)
-- **Network**: WebSocket client, receives game state snapshots
+- **Network**: WebSocket client, receives game state snapshots at 20 Hz
 
 ### Server (Cloudflare Durable Objects)
 
 - **Simulation**: Authoritative ECS (hecs) at 60 Hz
-- **Networking**: WebSocket hub, broadcasts game state at 60 Hz
+- **Networking**: WebSocket hub, broadcasts game state at 20 Hz (every 3 ticks)
 - **Match Lifecycle**: One Durable Object per match code
 - **State**: Ball physics, paddle positions, score tracking
+- **Cost Optimization**: Throttled broadcasts reduce Durable Object requests by 66%
 
 ### Game Logic (game_core)
 
@@ -149,6 +158,9 @@ pong/
 2. **MovePaddles** - Update paddle positions (clamped to arena)
 3. **MoveBall** - Update ball position
 4. **CheckCollisions** - Ball vs paddles, ball vs walls
+   - **Paddle physics**: Ball trajectory affected by hit position and paddle movement
+   - Maximum deflection angle: ~45 degrees
+   - Paddle movement adds 30% of its velocity to the ball
 5. **CheckScoring** - Detect when ball exits left/right edge
 6. **ResetBall** - Reset after scoring
 
@@ -166,7 +178,7 @@ pong/
 ```rust
 enum C2S {
     Join { code: [u8; 5] },
-    Input { paddle_dir: i8 },  // -1 up, 0 stop, 1 down
+    Input { player_id: u8, paddle_dir: i8 },  // -1 up, 0 stop, 1 down
     Ping { t_ms: u32 },
 }
 ```
@@ -178,12 +190,14 @@ enum S2C {
     Welcome { player_id: u8 },  // 0 = left, 1 = right
     GameState {
         tick: u32,
-        t_ms: u32,
-        ball_x, ball_y,
-        ball_vx, ball_vy,
-        paddle_left_y,
-        paddle_right_y,
-        score_left, score_right,
+        ball_x: f32,
+        ball_y: f32,
+        ball_vx: f32,
+        ball_vy: f32,
+        paddle_left_y: f32,
+        paddle_right_y: f32,
+        score_left: u8,
+        score_right: u8,
     },
     GameOver { winner: u8 },
     Pong { t_ms: u32 },
@@ -207,6 +221,7 @@ See `TEST-PLAN.md` for detailed test procedures covering:
 - Match creation and joining
 - Paddle movement and bounds
 - Ball physics and collision
+- Paddle physics (hit position and movement effects)
 - Scoring and win conditions
 - Network synchronization
 - Performance (60 fps/60 Hz targets)
@@ -250,20 +265,22 @@ See `TEST-PLAN.md` for detailed test procedures covering:
 
 - Paddles not moving: Check browser console for WebSocket errors
 - Ball not visible: Hard refresh (Cmd+Shift+R) to clear cache
-- Lag: Server runs at 60 Hz, but network latency may vary
+- Lag: Server runs at 60 Hz, broadcasts at 20 Hz, client interpolates for smooth 60fps
 
 ## Performance
 
 **Client:**
 
 - Target: 60 fps
+- Client-side interpolation for smooth movement
+- Motion blur trails for visual polish
 - Lightweight rendering (paddles + ball only)
 - Works on mobile devices
 
 **Server:**
 
 - Fixed tick rate: 60 Hz (16.67ms)
-- Snapshot broadcast: 60 Hz to all clients
+- Snapshot broadcast: 20 Hz (every 3 ticks) to reduce costs
 - Scales to 2 players per match (no bots)
 
 ## Cost Optimization (Cloudflare)
@@ -272,8 +289,9 @@ The game is configured to minimize costs:
 
 **Free Tier (Development):**
 
-- Input rate: 30 Hz with coalescing
-- Server tick: 60 Hz (can reduce to 5 Hz if hitting limits)
+- Server tick: 60 Hz (required for physics accuracy)
+- State broadcast: 20 Hz (every 3 ticks) - reduces requests by 66%
+- Input rate: Throttled to reduce spam
 - Alarms stop when no clients connected
 - Capacity: ~10-12 full matches per day
 
@@ -291,7 +309,7 @@ The game is configured to minimize costs:
 ## Documentation
 
 - **README.md** (this file) - Complete overview and quick start
-- **SPEC.md** - Detailed game specification and architecture
+- **SPEC.md** - Detailed technical specification
 - **TEST-PLAN.md** - Comprehensive manual test procedures
 
 ## Future Enhancements
@@ -301,7 +319,7 @@ Potential additions:
 - AI bot opponent (single player)
 - Power-ups (speed boost, larger paddle)
 - Different game modes (time limit, first to X)
-- Visual effects (particle trails, screen shake)
+- Enhanced visual effects
 - Sound effects
 - Mobile touch controls
 - Leaderboard

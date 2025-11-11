@@ -835,8 +835,6 @@ impl WasmClient {
         match msg {
             S2C::Welcome { player_id } => {
                 client.game_state.my_player_id = Some(player_id);
-                // Log player assignment
-                // Note: console_log! macro not available in wasm, so we'll skip logging here
             }
             S2C::GameState {
                 ball_x,

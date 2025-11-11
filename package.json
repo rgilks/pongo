@@ -3,9 +3,8 @@
   "version": "0.1.0",
   "description": "Pong game with Rust + WebGPU + Cloudflare Durable Objects",
   "scripts": {
-    "check": "npm run check:rust && npm run check:web",
+    "check": "npm run check:rust",
     "check:rust": "cargo fmt --check && cargo clippy --workspace -- -D warnings && cargo test --workspace",
-    "check:web": "echo 'Web CI build + headless test - to be implemented in M3'",
     "fmt": "cargo fmt",
     "clippy": "cargo clippy --workspace -- -D warnings",
     "test": "cargo test --workspace",
