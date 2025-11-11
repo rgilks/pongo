@@ -67,7 +67,7 @@ npm run deploy
 
 - Paddles move smoothly at 8 units/second
 - Paddles stay within arena bounds (Y: 2 to 22)
-- Movement is responsive (< 100ms latency)
+- Movement is responsive (instant with client prediction, < 100ms perceived latency)
 - Independent control for each player
 - Touch controls work on mobile devices
 
@@ -164,7 +164,7 @@ npm run deploy
 
 - Both clients show identical game state
 - No desynchronization
-- Latency < 100ms
+- Latency < 100ms (client prediction provides instant response for own paddle)
 - State broadcasts at 20 Hz (server simulates at 60 Hz)
 
 ---
@@ -331,6 +331,34 @@ Before each commit/deploy:
 
 ---
 
+### TC-013: Client Prediction
+
+**Objective**: Verify client prediction provides instant-feeling controls
+
+**Steps**:
+
+1. Join match as player 0 (left paddle)
+2. Press Up arrow key
+3. Observe paddle movement - should be instant (no visible delay)
+4. Press Down arrow key
+5. Observe paddle movement - should be instant
+6. Wait for server state update (check Update metric)
+7. Verify paddle position remains correct (no jumping/correction)
+8. Test rapid input changes (up/down quickly)
+9. Verify smooth movement without jitter
+10. Check browser console for any prediction errors
+
+**Expected**:
+
+- Own paddle responds instantly to input (no waiting for server)
+- Paddle position remains accurate after server reconciliation
+- No visible corrections or jumps when server state arrives
+- Smooth movement even with rapid input changes
+- Opponent paddle uses server state (may have slight delay)
+- No console errors related to prediction
+
+---
+
 ## Known Issues
 
 (Document any known issues here as they're discovered)
@@ -338,4 +366,4 @@ Before each commit/deploy:
 ---
 
 **Last Updated**: 2025-11-11  
-**Status**: Core test plan for Pong with paddle physics, responsive layout, and mobile touch controls
+**Status**: Core test plan for Pong with paddle physics, responsive layout, mobile touch controls, AI bot opponent, and client prediction

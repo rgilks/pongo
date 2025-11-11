@@ -14,6 +14,7 @@ This is a modern implementation of the classic 1970s Pong game, demonstrating:
 - **WebSocket** networking with client-server synchronization
 - **Paddle physics** - ball trajectory affected by hit position and paddle movement
 - **AI bot opponent** - single player mode with intelligent bot
+- **Client prediction** - instant-feeling controls with server reconciliation
 
 ## Game Rules
 
@@ -145,6 +146,7 @@ iso/
 - **Graphics**: 2D orthographic camera, simple colored shapes
 - **Effects**: Motion blur trails on ball and paddles
 - **Interpolation**: Client-side interpolation for smooth movement (target 120 fps)
+- **Client Prediction**: Local simulation for instant-feeling controls, reconciled with server state
 - **Input**: Keyboard events (Up/Down or W/S) and touch controls (mobile)
 - **Network**: WebSocket client, receives game state snapshots at 20 Hz
 - **Layout**: Responsive design (side panel on desktop, stacked on mobile)
@@ -278,7 +280,7 @@ See `TEST-PLAN.md` for detailed test procedures covering:
 
 - Paddles not moving: Check browser console for WebSocket errors
 - Ball not visible: Hard refresh (Cmd+Shift+R) to clear cache
-- Lag: Server runs at 60 Hz, broadcasts at 20 Hz, client interpolates for smooth 120 fps rendering
+- Lag: Server runs at 60 Hz, broadcasts at 20 Hz, client interpolates for smooth 120 fps rendering. Client prediction provides instant response for own paddle.
 
 ## Performance
 

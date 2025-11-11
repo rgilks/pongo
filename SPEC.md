@@ -195,14 +195,31 @@ NetQueue { inputs: Vec<PaddleInputEvent> }
 
 ---
 
-## Client Prediction (Future)
+## Client Prediction
 
-Currently not implemented. When added:
-- Client runs local `game_core` simulation
-- Tag inputs with sequence numbers
-- Apply server snapshots (reconciliation)
-- Rewind and replay unacked inputs
-- Interpolate opponent paddle for smoothness
+**Status**: ✅ Implemented
+
+Client prediction provides instant-feeling controls by running local simulation immediately when input is received, while server state provides authoritative correction.
+
+### Implementation
+
+- **Local Simulation**: Client runs `game_core` simulation locally when input changes
+- **Sequence Numbers**: Inputs tagged with sequence numbers for tracking
+- **Server Reconciliation**: Predicted state reconciled with server snapshots
+- **Rendering**: Own paddle uses predicted state (instant response), opponent and ball use server state (interpolated)
+- **Input History**: Last 120 inputs stored for potential replay (2 seconds at 60 Hz)
+
+### How It Works
+
+1. **On Input**: Client immediately runs local simulation and updates predicted paddle position
+2. **On Server Update**: Client reconciles by resetting to server state and re-initializing prediction
+3. **Rendering**: Own paddle rendered from predicted state, opponent/ball from server state
+
+### Benefits
+
+- **Instant Response**: No waiting for server round-trip latency
+- **Smooth Gameplay**: Own paddle feels immediately responsive
+- **Server Authority**: Server state corrects any prediction drift
 
 ---
 
@@ -224,12 +241,12 @@ Currently not implemented. When added:
 - ✅ Game ends at 11 points, winner displayed
 - ✅ Stable 60 Hz server ticks
 - ✅ Client renders at 120 fps with 60 Hz simulation
+- ✅ Client prediction for instant-feeling controls
 
 ---
 
 ## Future Extensions
 
-- **Client Prediction**: Instant-feeling controls with server correction
 - **Power-ups**: Speed boost, larger paddle, multi-ball
 - **Game Modes**: Time limit, first to X points, best of N
 - **Visual Effects**: Particle trails, screen shake, bloom
@@ -239,4 +256,4 @@ Currently not implemented. When added:
 ---
 
 **Last Updated**: 2025-11-11  
-**Status**: Core implementation complete with paddle physics, trail effects, responsive layout, mobile touch controls, and AI bot opponent
+**Status**: Core implementation complete with paddle physics, trail effects, responsive layout, mobile touch controls, AI bot opponent, and client prediction
