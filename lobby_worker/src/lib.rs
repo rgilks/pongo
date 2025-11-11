@@ -28,9 +28,11 @@ async fn handle_index(_req: Request, _ctx: RouteContext<()>) -> Result<Response>
         #gameContainer { position: relative; }
         #canvas { border: 2px solid #fff; display: block; }
         #score { position: absolute; top: 20px; left: 50%; transform: translateX(-50%); font-size: 48px; color: #fff; text-shadow: 0 0 10px #fff; pointer-events: none; }
-        #metrics { position: absolute; top: 20px; right: 20px; font-size: 14px; color: #fff; text-shadow: 0 0 5px #fff; pointer-events: none; background: rgba(0, 0, 0, 0.5); padding: 10px; border-radius: 4px; font-family: 'Courier New', monospace; }
-        #metrics div { margin: 5px 0; white-space: nowrap; }
-        #metrics span { font-weight: bold; color: #0f0; display: inline-block; min-width: 60px; text-align: right; }
+        #metrics { position: absolute; top: 20px; right: 20px; font-size: 13px; color: #fff; text-shadow: 0 0 5px #fff; pointer-events: none; background: rgba(0, 0, 0, 0.7); padding: 8px 12px; border-radius: 4px; font-family: 'Courier New', monospace; border: 1px solid rgba(255, 255, 255, 0.2); }
+        .metric-row { display: flex; align-items: center; margin: 4px 0; white-space: nowrap; }
+        .metric-label { color: #aaa; margin-right: 8px; min-width: 50px; }
+        .metric-value { font-weight: bold; color: #0f0; min-width: 50px; text-align: right; margin-right: 4px; }
+        .metric-unit { color: #888; font-size: 11px; }
         #ui { margin-top: 30px; text-align: center; }
         #status { margin: 15px 0; padding: 10px 20px; background: #222; border: 2px solid #fff; border-radius: 4px; font-size: 16px; }
         input, button { padding: 10px 20px; margin: 5px; font-family: 'Courier New', monospace; font-size: 16px; border: 2px solid #fff; background: #000; color: #fff; }
@@ -46,9 +48,9 @@ async fn handle_index(_req: Request, _ctx: RouteContext<()>) -> Result<Response>
         <canvas id="canvas" width="800" height="600"></canvas>
         <div id="score">0 : 0</div>
         <div id="metrics">
-            <div>FPS: <span id="fps">--</span></div>
-            <div>Ping: <span id="ping">--</span>ms</div>
-            <div>Update: <span id="update">--</span>ms</div>
+            <div class="metric-row"><span class="metric-label">FPS:</span><span class="metric-value" id="fps">--</span></div>
+            <div class="metric-row"><span class="metric-label">Ping:</span><span class="metric-value" id="ping">--</span><span class="metric-unit">ms</span></div>
+            <div class="metric-row"><span class="metric-label">Update:</span><span class="metric-value" id="update">--</span><span class="metric-unit">ms</span></div>
         </div>
     </div>
     <div id="ui">
