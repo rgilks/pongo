@@ -14,7 +14,12 @@ pub enum C2S {
     Join { code: [u8; 5] },
 
     /// Paddle input: -1 = up, 0 = stop, 1 = down
-    Input { player_id: u8, paddle_dir: i8 },
+    /// seq: Client-side sequence number for input prediction (not used by server, but included for future use)
+    Input {
+        player_id: u8,
+        paddle_dir: i8,
+        seq: u32,
+    },
 
     /// Ping for latency measurement
     Ping { t_ms: u32 },
@@ -90,6 +95,7 @@ mod tests {
         let msg = C2S::Input {
             player_id: 0,
             paddle_dir: -1,
+            seq: 1,
         };
         let bytes = msg.to_bytes().expect("Serialization should succeed");
         let decoded = C2S::from_bytes(&bytes).expect("Deserialization should succeed");
@@ -98,14 +104,17 @@ mod tests {
                 C2S::Input {
                     player_id: p1,
                     paddle_dir: d1,
+                    seq: s1,
                 },
                 C2S::Input {
                     player_id: p2,
                     paddle_dir: d2,
+                    seq: s2,
                 },
             ) => {
                 assert_eq!(p1, p2);
                 assert_eq!(d1, d2);
+                assert_eq!(s1, s2);
             }
             _ => panic!("Message type mismatch"),
         }

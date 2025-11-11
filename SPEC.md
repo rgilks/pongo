@@ -229,7 +229,6 @@ Currently not implemented. When added:
 
 ## Future Extensions
 
-- **AI Bot**: Single player mode with bot opponent
 - **Client Prediction**: Instant-feeling controls with server correction
 - **Power-ups**: Speed boost, larger paddle, multi-ball
 - **Game Modes**: Time limit, first to X points, best of N
@@ -240,4 +239,4 @@ Currently not implemented. When added:
 ---
 
 **Last Updated**: 2025-11-11  
-**Status**: Core implementation complete with paddle physics, trail effects, responsive layout, and mobile touch controls
+**Status**: Core implementation complete with paddle physics, trail effects, responsive layout, mobile touch controls, and AI bot opponent

@@ -58,10 +58,11 @@ pub fn create_join_message(code: &str) -> Result<Vec<u8>, String> {
 }
 
 /// Create input message bytes
-pub fn create_input_message(player_id: u8, paddle_dir: i8) -> Result<Vec<u8>, String> {
+pub fn create_input_message(player_id: u8, paddle_dir: i8, seq: u32) -> Result<Vec<u8>, String> {
     C2S::Input {
         player_id,
         paddle_dir,
+        seq,
     }
     .to_bytes()
     .map_err(|e| format!("Failed to serialize input message: {:?}", e))

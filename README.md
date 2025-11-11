@@ -13,6 +13,7 @@ This is a modern implementation of the classic 1970s Pong game, demonstrating:
 - **ECS architecture** (hecs) for game simulation
 - **WebSocket** networking with client-server synchronization
 - **Paddle physics** - ball trajectory affected by hit position and paddle movement
+- **AI bot opponent** - single player mode with intelligent bot
 
 ## Game Rules
 
@@ -54,6 +55,7 @@ Visit `http://localhost:8787` to play!
 
 ### Local Testing
 
+**Multiplayer Mode:**
 1. Open browser to `http://localhost:8787`
 2. Click "CREATE" to start a match and get a 5-character code
 3. Open a second browser window/tab
@@ -61,6 +63,12 @@ Visit `http://localhost:8787` to play!
 5. Use Up/Down arrow keys or W/S to control your paddle (desktop)
    - On mobile, use the touch buttons at the bottom
 6. First to 11 points wins!
+
+**Single Player (VS AI):**
+1. Open browser to `http://localhost:8787`
+2. Click "VS AI" to start a local game against an AI opponent
+3. Use Up/Down arrow keys or W/S to control your paddle
+4. The AI controls the right paddle automatically
 
 **Benefits of local testing:**
 
@@ -322,7 +330,6 @@ The game is configured to minimize costs:
 
 Potential additions:
 
-- AI bot opponent (single player)
 - Power-ups (speed boost, larger paddle)
 - Different game modes (time limit, first to X)
 - Enhanced visual effects

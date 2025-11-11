@@ -364,6 +364,7 @@ impl MatchDO {
                 C2S::Input {
                     player_id,
                     paddle_dir,
+                    seq: _, // Client sequence number (not used by server)
                 } => {
                     // Verify the player exists and update activity time
                     if let Some(client_info) = gs.clients.get_mut(&player_id) {

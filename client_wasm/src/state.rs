@@ -109,4 +109,8 @@ impl GameState {
     pub fn time_since_update(&self) -> f32 {
         self.time_since_update
     }
+
+    pub fn get_current_snapshot(&self) -> Option<GameStateSnapshot> {
+        Some(self.current.clone())
+    }
 }

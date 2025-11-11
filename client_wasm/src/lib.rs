@@ -92,6 +92,19 @@ pub struct Client {
     local_events: Option<Events>,
     local_net_queue: Option<NetQueue>,
     local_rng: Option<GameRng>,
+    // Client prediction state (for online games)
+    input_seq: u32,                        // Next input sequence number
+    predicted_world: Option<World>,        // Local predicted world state
+    predicted_time: Option<Time>,          // Predicted time state
+    predicted_map: Option<GameMap>,        // Game map (same for all clients)
+    predicted_config: Option<Config>,      // Game config (same for all clients)
+    predicted_score: Option<Score>,        // Predicted score
+    predicted_events: Option<Events>,      // Predicted events
+    predicted_net_queue: Option<NetQueue>, // Input queue for prediction
+    predicted_rng: Option<GameRng>,        // RNG for prediction (seeded from server)
+    last_reconciled_tick: u32,             // Last server tick we reconciled to
+    predicted_tick: u32,                   // Current predicted tick
+    input_history: Vec<(u32, i8)>,         // History of (seq, paddle_dir) inputs for replay
 }
 
 #[wasm_bindgen]
@@ -558,6 +571,19 @@ impl WasmClient {
             local_events: None,
             local_net_queue: None,
             local_rng: None,
+            // Client prediction state
+            input_seq: 0,
+            predicted_world: None,
+            predicted_time: None,
+            predicted_map: None,
+            predicted_config: None,
+            predicted_score: None,
+            predicted_events: None,
+            predicted_net_queue: None,
+            predicted_rng: None,
+            last_reconciled_tick: 0,
+            predicted_tick: 0,
+            input_history: Vec::new(),
         }))
     }
 
@@ -756,23 +782,49 @@ impl WasmClient {
         // Update interpolation with render delta time
         client.game_state.update_interpolation(render_dt);
 
+        // Get paddle positions: use predicted state for own paddle, server state for opponent
+        let player_id = client.game_state.get_player_id().unwrap_or(0);
+        let left_paddle_y =
+            if !client.is_local_game && client.predicted_world.is_some() && player_id == 0 {
+                // Use predicted state for own paddle (left)
+                if let Some(ref world) = client.predicted_world {
+                    world
+                        .query::<&Paddle>()
+                        .iter()
+                        .find(|(_e, p)| p.player_id == 0)
+                        .map(|(_e, p)| p.y)
+                        .unwrap_or_else(|| client.game_state.get_paddle_left_y())
+                } else {
+                    client.game_state.get_paddle_left_y()
+                }
+            } else {
+                client.game_state.get_paddle_left_y()
+            };
+
+        let right_paddle_y =
+            if !client.is_local_game && client.predicted_world.is_some() && player_id == 1 {
+                // Use predicted state for own paddle (right)
+                if let Some(ref world) = client.predicted_world {
+                    world
+                        .query::<&Paddle>()
+                        .iter()
+                        .find(|(_e, p)| p.player_id == 1)
+                        .map(|(_e, p)| p.y)
+                        .unwrap_or_else(|| client.game_state.get_paddle_right_y())
+                } else {
+                    client.game_state.get_paddle_right_y()
+                }
+            } else {
+                client.game_state.get_paddle_right_y()
+            };
+
         let left_paddle_instance = InstanceData {
-            transform: [
-                paddle_left_x,
-                client.game_state.get_paddle_left_y(),
-                paddle_width,
-                paddle_height,
-            ],
+            transform: [paddle_left_x, left_paddle_y, paddle_width, paddle_height],
             tint: [1.0, 1.0, 1.0, 1.0], // White
         };
 
         let right_paddle_instance = InstanceData {
-            transform: [
-                paddle_right_x,
-                client.game_state.get_paddle_right_y(),
-                paddle_width,
-                paddle_height,
-            ],
+            transform: [paddle_right_x, right_paddle_y, paddle_width, paddle_height],
             tint: [1.0, 1.0, 1.0, 1.0], // White
         };
 
@@ -1037,8 +1089,29 @@ impl WasmClient {
             return Ok(());
         }
 
+        // Handle reconciliation and prediction initialization for GameState messages
+        let is_game_state = matches!(msg, S2C::GameState { .. });
+        let server_tick = if let S2C::GameState { tick, .. } = &msg {
+            Some(*tick)
+        } else {
+            None
+        };
+
+        if let Some(tick) = server_tick {
+            Self::reconcile_with_server(client, tick);
+        }
+
         handle_message(msg, &mut client.game_state)
             .map_err(|e| JsValue::from_str(&format!("Failed to handle message: {}", e)))?;
+
+        // Initialize prediction from server snapshot if not already initialized
+        if is_game_state {
+            if client.predicted_world.is_none() && !client.is_local_game {
+                if let Some(snapshot) = client.game_state.get_current_snapshot() {
+                    Self::initialize_prediction(client, &snapshot);
+                }
+            }
+        }
 
         Ok(())
     }
@@ -1049,11 +1122,32 @@ impl WasmClient {
         network::create_join_message(&code).unwrap_or_default()
     }
 
-    /// Get input message bytes
+    /// Get input message bytes (triggers client prediction)
     #[wasm_bindgen]
-    pub fn get_input_bytes(&self) -> Vec<u8> {
-        let player_id = self.0.game_state.get_player_id().unwrap_or(0);
-        network::create_input_message(player_id, self.0.paddle_dir).unwrap_or_default()
+    pub fn get_input_bytes(&mut self) -> Vec<u8> {
+        let client = &mut self.0;
+        if client.is_local_game {
+            // Local games don't need prediction
+            let player_id = client.game_state.get_player_id().unwrap_or(0);
+            return network::create_input_message(player_id, client.paddle_dir, 0)
+                .unwrap_or_default();
+        }
+
+        let player_id = client.game_state.get_player_id().unwrap_or(0);
+        let seq = client.input_seq;
+        client.input_seq = client.input_seq.wrapping_add(1);
+
+        // Store input in history for replay
+        client.input_history.push((seq, client.paddle_dir));
+        // Keep only last 120 inputs (2 seconds at 60 Hz)
+        if client.input_history.len() > 120 {
+            client.input_history.remove(0);
+        }
+
+        // Run client prediction immediately
+        Self::run_client_prediction(client, player_id, client.paddle_dir);
+
+        network::create_input_message(player_id, client.paddle_dir, seq).unwrap_or_default()
     }
 
     /// Get current score (for UI updates)
@@ -1108,6 +1202,114 @@ impl WasmClient {
 
         // Set player ID for local game
         client.game_state.set_player_id(0); // Player is left paddle
+    }
+
+    /// Initialize client prediction state from server snapshot
+    fn initialize_prediction(client: &mut Client, snapshot: &state::GameStateSnapshot) {
+        use game_core::create_ball;
+        let map = GameMap::new();
+        let config = Config::new();
+        let mut world = World::new();
+        let rng = GameRng::new(Self::performance_now() as u64);
+
+        // Create paddles at server positions
+        create_paddle(&mut world, 0, snapshot.paddle_left_y);
+        create_paddle(&mut world, 1, snapshot.paddle_right_y);
+
+        // Create ball at server position with server velocity
+        create_ball(
+            &mut world,
+            glam::f32::Vec2::new(snapshot.ball_x, snapshot.ball_y),
+            glam::f32::Vec2::new(snapshot.ball_vx, snapshot.ball_vy),
+        );
+
+        client.predicted_world = Some(world);
+        client.predicted_time = Some(Time::new(0.016, 0.0));
+        client.predicted_map = Some(map);
+        client.predicted_config = Some(config);
+        client.predicted_score = Some(Score::new());
+        client.predicted_events = Some(Events::new());
+        client.predicted_net_queue = Some(NetQueue::new());
+        client.predicted_rng = Some(rng);
+        client.last_reconciled_tick = snapshot.tick;
+        client.predicted_tick = snapshot.tick;
+    }
+
+    /// Run client prediction: simulate locally when input changes
+    fn run_client_prediction(client: &mut Client, player_id: u8, paddle_dir: i8) {
+        // Skip if prediction not initialized
+        if client.predicted_world.is_none() {
+            return;
+        }
+
+        const SIM_FIXED_DT: f32 = 1.0 / 60.0; // 60 Hz fixed timestep
+
+        if let (
+            Some(ref mut world),
+            Some(ref mut time),
+            Some(ref map),
+            Some(ref config),
+            Some(ref mut score),
+            Some(ref mut events),
+            Some(ref mut net_queue),
+            Some(ref mut rng),
+        ) = (
+            &mut client.predicted_world,
+            &mut client.predicted_time,
+            &client.predicted_map,
+            &client.predicted_config,
+            &mut client.predicted_score,
+            &mut client.predicted_events,
+            &mut client.predicted_net_queue,
+            &mut client.predicted_rng,
+        ) {
+            // Add player input
+            net_queue.push_input(player_id, paddle_dir);
+            // Opponent input is unknown, so we don't add it (will be corrected by server)
+
+            // Update time
+            *time = Time::new(SIM_FIXED_DT, time.now + SIM_FIXED_DT);
+
+            // Run simulation step
+            step(world, time, map, config, score, events, net_queue, rng);
+
+            // Increment predicted tick
+            client.predicted_tick += 1;
+        }
+    }
+
+    /// Reconcile predicted state with server state
+    fn reconcile_with_server(client: &mut Client, server_tick: u32) {
+        // If server tick is ahead or equal to our predicted tick, accept server state
+        if server_tick >= client.predicted_tick {
+            // Server is ahead or we're in sync - reset prediction state
+            // This will be initialized from the server snapshot in handle_message
+            client.predicted_world = None;
+            client.predicted_time = None;
+            client.predicted_map = None;
+            client.predicted_config = None;
+            client.predicted_score = None;
+            client.predicted_events = None;
+            client.predicted_net_queue = None;
+            client.predicted_rng = None;
+            client.last_reconciled_tick = server_tick;
+            client.predicted_tick = server_tick;
+            return;
+        }
+
+        // Server is behind - we need to rewind and replay
+        // For now, we'll just reset to server state (simple approach)
+        // A more sophisticated approach would rewind to server_tick and replay inputs
+        client.predicted_world = None;
+        client.predicted_time = None;
+        client.predicted_map = None;
+        client.predicted_config = None;
+        client.predicted_score = None;
+        client.predicted_events = None;
+        client.predicted_net_queue = None;
+        client.predicted_rng = None;
+        client.last_reconciled_tick = server_tick;
+        client.predicted_tick = server_tick;
     }
 
     /// Calculate AI input for opponent paddle
