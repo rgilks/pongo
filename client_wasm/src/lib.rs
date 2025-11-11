@@ -75,9 +75,9 @@ impl GameState {
     /// Target: 60fps render, 20-60Hz server updates
     fn update_interpolation(&mut self, dt: f32) {
         self.time_since_update += dt;
-        // Interpolate over ~50ms (20Hz update rate)
-        // If updates are faster, interpolation will be shorter
-        let interpolation_duration = 0.05; // 50ms for 20Hz
+        // Interpolate over ~60ms (20Hz update rate = 1/20 = 0.05s)
+        // Use slightly longer duration to handle jitter and ensure smoothness
+        let interpolation_duration = 0.06; // 60ms for smoother interpolation
         self.interpolation_alpha = (self.time_since_update / interpolation_duration).min(1.0);
     }
 
@@ -124,14 +124,18 @@ pub struct Client {
     left_paddle_instance_buffer: Buffer,
     right_paddle_instance_buffer: Buffer,
     ball_instance_buffer: Buffer,
-    // Trail effect using framebuffer accumulation
-    trail_texture: Texture,
-    trail_texture_view: TextureView,
+    // Trail effect using ping-pong textures
+    trail_texture_a: Texture,
+    trail_texture_b: Texture,
+    trail_texture_view_a: TextureView,
+    trail_texture_view_b: TextureView,
     trail_sampler: Sampler,
-    trail_bind_group: BindGroup,
+    trail_bind_group_a: BindGroup,
+    trail_bind_group_b: BindGroup,
     trail_bind_group_layout: BindGroupLayout,
     trail_render_pipeline: RenderPipeline,
     trail_vertex_buffer: Buffer,
+    trail_use_a: bool, // Toggle between A and B for ping-pong
     // Game state
     game_state: GameState,
     // Input state
@@ -349,9 +353,9 @@ impl WasmClient {
             mapped_at_creation: false,
         });
 
-        // Create trail texture for accumulation effect
-        let trail_texture = device.create_texture(&TextureDescriptor {
-            label: Some("Trail Texture"),
+        // Create ping-pong trail textures for accumulation effect
+        let trail_texture_a = device.create_texture(&TextureDescriptor {
+            label: Some("Trail Texture A"),
             size: Extent3d {
                 width: surface_config.width,
                 height: surface_config.height,
@@ -365,7 +369,23 @@ impl WasmClient {
             view_formats: &[],
         });
 
-        let trail_texture_view = trail_texture.create_view(&TextureViewDescriptor::default());
+        let trail_texture_b = device.create_texture(&TextureDescriptor {
+            label: Some("Trail Texture B"),
+            size: Extent3d {
+                width: surface_config.width,
+                height: surface_config.height,
+                depth_or_array_layers: 1,
+            },
+            mip_level_count: 1,
+            sample_count: 1,
+            dimension: TextureDimension::D2,
+            format: surface_format,
+            usage: TextureUsages::RENDER_ATTACHMENT | TextureUsages::TEXTURE_BINDING,
+            view_formats: &[],
+        });
+
+        let trail_texture_view_a = trail_texture_a.create_view(&TextureViewDescriptor::default());
+        let trail_texture_view_b = trail_texture_b.create_view(&TextureViewDescriptor::default());
         let trail_sampler = device.create_sampler(&SamplerDescriptor {
             label: Some("Trail Sampler"),
             address_mode_u: AddressMode::ClampToEdge,
@@ -400,13 +420,28 @@ impl WasmClient {
             ],
         });
 
-        let trail_bind_group = device.create_bind_group(&BindGroupDescriptor {
-            label: Some("Trail Bind Group"),
+        let trail_bind_group_a = device.create_bind_group(&BindGroupDescriptor {
+            label: Some("Trail Bind Group A"),
             layout: &trail_bind_group_layout,
             entries: &[
                 BindGroupEntry {
                     binding: 0,
-                    resource: BindingResource::TextureView(&trail_texture_view),
+                    resource: BindingResource::TextureView(&trail_texture_view_a),
+                },
+                BindGroupEntry {
+                    binding: 1,
+                    resource: BindingResource::Sampler(&trail_sampler),
+                },
+            ],
+        });
+
+        let trail_bind_group_b = device.create_bind_group(&BindGroupDescriptor {
+            label: Some("Trail Bind Group B"),
+            layout: &trail_bind_group_layout,
+            entries: &[
+                BindGroupEntry {
+                    binding: 0,
+                    resource: BindingResource::TextureView(&trail_texture_view_b),
                 },
                 BindGroupEntry {
                     binding: 1,
@@ -451,8 +486,9 @@ impl WasmClient {
             @fragment
             fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
                 let color = textureSample(trail_texture, trail_sampler, in.tex_coord);
-                // Fade the trail (multiply by 0.95 to create fade effect)
-                return color * 0.95;
+                // Fade the trail (multiply by 0.92 for nice trail persistence)
+                // Lower value = faster fade, higher = longer trail
+                return color * 0.92;
             }
         "#;
 
@@ -496,7 +532,7 @@ impl WasmClient {
                 entry_point: Some("fs_main"),
                 targets: &[Some(ColorTargetState {
                     format: surface_format,
-                    blend: Some(BlendState::REPLACE),
+                    blend: Some(BlendState::ALPHA_BLENDING),
                     write_mask: ColorWrites::ALL,
                 })],
                 compilation_options: Default::default(),
@@ -532,13 +568,17 @@ impl WasmClient {
             left_paddle_instance_buffer,
             right_paddle_instance_buffer,
             ball_instance_buffer,
-            trail_texture,
-            trail_texture_view,
+            trail_texture_a,
+            trail_texture_b,
+            trail_texture_view_a,
+            trail_texture_view_b,
             trail_sampler,
-            trail_bind_group,
+            trail_bind_group_a,
+            trail_bind_group_b,
             trail_bind_group_layout,
             trail_render_pipeline,
             trail_vertex_buffer,
+            trail_use_a: true,
             game_state: GameState::new(),
             paddle_dir: 0,
             last_frame_time: 0.0,
@@ -631,10 +671,96 @@ impl WasmClient {
             bytemuck::cast_slice(&[ball_instance]),
         );
 
-        // Trail effect: The trail texture accumulates faded frames
-        // We render the faded trail as background, then current frame on top
+        // Trail effect using ping-pong textures
+        // Step 1: Render current frame to the "write" trail texture
+        let (trail_read_view, trail_write_view, trail_read_bind_group) = if client.trail_use_a {
+            (
+                &client.trail_texture_view_b,
+                &client.trail_texture_view_a,
+                &client.trail_bind_group_b,
+            )
+        } else {
+            (
+                &client.trail_texture_view_a,
+                &client.trail_texture_view_b,
+                &client.trail_bind_group_a,
+            )
+        };
 
-        // Render current frame with trail effect
+        // Render current frame to trail texture (write target)
+        {
+            let mut render_pass = encoder.begin_render_pass(&RenderPassDescriptor {
+                label: Some("Trail Write Pass"),
+                color_attachments: &[Some(RenderPassColorAttachment {
+                    view: trail_write_view,
+                    resolve_target: None,
+                    ops: Operations {
+                        load: LoadOp::Clear(Color {
+                            r: 0.0,
+                            g: 0.0,
+                            b: 0.0,
+                            a: 1.0,
+                        }),
+                        store: StoreOp::Store,
+                    },
+                })],
+                depth_stencil_attachment: None,
+                timestamp_writes: None,
+                occlusion_query_set: None,
+            });
+
+            // Draw game objects to trail texture
+            render_pass.set_pipeline(&client.render_pipeline);
+            render_pass.set_bind_group(0, &client.camera_bind_group, &[]);
+
+            // Draw left paddle
+            render_pass.set_vertex_buffer(0, client.rectangle_mesh.vertex_buffer.slice(..));
+            render_pass.set_vertex_buffer(1, client.left_paddle_instance_buffer.slice(..));
+            render_pass.set_index_buffer(
+                client.rectangle_mesh.index_buffer.slice(..),
+                IndexFormat::Uint16,
+            );
+            render_pass.draw_indexed(0..client.rectangle_mesh.index_count, 0, 0..1);
+
+            // Draw right paddle
+            render_pass.set_vertex_buffer(1, client.right_paddle_instance_buffer.slice(..));
+            render_pass.draw_indexed(0..client.rectangle_mesh.index_count, 0, 0..1);
+
+            // Draw ball
+            render_pass.set_vertex_buffer(0, client.circle_mesh.vertex_buffer.slice(..));
+            render_pass.set_vertex_buffer(1, client.ball_instance_buffer.slice(..));
+            render_pass.set_index_buffer(
+                client.circle_mesh.index_buffer.slice(..),
+                IndexFormat::Uint16,
+            );
+            render_pass.draw_indexed(0..client.circle_mesh.index_count, 0, 0..1);
+        }
+
+        // Step 2: Fade the previous trail texture and render to write target
+        {
+            let mut render_pass = encoder.begin_render_pass(&RenderPassDescriptor {
+                label: Some("Trail Fade Pass"),
+                color_attachments: &[Some(RenderPassColorAttachment {
+                    view: trail_write_view,
+                    resolve_target: None,
+                    ops: Operations {
+                        load: LoadOp::Load, // Load what we just rendered
+                        store: StoreOp::Store,
+                    },
+                })],
+                depth_stencil_attachment: None,
+                timestamp_writes: None,
+                occlusion_query_set: None,
+            });
+
+            // Render faded previous frame on top (creates trail accumulation)
+            render_pass.set_pipeline(&client.trail_render_pipeline);
+            render_pass.set_bind_group(0, trail_read_bind_group, &[]);
+            render_pass.set_vertex_buffer(0, client.trail_vertex_buffer.slice(..));
+            render_pass.draw(0..4, 0..1);
+        }
+
+        // Step 3: Render to main surface (faded trail + current frame)
         {
             let mut render_pass = encoder.begin_render_pass(&RenderPassDescriptor {
                 label: Some("Main Render Pass"),
@@ -656,9 +782,9 @@ impl WasmClient {
                 occlusion_query_set: None,
             });
 
-            // First, draw the faded trail as background (creates motion blur effect)
+            // First, draw the faded trail as background
             render_pass.set_pipeline(&client.trail_render_pipeline);
-            render_pass.set_bind_group(0, &client.trail_bind_group, &[]);
+            render_pass.set_bind_group(0, trail_read_bind_group, &[]);
             render_pass.set_vertex_buffer(0, client.trail_vertex_buffer.slice(..));
             render_pass.draw(0..4, 0..1);
 
@@ -689,8 +815,8 @@ impl WasmClient {
             render_pass.draw_indexed(0..client.circle_mesh.index_count, 0, 0..1);
         }
 
-        // Note: Trail texture needs ping-pong setup for proper accumulation
-        // For now, trail effect is simplified - will improve with proper texture ping-pong
+        // Toggle ping-pong for next frame
+        client.trail_use_a = !client.trail_use_a;
 
         client.queue.submit(std::iter::once(encoder.finish()));
         output.present();
@@ -778,6 +904,12 @@ impl WasmClient {
         }
         .to_bytes()
         .unwrap_or_default()
+    }
+
+    /// Get current score (for UI updates)
+    #[wasm_bindgen]
+    pub fn get_score(&self) -> Vec<u8> {
+        vec![self.0.game_state.score_left, self.0.game_state.score_right]
     }
 
     /// Handle key down event
