@@ -94,19 +94,21 @@ pub struct Client {
     local_events: Option<Events>,
     local_net_queue: Option<NetQueue>,
     local_rng: Option<GameRng>,
+    local_respawn_state: Option<RespawnState>,
     // Client prediction state (for online games)
-    input_seq: u32,                        // Next input sequence number
-    predicted_world: Option<World>,        // Local predicted world state
-    predicted_time: Option<Time>,          // Predicted time state
-    predicted_map: Option<GameMap>,        // Game map (same for all clients)
-    predicted_config: Option<Config>,      // Game config (same for all clients)
-    predicted_score: Option<Score>,        // Predicted score
-    predicted_events: Option<Events>,      // Predicted events
-    predicted_net_queue: Option<NetQueue>, // Input queue for prediction
-    predicted_rng: Option<GameRng>,        // RNG for prediction (seeded from server)
-    last_reconciled_tick: u32,             // Last server tick we reconciled to
-    predicted_tick: u32,                   // Current predicted tick
-    input_history: Vec<(u32, i8)>,         // History of (seq, paddle_dir) inputs for replay
+    input_seq: u32,                                // Next input sequence number
+    predicted_world: Option<World>,                // Local predicted world state
+    predicted_time: Option<Time>,                  // Predicted time state
+    predicted_map: Option<GameMap>,                // Game map (same for all clients)
+    predicted_config: Option<Config>,              // Game config (same for all clients)
+    predicted_score: Option<Score>,                // Predicted score
+    predicted_events: Option<Events>,              // Predicted events
+    predicted_net_queue: Option<NetQueue>,         // Input queue for prediction
+    predicted_rng: Option<GameRng>,                // RNG for prediction (seeded from server)
+    predicted_respawn_state: Option<RespawnState>, // Predicted respawn state
+    last_reconciled_tick: u32,                     // Last server tick we reconciled to
+    predicted_tick: u32,                           // Current predicted tick
+    input_history: Vec<(u32, i8)>,                 // History of (seq, paddle_dir) inputs for replay
 }
 
 #[wasm_bindgen]
@@ -575,6 +577,7 @@ impl WasmClient {
             local_events: None,
             local_net_queue: None,
             local_rng: None,
+            local_respawn_state: None,
             // Client prediction state
             input_seq: 0,
             predicted_world: None,
@@ -585,6 +588,7 @@ impl WasmClient {
             predicted_events: None,
             predicted_net_queue: None,
             predicted_rng: None,
+            predicted_respawn_state: None,
             last_reconciled_tick: 0,
             predicted_tick: 0,
             input_history: Vec::new(),
@@ -652,6 +656,7 @@ impl WasmClient {
                 &mut client.local_events,
                 &mut client.local_net_queue,
                 &mut client.local_rng,
+                &mut client.local_respawn_state,
             ) {
                 // Add player input to queue
                 net_queue.push_input(0, client.paddle_dir);
@@ -1208,6 +1213,7 @@ impl WasmClient {
         client.local_events = Some(Events::new());
         client.local_net_queue = Some(NetQueue::new());
         client.local_rng = Some(rng);
+        client.local_respawn_state = Some(RespawnState::new());
 
         // Set player ID for local game
         client.game_state.set_player_id(0); // Player is left paddle
@@ -1240,6 +1246,7 @@ impl WasmClient {
         client.predicted_events = Some(Events::new());
         client.predicted_net_queue = Some(NetQueue::new());
         client.predicted_rng = Some(rng);
+        client.predicted_respawn_state = Some(RespawnState::new());
         client.last_reconciled_tick = snapshot.tick;
         client.predicted_tick = snapshot.tick;
     }
@@ -1271,6 +1278,7 @@ impl WasmClient {
             &mut client.predicted_events,
             &mut client.predicted_net_queue,
             &mut client.predicted_rng,
+            &mut client.predicted_respawn_state,
         ) {
             // Add player input
             net_queue.push_input(player_id, paddle_dir);
@@ -1332,6 +1340,7 @@ impl WasmClient {
                 &mut client.predicted_events,
                 &mut client.predicted_net_queue,
                 &mut client.predicted_rng,
+                &mut client.predicted_respawn_state,
             ) {
                 // Clear queue before adding new input (prevents accumulation)
                 net_queue.clear();
@@ -1365,6 +1374,7 @@ impl WasmClient {
             client.predicted_events = None;
             client.predicted_net_queue = None;
             client.predicted_rng = None;
+            client.predicted_respawn_state = None;
             client.last_reconciled_tick = server_tick;
             client.predicted_tick = server_tick;
             return;

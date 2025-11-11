@@ -23,6 +23,7 @@ struct GameState {
     events: Events,
     net_queue: NetQueue,
     rng: GameRng,
+    respawn_state: RespawnState,
     clients: HashMap<u8, ClientInfo>, // player_id (0=left, 1=right) -> ClientInfo
     next_player_id: u8,
     game_started: bool,
@@ -64,6 +65,7 @@ impl DurableObject for MatchDO {
             events,
             net_queue,
             rng,
+            respawn_state: RespawnState::new(),
             clients: HashMap::new(),
             next_player_id: 0,
             game_started: false,
@@ -451,6 +453,7 @@ impl MatchDO {
             &mut gs.events,
             &mut gs.net_queue,
             &mut gs.rng,
+            &mut gs.respawn_state,
         );
 
         // Broadcast state at 20 Hz (every 3 ticks) instead of 60 Hz to reduce Durable Object requests

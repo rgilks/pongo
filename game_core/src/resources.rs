@@ -129,6 +129,32 @@ pub struct Events {
     pub ball_hit_wall: bool,
 }
 
+/// Respawn state for managing ball respawn delays after scoring
+#[derive(Debug, Clone, Copy, Default)]
+pub struct RespawnState {
+    pub timer: f32, // Time remaining before ball respawns (0 = ready to respawn)
+}
+
+impl RespawnState {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn start_delay(&mut self, delay: f32) {
+        self.timer = delay;
+    }
+
+    pub fn update(&mut self, dt: f32) {
+        if self.timer > 0.0 {
+            self.timer = (self.timer - dt).max(0.0);
+        }
+    }
+
+    pub fn can_respawn(&self) -> bool {
+        self.timer <= 0.0
+    }
+}
+
 impl Events {
     pub fn new() -> Self {
         Self::default()
