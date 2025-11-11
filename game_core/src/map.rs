@@ -48,3 +48,82 @@ impl Default for GameMap {
         Self::new()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_map_default_dimensions() {
+        let map = GameMap::new();
+        assert_eq!(map.width, 32.0);
+        assert_eq!(map.height, 24.0);
+    }
+
+    #[test]
+    fn test_paddle_spawn_left() {
+        let map = GameMap::new();
+        let pos = map.paddle_spawn(0);
+        assert_eq!(pos.x, 1.0, "Left paddle should spawn at x=1");
+        assert_eq!(pos.y, 12.0, "Paddle should spawn at center Y");
+    }
+
+    #[test]
+    fn test_paddle_spawn_right() {
+        let map = GameMap::new();
+        let pos = map.paddle_spawn(1);
+        assert_eq!(pos.x, 31.0, "Right paddle should spawn at x=31");
+        assert_eq!(pos.y, 12.0, "Paddle should spawn at center Y");
+    }
+
+    #[test]
+    fn test_ball_spawn() {
+        let map = GameMap::new();
+        let pos = map.ball_spawn();
+        assert_eq!(pos.x, 16.0, "Ball should spawn at center X");
+        assert_eq!(pos.y, 12.0, "Ball should spawn at center Y");
+    }
+
+    #[test]
+    fn test_is_valid_y() {
+        let map = GameMap::new();
+        let half_height = 2.0;
+
+        // Valid positions
+        assert!(map.is_valid_y(12.0, half_height), "Center should be valid");
+        assert!(
+            map.is_valid_y(half_height, half_height),
+            "Top boundary should be valid"
+        );
+        assert!(
+            map.is_valid_y(map.height - half_height, half_height),
+            "Bottom boundary should be valid"
+        );
+
+        // Invalid positions
+        assert!(
+            !map.is_valid_y(half_height - 0.1, half_height),
+            "Above top should be invalid"
+        );
+        assert!(
+            !map.is_valid_y(map.height - half_height + 0.1, half_height),
+            "Below bottom should be invalid"
+        );
+    }
+
+    #[test]
+    fn test_clamp_y() {
+        let map = GameMap::new();
+        let half_height = 2.0;
+
+        // Test clamping below minimum
+        assert_eq!(map.clamp_y(0.0, half_height), half_height);
+
+        // Test clamping above maximum
+        assert_eq!(map.clamp_y(100.0, half_height), map.height - half_height);
+
+        // Test valid value (no clamping)
+        let valid_y = 12.0;
+        assert_eq!(map.clamp_y(valid_y, half_height), valid_y);
+    }
+}

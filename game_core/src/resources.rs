@@ -161,3 +161,126 @@ impl NetQueue {
         self.inputs.push((player_id, dir));
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_score_increment_left() {
+        let mut score = Score::new();
+        assert_eq!(score.left, 0);
+        score.increment_left();
+        assert_eq!(score.left, 1);
+        score.increment_left();
+        assert_eq!(score.left, 2);
+    }
+
+    #[test]
+    fn test_score_increment_right() {
+        let mut score = Score::new();
+        assert_eq!(score.right, 0);
+        score.increment_right();
+        assert_eq!(score.right, 1);
+        score.increment_right();
+        assert_eq!(score.right, 2);
+    }
+
+    #[test]
+    fn test_score_has_winner_left() {
+        let mut score = Score::new();
+        for _ in 0..11 {
+            score.increment_left();
+        }
+        assert_eq!(
+            score.has_winner(11),
+            Some(0),
+            "Left player should win at 11"
+        );
+    }
+
+    #[test]
+    fn test_score_has_winner_right() {
+        let mut score = Score::new();
+        for _ in 0..11 {
+            score.increment_right();
+        }
+        assert_eq!(
+            score.has_winner(11),
+            Some(1),
+            "Right player should win at 11"
+        );
+    }
+
+    #[test]
+    fn test_score_no_winner_below_threshold() {
+        let mut score = Score::new();
+        for _ in 0..10 {
+            score.increment_left();
+        }
+        assert_eq!(score.has_winner(11), None, "No winner below threshold");
+    }
+
+    #[test]
+    fn test_events_clear() {
+        let mut events = Events::new();
+        events.left_scored = true;
+        events.right_scored = true;
+        events.ball_hit_paddle = true;
+        events.ball_hit_wall = true;
+
+        events.clear();
+
+        assert!(!events.left_scored);
+        assert!(!events.right_scored);
+        assert!(!events.ball_hit_paddle);
+        assert!(!events.ball_hit_wall);
+    }
+
+    #[test]
+    fn test_net_queue_push_input() {
+        let mut queue = NetQueue::new();
+        queue.push_input(0, -1);
+        queue.push_input(1, 1);
+
+        assert_eq!(queue.inputs.len(), 2);
+        assert_eq!(queue.inputs[0], (0, -1));
+        assert_eq!(queue.inputs[1], (1, 1));
+    }
+
+    #[test]
+    fn test_net_queue_clear() {
+        let mut queue = NetQueue::new();
+        queue.push_input(0, -1);
+        queue.push_input(1, 1);
+
+        queue.clear();
+        assert_eq!(queue.inputs.len(), 0);
+    }
+
+    #[test]
+    fn test_config_paddle_x() {
+        let config = Config::new();
+        assert_eq!(config.paddle_x(0), 1.5, "Left paddle X position");
+        assert_eq!(config.paddle_x(1), 30.5, "Right paddle X position");
+    }
+
+    #[test]
+    fn test_config_clamp_paddle_y() {
+        let config = Config::new();
+        let half_height = config.paddle_height / 2.0;
+
+        // Test clamping below minimum
+        assert_eq!(config.clamp_paddle_y(0.0), half_height);
+
+        // Test clamping above maximum
+        assert_eq!(
+            config.clamp_paddle_y(100.0),
+            config.arena_height - half_height
+        );
+
+        // Test valid value
+        let valid_y = 12.0;
+        assert_eq!(config.clamp_paddle_y(valid_y), valid_y);
+    }
+}

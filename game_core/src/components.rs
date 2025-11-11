@@ -53,3 +53,52 @@ impl PaddleIntent {
         Self::default()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_paddle_new() {
+        let paddle = Paddle::new(0, 12.0);
+        assert_eq!(paddle.player_id, 0);
+        assert_eq!(paddle.y, 12.0);
+    }
+
+    #[test]
+    fn test_ball_new() {
+        let pos = Vec2::new(16.0, 12.0);
+        let vel = Vec2::new(8.0, 4.0);
+        let ball = Ball::new(pos, vel);
+        assert_eq!(ball.pos, pos);
+        assert_eq!(ball.vel, vel);
+    }
+
+    #[test]
+    fn test_ball_reset() {
+        let mut ball = Ball::new(Vec2::new(0.0, 0.0), Vec2::new(1.0, 1.0));
+        let mut rng = crate::GameRng::new(12345);
+        let speed = 8.0;
+
+        ball.reset(speed, &mut rng);
+
+        // Verify position reset to center
+        assert_eq!(ball.pos, Vec2::new(16.0, 12.0));
+        // Verify velocity has correct magnitude
+        assert!((ball.vel.length() - speed).abs() < 0.01);
+        // Verify velocity is not zero
+        assert!(ball.vel.length() > 0.0);
+    }
+
+    #[test]
+    fn test_paddle_intent_default() {
+        let intent = PaddleIntent::default();
+        assert_eq!(intent.dir, 0);
+    }
+
+    #[test]
+    fn test_paddle_intent_new() {
+        let intent = PaddleIntent::new();
+        assert_eq!(intent.dir, 0);
+    }
+}

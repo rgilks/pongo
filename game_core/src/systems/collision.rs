@@ -123,3 +123,281 @@ pub fn check_collisions(world: &mut World, map: &GameMap, config: &Config, event
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{create_ball, create_paddle, Ball, Config, Events, GameMap};
+
+    fn setup_world() -> (hecs::World, Config, GameMap, Events) {
+        let world = hecs::World::new();
+        let config = Config::new();
+        let map = GameMap::new();
+        let events = Events::new();
+        (world, config, map, events)
+    }
+
+    #[test]
+    fn test_ball_bounces_off_top_wall() {
+        let (mut world, config, map, mut events) = setup_world();
+        let ball_pos = glam::Vec2::new(16.0, config.ball_radius - 0.1); // Above top wall
+        let ball_vel = glam::Vec2::new(8.0, -4.0); // Moving up
+        create_ball(&mut world, ball_pos, ball_vel);
+
+        check_collisions(&mut world, &map, &config, &mut events);
+
+        // Verify ball bounced (Y velocity reversed)
+        for (_entity, ball) in world.query::<&Ball>().iter() {
+            assert!(
+                ball.vel.y > 0.0,
+                "Ball should bounce down after hitting top wall"
+            );
+            assert_eq!(ball.vel.x, ball_vel.x, "X velocity should be unchanged");
+            assert!(
+                ball.pos.y >= config.ball_radius,
+                "Ball should be pushed out of wall"
+            );
+        }
+        assert!(events.ball_hit_wall, "Should trigger ball_hit_wall event");
+    }
+
+    #[test]
+    fn test_ball_bounces_off_bottom_wall() {
+        let (mut world, config, map, mut events) = setup_world();
+        let ball_pos = glam::Vec2::new(16.0, map.height - config.ball_radius + 0.1); // Below bottom wall
+        let ball_vel = glam::Vec2::new(8.0, 4.0); // Moving down
+        create_ball(&mut world, ball_pos, ball_vel);
+
+        check_collisions(&mut world, &map, &config, &mut events);
+
+        // Verify ball bounced (Y velocity reversed)
+        for (_entity, ball) in world.query::<&Ball>().iter() {
+            assert!(
+                ball.vel.y < 0.0,
+                "Ball should bounce up after hitting bottom wall"
+            );
+            assert_eq!(ball.vel.x, ball_vel.x, "X velocity should be unchanged");
+            assert!(
+                ball.pos.y <= map.height - config.ball_radius,
+                "Ball should be pushed out of wall"
+            );
+        }
+        assert!(events.ball_hit_wall, "Should trigger ball_hit_wall event");
+    }
+
+    #[test]
+    fn test_ball_collides_with_left_paddle() {
+        let (mut world, config, map, mut events) = setup_world();
+        let paddle_x = config.paddle_x(0);
+        let paddle_y = 12.0;
+        create_paddle(&mut world, 0, paddle_y);
+
+        // Position ball to hit paddle (inside collision bounds)
+        let paddle_half_width = config.paddle_width / 2.0;
+        let ball_pos = glam::Vec2::new(
+            paddle_x + paddle_half_width - config.ball_radius * 0.5,
+            paddle_y,
+        );
+        let ball_vel = glam::Vec2::new(-8.0, 0.0); // Moving left toward paddle
+        create_ball(&mut world, ball_pos, ball_vel);
+
+        check_collisions(&mut world, &map, &config, &mut events);
+
+        // Verify ball bounced (X velocity reversed)
+        for (_entity, ball) in world.query::<&Ball>().iter() {
+            assert!(
+                ball.vel.x > 0.0,
+                "Ball should bounce right after hitting left paddle"
+            );
+            assert!(ball.pos.x > paddle_x, "Ball should be pushed out of paddle");
+        }
+        assert!(
+            events.ball_hit_paddle,
+            "Should trigger ball_hit_paddle event"
+        );
+    }
+
+    #[test]
+    fn test_ball_collides_with_right_paddle() {
+        let (mut world, config, map, mut events) = setup_world();
+        let paddle_x = config.paddle_x(1);
+        let paddle_y = 12.0;
+        create_paddle(&mut world, 1, paddle_y);
+
+        // Position ball to hit paddle (inside collision bounds)
+        let paddle_half_width = config.paddle_width / 2.0;
+        let ball_pos = glam::Vec2::new(
+            paddle_x - paddle_half_width + config.ball_radius * 0.5,
+            paddle_y,
+        );
+        let ball_vel = glam::Vec2::new(8.0, 0.0); // Moving right toward paddle
+        create_ball(&mut world, ball_pos, ball_vel);
+
+        check_collisions(&mut world, &map, &config, &mut events);
+
+        // Verify ball bounced (X velocity reversed)
+        for (_entity, ball) in world.query::<&Ball>().iter() {
+            assert!(
+                ball.vel.x < 0.0,
+                "Ball should bounce left after hitting right paddle"
+            );
+            assert!(ball.pos.x < paddle_x, "Ball should be pushed out of paddle");
+        }
+        assert!(
+            events.ball_hit_paddle,
+            "Should trigger ball_hit_paddle event"
+        );
+    }
+
+    #[test]
+    fn test_ball_speed_increases_on_paddle_hit() {
+        let (mut world, config, map, mut events) = setup_world();
+        let paddle_x = config.paddle_x(0);
+        let paddle_y = 12.0;
+        create_paddle(&mut world, 0, paddle_y);
+
+        let initial_speed = 8.0;
+        let paddle_half_width = config.paddle_width / 2.0;
+        let ball_pos = glam::Vec2::new(
+            paddle_x + paddle_half_width - config.ball_radius * 0.5,
+            paddle_y,
+        );
+        let ball_vel = glam::Vec2::new(-initial_speed, 0.0);
+        create_ball(&mut world, ball_pos, ball_vel);
+
+        check_collisions(&mut world, &map, &config, &mut events);
+
+        // Verify ball speed increased
+        for (_entity, ball) in world.query::<&Ball>().iter() {
+            let new_speed = ball.vel.length();
+            let expected_speed =
+                (initial_speed * config.ball_speed_increase).min(config.ball_speed_max);
+            assert!(
+                (new_speed - expected_speed).abs() < 0.01,
+                "Ball speed should increase by {}x, got {}",
+                config.ball_speed_increase,
+                new_speed
+            );
+        }
+    }
+
+    #[test]
+    fn test_ball_speed_caps_at_max() {
+        let (mut world, config, map, mut events) = setup_world();
+        let paddle_x = config.paddle_x(0);
+        let paddle_y = 12.0;
+        create_paddle(&mut world, 0, paddle_y);
+
+        // Start with speed near max
+        let initial_speed = config.ball_speed_max - 1.0;
+        let ball_pos = glam::Vec2::new(
+            paddle_x + config.paddle_width / 2.0 + config.ball_radius,
+            paddle_y,
+        );
+        let ball_vel = glam::Vec2::new(-initial_speed, 0.0);
+        create_ball(&mut world, ball_pos, ball_vel);
+
+        check_collisions(&mut world, &map, &config, &mut events);
+
+        // Verify ball speed doesn't exceed max
+        for (_entity, ball) in world.query::<&Ball>().iter() {
+            let new_speed = ball.vel.length();
+            assert!(
+                new_speed <= config.ball_speed_max,
+                "Ball speed should not exceed max {}",
+                config.ball_speed_max
+            );
+        }
+    }
+
+    #[test]
+    fn test_ball_trajectory_affected_by_hit_position() {
+        let (mut world, config, map, mut events) = setup_world();
+        let paddle_x = config.paddle_x(0);
+        let paddle_y = 12.0;
+        create_paddle(&mut world, 0, paddle_y);
+
+        // Hit top of paddle (position ball inside collision bounds)
+        let paddle_half_width = config.paddle_width / 2.0;
+        let paddle_half_height = config.paddle_height / 2.0;
+        let ball_pos_top = glam::Vec2::new(
+            paddle_x + paddle_half_width - config.ball_radius * 0.5,
+            paddle_y - paddle_half_height + 0.1,
+        );
+        let ball_vel = glam::Vec2::new(-8.0, 0.0);
+        create_ball(&mut world, ball_pos_top, ball_vel);
+
+        check_collisions(&mut world, &map, &config, &mut events);
+
+        // Verify ball deflects upward
+        for (_entity, ball) in world.query::<&Ball>().iter() {
+            assert!(
+                ball.vel.y < 0.0,
+                "Ball should deflect upward when hitting top of paddle"
+            );
+        }
+
+        // Reset and test bottom hit
+        world.clear();
+        events.clear();
+        create_paddle(&mut world, 0, paddle_y);
+
+        let ball_pos_bottom = glam::Vec2::new(
+            paddle_x + paddle_half_width - config.ball_radius * 0.5,
+            paddle_y + paddle_half_height - 0.1,
+        );
+        create_ball(&mut world, ball_pos_bottom, ball_vel);
+
+        check_collisions(&mut world, &map, &config, &mut events);
+
+        // Verify ball deflects downward
+        for (_entity, ball) in world.query::<&Ball>().iter() {
+            assert!(
+                ball.vel.y > 0.0,
+                "Ball should deflect downward when hitting bottom of paddle"
+            );
+        }
+    }
+
+    #[test]
+    fn test_ball_does_not_bounce_when_moving_away_from_paddle() {
+        let (mut world, config, map, mut events) = setup_world();
+        let paddle_x = config.paddle_x(0);
+        let paddle_y = 12.0;
+        create_paddle(&mut world, 0, paddle_y);
+
+        // Ball is at paddle but moving away (right)
+        let ball_pos = glam::Vec2::new(
+            paddle_x + config.paddle_width / 2.0 + config.ball_radius,
+            paddle_y,
+        );
+        let ball_vel = glam::Vec2::new(8.0, 0.0); // Moving right (away from left paddle)
+        create_ball(&mut world, ball_pos, ball_vel);
+
+        check_collisions(&mut world, &map, &config, &mut events);
+
+        // Verify ball didn't bounce
+        for (_entity, ball) in world.query::<&Ball>().iter() {
+            assert_eq!(
+                ball.vel.x, ball_vel.x,
+                "Ball should not bounce when moving away"
+            );
+        }
+        assert!(
+            !events.ball_hit_paddle,
+            "Should not trigger collision when moving away"
+        );
+    }
+
+    #[test]
+    fn test_no_collision_when_no_ball() {
+        let (mut world, config, map, mut events) = setup_world();
+        create_paddle(&mut world, 0, 12.0);
+
+        // Should not panic or error
+        check_collisions(&mut world, &map, &config, &mut events);
+
+        assert!(!events.ball_hit_paddle);
+        assert!(!events.ball_hit_wall);
+    }
+}
