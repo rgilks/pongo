@@ -396,7 +396,6 @@ dependencies = [
  "glam",
  "hecs",
  "rand",
- "rand_chacha",
 ]
 
 [[package]]
@@ -776,7 +775,6 @@ version = "0.1.0"
 dependencies = [
  "getrandom",
  "rand",
- "serde",
  "serde_json",
  "server_do",
  "worker",

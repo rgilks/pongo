@@ -54,7 +54,8 @@ pub fn create_rectangle(device: &Device) -> Mesh {
 }
 
 pub fn create_circle(device: &Device, segments: u32) -> Mesh {
-    let mut vertices = Vec::with_capacity((segments + 1) as usize);
+    // Capacity: 1 center + (segments + 1) circle vertices = segments + 2 total
+    let mut vertices = Vec::with_capacity((segments + 2) as usize);
     let mut indices = Vec::with_capacity((segments * 3) as usize);
 
     // Center vertex
