@@ -669,19 +669,74 @@
       }
 
       function setupInput() {
+        // Track pressed keys to handle direction changes immediately
+        const pressedKeys = new Set();
+
         // Keyboard controls
-        window.addEventListener("keydown", (e) => {
-          if (client) {
-            client.on_key_down(e);
-            sendInput(); // Send immediately on keydown
-          }
-        });
-        window.addEventListener("keyup", (e) => {
-          if (client) {
-            client.on_key_up(e);
-            sendInput(); // Send immediately on keyup
-          }
-        });
+        // Use capture phase and passive: false to ensure preventDefault works
+        window.addEventListener(
+          "keydown",
+          (e) => {
+            // Prevent default browser behavior for game keys (W/S and arrow keys)
+            // This prevents browser shortcuts from interfering with game controls
+            const gameKeys = ["ArrowUp", "ArrowDown", "w", "W", "s", "S"];
+            if (gameKeys.includes(e.key)) {
+              e.preventDefault();
+              e.stopPropagation();
+
+              // When changing direction, immediately clear opposite keys
+              // This ensures instant direction change even if old key hasn't been released
+              const upKeys = ["ArrowUp", "w", "W"];
+              const downKeys = ["ArrowDown", "s", "S"];
+
+              if (upKeys.includes(e.key)) {
+                // Pressing up - clear all down keys and send keyup for them
+                downKeys.forEach((key) => {
+                  if (pressedKeys.has(key)) {
+                    pressedKeys.delete(key);
+                    if (client) {
+                      client.handle_key_string(key, false);
+                    }
+                  }
+                });
+                pressedKeys.add(e.key);
+              } else if (downKeys.includes(e.key)) {
+                // Pressing down - clear all up keys and send keyup for them
+                upKeys.forEach((key) => {
+                  if (pressedKeys.has(key)) {
+                    pressedKeys.delete(key);
+                    if (client) {
+                      client.handle_key_string(key, false);
+                    }
+                  }
+                });
+                pressedKeys.add(e.key);
+              }
+            }
+            if (client) {
+              client.on_key_down(e);
+              sendInput(); // Send immediately on keydown
+            }
+          },
+          { capture: true, passive: false }
+        );
+        window.addEventListener(
+          "keyup",
+          (e) => {
+            // Prevent default browser behavior for game keys
+            const gameKeys = ["ArrowUp", "ArrowDown", "w", "W", "s", "S"];
+            if (gameKeys.includes(e.key)) {
+              e.preventDefault();
+              e.stopPropagation();
+              pressedKeys.delete(e.key);
+            }
+            if (client) {
+              client.on_key_up(e);
+              sendInput(); // Send immediately on keyup
+            }
+          },
+          { capture: true, passive: false }
+        );
 
         // Touch controls for mobile
         const touchUp = document.getElementById("touchUp");

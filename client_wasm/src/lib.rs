@@ -11,13 +11,13 @@ mod state;
 use camera::{Camera, CameraUniform};
 use game_core::{
     create_ball, create_paddle, step, Ball, Config, Events, GameMap, GameRng, NetQueue, Paddle,
-    Score, Time,
+    RespawnState, Score, Time,
 };
 use hecs::World;
 use mesh::{create_circle, create_rectangle, Mesh, Vertex};
 use network::handle_message;
 use proto::S2C;
-use state::{GameState, GameStateSnapshot};
+use state::GameState;
 use wasm_bindgen::prelude::*;
 use web_sys::{window, HtmlCanvasElement, KeyboardEvent};
 use wgpu::util::DeviceExt;
@@ -647,6 +647,7 @@ impl WasmClient {
                 Some(ref mut events),
                 Some(ref mut net_queue),
                 Some(ref mut rng),
+                Some(ref mut respawn_state),
             ) = (
                 &mut client.local_world,
                 &mut client.local_time,
@@ -669,7 +670,17 @@ impl WasmClient {
                 *time = Time::new(SIM_FIXED_DT, time.now + SIM_FIXED_DT);
 
                 // Run game simulation step
-                step(world, time, map, config, score, events, net_queue, rng);
+                step(
+                    world,
+                    time,
+                    map,
+                    config,
+                    score,
+                    events,
+                    net_queue,
+                    rng,
+                    respawn_state,
+                );
 
                 // Extract data needed for update (before releasing borrows)
                 let ball_data = world
@@ -1269,6 +1280,7 @@ impl WasmClient {
             Some(ref mut events),
             Some(ref mut net_queue),
             Some(ref mut rng),
+            Some(ref mut respawn_state),
         ) = (
             &mut client.predicted_world,
             &mut client.predicted_time,
@@ -1288,7 +1300,17 @@ impl WasmClient {
             *time = Time::new(SIM_FIXED_DT, time.now + SIM_FIXED_DT);
 
             // Run simulation step
-            step(world, time, map, config, score, events, net_queue, rng);
+            step(
+                world,
+                time,
+                map,
+                config,
+                score,
+                events,
+                net_queue,
+                rng,
+                respawn_state,
+            );
 
             // Increment predicted tick
             client.predicted_tick += 1;
@@ -1331,6 +1353,7 @@ impl WasmClient {
                 Some(ref mut events),
                 Some(ref mut net_queue),
                 Some(ref mut rng),
+                Some(ref mut respawn_state),
             ) = (
                 &mut client.predicted_world,
                 &mut client.predicted_time,
@@ -1352,7 +1375,17 @@ impl WasmClient {
                 *time = Time::new(SIM_FIXED_DT, time.now + SIM_FIXED_DT);
 
                 // Run simulation step
-                step(world, time, map, config, score, events, net_queue, rng);
+                step(
+                    world,
+                    time,
+                    map,
+                    config,
+                    score,
+                    events,
+                    net_queue,
+                    rng,
+                    respawn_state,
+                );
 
                 // Increment predicted tick
                 client.predicted_tick += 1;
