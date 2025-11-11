@@ -1210,7 +1210,6 @@ dependencies = [
  "js-sys",
  "proto",
  "serde",
- "serde_json",
  "worker",
 ]
 

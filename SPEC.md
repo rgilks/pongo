@@ -53,7 +53,7 @@
 
 ### Workspace Structure
 ```
-pong/
+iso/
   game_core/      # hecs ECS, paddle/ball components & systems
   proto/          # C2S/S2C messages
   client_wasm/    # wgpu renderer, input handling, WebSocket
@@ -77,7 +77,7 @@ pong/
 ```rust
 enum C2S {
     Join { code: [u8; 5] },
-    Input { paddle_dir: i8 },  // -1 = up, 0 = stop, 1 = down
+    Input { player_id: u8, paddle_dir: i8 },  // -1 = up, 0 = stop, 1 = down
     Ping { t_ms: u32 },
 }
 ```
@@ -159,7 +159,7 @@ NetQueue { inputs: Vec<PaddleInputEvent> }
 ### Render Pipeline
 - Multi-pass rendering with ping-pong textures
 - Motion blur trails for ball and paddles
-- Client-side interpolation for smooth 60fps movement
+- Client-side interpolation for smooth 120 fps rendering
 - Instanced rendering for paddles
 - Vertex shader: 2D transform (x, y, scale_x, scale_y)
 - Fragment shader: Solid color output with trail accumulation
@@ -180,7 +180,7 @@ NetQueue { inputs: Vec<PaddleInputEvent> }
 - Game simulation: Run fixed 60 Hz loop
 - Broadcast game state to both clients
 - Handle scoring and win conditions
-- Idle timeout after 5 minutes of inactivity
+- Idle timeout after 1 minute of inactivity
 
 ### Lifecycle
 1. **Creation**: On first `/create` request, mint 5-char code
@@ -208,7 +208,7 @@ Currently not implemented. When added:
 
 ## Performance Targets
 
-- **Client**: 60 fps stable on mid-range devices with client-side interpolation
+- **Client**: 120 fps rendering target with client-side interpolation (fixed 60 Hz simulation)
 - **Server**: 60 Hz tick rate (16.67ms per tick) for physics accuracy
 - **Network**: 20 Hz state broadcasts (every 3 ticks) to reduce costs
 - **Bandwidth**: ~1.7KB/s per client (20 state updates/sec)
@@ -223,7 +223,7 @@ Currently not implemented. When added:
 - ✅ Scoring works correctly (left/right edge detection)
 - ✅ Game ends at 11 points, winner displayed
 - ✅ Stable 60 Hz server ticks
-- ✅ Client runs at 60 fps
+- ✅ Client renders at 120 fps with 60 Hz simulation
 
 ---
 

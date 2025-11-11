@@ -165,7 +165,7 @@ npm run deploy
 - Both clients show identical game state
 - No desynchronization
 - Latency < 100ms
-- State updates at 60 Hz
+- State broadcasts at 20 Hz (server simulates at 60 Hz)
 
 ---
 
@@ -182,7 +182,7 @@ npm run deploy
 
 **Expected**:
 
-- Disconnection detected within 5 seconds
+- Disconnection detected within 1 minute (idle timeout)
 - Remaining player notified
 - Server cleans up disconnected player
 - No memory leaks or orphaned connections

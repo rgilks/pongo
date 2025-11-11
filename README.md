@@ -120,7 +120,7 @@ The hook runs:
 ## Project Structure
 
 ```
-pong/
+iso/
 ├── game_core/      # ECS (hecs): components, systems, game logic
 ├── proto/          # C2S/S2C network messages (postcard)
 ├── client_wasm/     # WebGPU renderer, input, WebSocket client
@@ -229,7 +229,7 @@ See `TEST-PLAN.md` for detailed test procedures covering:
 - Paddle physics (hit position and movement effects)
 - Scoring and win conditions
 - Network synchronization
-- Performance (60 fps/60 Hz targets)
+- Performance (120 fps rendering target, 60 Hz simulation)
 
 ### Local vs Production
 
@@ -270,7 +270,7 @@ See `TEST-PLAN.md` for detailed test procedures covering:
 
 - Paddles not moving: Check browser console for WebSocket errors
 - Ball not visible: Hard refresh (Cmd+Shift+R) to clear cache
-- Lag: Server runs at 60 Hz, broadcasts at 20 Hz, client interpolates for smooth 60fps
+- Lag: Server runs at 60 Hz, broadcasts at 20 Hz, client interpolates for smooth 120 fps rendering
 
 ## Performance
 

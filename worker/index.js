@@ -1,8 +1,8 @@
 import init, {
   fetch,
   MatchDO as WasmMatchDO,
-} from "../lobby_worker/worker/pkg/lobby_worker.js";
-import wasmUrl from "../lobby_worker/worker/pkg/lobby_worker_bg.wasm";
+} from "./pkg/lobby_worker.js";
+import wasmUrl from "./pkg/lobby_worker_bg.wasm";
 
 // Initialize WASM module - pass WASM URL explicitly for Workers
 let initPromise;
