@@ -1,9 +1,9 @@
-// Simple 2D shader for Pong
+//! 2D shader for Pong game with instanced rendering
 
 // Camera uniform (256-byte aligned)
 struct CameraUniform {
     view_proj: mat4x4<f32>,
-};
+}
 
 @group(0) @binding(0)
 var<uniform> camera: CameraUniform;
@@ -11,19 +11,19 @@ var<uniform> camera: CameraUniform;
 // Vertex input (mesh vertices)
 struct VertexInput {
     @location(0) position: vec3<f32>,
-};
+}
 
 // Instance input (per-object data)
 struct InstanceInput {
     @location(1) transform: vec4<f32>,  // x, y, scale_x, scale_y
     @location(2) tint: vec4<f32>,       // rgba color
-};
+}
 
 // Vertex output / Fragment input
 struct VertexOutput {
     @builtin(position) clip_position: vec4<f32>,
     @location(0) color: vec4<f32>,
-};
+}
 
 @vertex
 fn vs_main(
@@ -50,9 +50,7 @@ fn vs_main(
     // Transform to clip space using camera projection
     let clip_pos = camera.view_proj * world_pos;
     // Flip Y because WebGPU clip space has Y=0 at top, but we want Y=0 at bottom
-    clip_pos.y = -clip_pos.y;
-    
-    out.clip_position = clip_pos;
+    out.clip_position = vec4<f32>(clip_pos.x, -clip_pos.y, clip_pos.z, clip_pos.w);
     out.color = instance.tint;
     
     return out;

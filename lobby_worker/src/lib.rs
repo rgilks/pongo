@@ -110,31 +110,64 @@ async fn handle_index(_req: Request, _ctx: RouteContext<()>) -> Result<Response>
             const code = document.getElementById('matchCode').value.trim().toUpperCase();
             if (code.length !== 5) { updateStatus('Match code must be 5 characters'); return; }
             try {
-                updateStatus('Initializing client...');
-                const canvas = document.getElementById('canvas');
-                client = await new WasmClient(canvas);
-                updateStatus('Connecting...');
-                const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-                const wsUrl = `${protocol}//${window.location.host}/ws/${code}`;
-                ws = new WebSocket(wsUrl);
-                ws.binaryType = 'arraybuffer';
-                ws.onopen = () => { 
-                    console.log('WS connected'); 
+            updateStatus('Initializing client...');
+            const canvas = document.getElementById('canvas');
+            // Ensure canvas has correct size
+            if (!canvas.width || !canvas.height) {
+                canvas.width = 800;
+                canvas.height = 600;
+            }
+            console.log('🔍 Canvas setup:', {
+                width: canvas.width,
+                height: canvas.height,
+                clientWidth: canvas.clientWidth,
+                clientHeight: canvas.clientHeight
+            });
+            // Don't request WebGPU context here - wgpu will handle it
+            // Requesting it here can conflict with wgpu's surface creation
+            client = await new WasmClient(canvas);
+            console.log('✅ Client initialized');
+            updateStatus('Connecting...');
+            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            const wsUrl = `${protocol}//${window.location.host}/ws/${code}`;
+            ws = new WebSocket(wsUrl);
+            ws.binaryType = 'arraybuffer';
+            ws.onopen = () => { 
+                console.log('WS connected'); 
+                try { 
+                    ws.send(client.get_join_bytes(code)); 
+                    console.log('Join sent'); 
+                    updateStatus('Connected! Waiting for opponent...'); 
+                } catch(e) { 
+                    console.error('Join error:', e); 
+                    updateStatus('Error joining'); 
+                    return; 
+                } 
+                setupInput(); 
+                startRender(); 
+            };
+            ws.onmessage = (event) => { 
+                if (event.data instanceof ArrayBuffer) { 
                     try { 
-                        ws.send(client.get_join_bytes(code)); 
-                        console.log('Join sent'); 
-                        updateStatus('Connected! Waiting for opponent...'); 
-                    } catch(e) { 
-                        console.error('Join error:', e); 
-                        updateStatus('Error joining'); 
-                        return; 
+                        client.on_message(new Uint8Array(event.data)); 
+                        // Update score display
+                        const score = client.get_score();
+                        if (score.length >= 2) {
+                            updateScore(score[0], score[1]);
+                        }
+                    } catch (e) { 
+                        console.error('Message error:', e); 
                     } 
-                    setupInput(); 
-                    startRender(); 
-                };
-                ws.onmessage = (event) => { if (event.data instanceof ArrayBuffer) { try { client.on_message(new Uint8Array(event.data)); } catch (e) { console.error('Message error:', e); } } };
-                ws.onerror = (error) => { console.error('WS error:', error); updateStatus('Connection error'); };
-                ws.onclose = () => { console.log('WS closed'); updateStatus('Disconnected'); };
+                } 
+            };
+            ws.onerror = (error) => { 
+                console.error('WS error:', error); 
+                updateStatus('Connection error'); 
+            };
+            ws.onclose = () => { 
+                console.log('WS closed'); 
+                updateStatus('Disconnected'); 
+            };
             } catch (error) {
                 console.error('Join error:', error);
                 updateStatus('Error: ' + error.message);
@@ -161,7 +194,14 @@ async fn handle_index(_req: Request, _ctx: RouteContext<()>) -> Result<Response>
 
         function sendInput() {
             if (ws && ws.readyState === WebSocket.OPEN && client) {
-                try { ws.send(client.get_input_bytes()); } catch (e) { console.error('Input error:', e); }
+                try { 
+                    const bytes = client.get_input_bytes();
+                    if (bytes.length > 0) {
+                        ws.send(bytes); 
+                    }
+                } catch (e) { 
+                    console.error('Input error:', e); 
+                }
             }
         }
 

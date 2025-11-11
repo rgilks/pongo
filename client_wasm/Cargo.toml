@@ -1,9 +1,7 @@
 [package]
 name = "client_wasm"
-version.workspace = true
-edition.workspace = true
-authors.workspace = true
-license.workspace = true
+version = "0.1.0"
+edition = "2021"
 
 [lib]
 crate-type = ["cdylib"]
@@ -11,23 +9,13 @@ crate-type = ["cdylib"]
 [dependencies]
 wasm-bindgen = "0.2"
 wasm-bindgen-futures = "0.4"
-js-sys = "0.3"
 web-sys = { version = "0.3", features = [
-    "Window",
-    "Document",
     "HtmlCanvasElement",
-    "WebSocket",
-    "MessageEvent",
-    "BinaryType",
-    "Performance",
     "KeyboardEvent",
-    "console",
+    "WebSocket",
 ] }
-wgpu = { version = "24.0", features = ["webgpu"] }
-bytemuck = { version = "1.14", features = ["derive"] }
-getrandom = { version = "0.2", features = ["js"] }
+wgpu = "24.0"
+bytemuck = { version = "1", features = ["derive"] }
+glam = "0.28"
 console_error_panic_hook = "0.1"
-game_core = { path = "../game_core" }
 proto = { path = "../proto" }
-glam = "0.27"
-hecs = "0.10"

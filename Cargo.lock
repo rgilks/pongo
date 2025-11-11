@@ -167,11 +167,7 @@ version = "0.1.0"
 dependencies = [
  "bytemuck",
  "console_error_panic_hook",
- "game_core",
- "getrandom",
- "glam",
- "hecs",
- "js-sys",
+ "glam 0.28.0",
  "proto",
  "wasm-bindgen",
  "wasm-bindgen-futures",
@@ -392,7 +388,7 @@ dependencies = [
 name = "game_core"
 version = "0.1.0"
 dependencies = [
- "glam",
+ "glam 0.27.0",
  "hecs",
  "rand",
  "rand_chacha",
@@ -427,6 +423,12 @@ name = "glam"
 version = "0.27.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9e05e7e6723e3455f4818c7b26e855439f7546cf617ef669d1adedb8669e5cb9"
+
+[[package]]
+name = "glam"
+version = "0.28.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "779ae4bf7e8421cf91c0b3b64e7e8b40b862fba4d393f59150042de7c4965a94"
 
 [[package]]
 name = "glow"
@@ -1206,7 +1208,7 @@ version = "0.1.0"
 dependencies = [
  "game_core",
  "getrandom",
- "glam",
+ "glam 0.27.0",
  "hecs",
  "proto",
  "serde",
