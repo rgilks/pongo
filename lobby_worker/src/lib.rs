@@ -52,8 +52,7 @@ async fn handle_join(_req: Request, ctx: RouteContext<()>) -> Result<Response> {
 
     // Return response with WebSocket URL
     Response::ok(format!(
-        "Match {} found. Connect via WebSocket at /ws/{}",
-        code, code
+        "Match {code} found. Connect via WebSocket at /ws/{code}"
     ))
 }
 
@@ -73,7 +72,7 @@ async fn handle_websocket(req: Request, ctx: RouteContext<()>) -> Result<Respons
         Ok(s) => s,
         Err(e) => {
             console_error!("Worker: Failed to get stub: {:?}", e);
-            return Response::error(format!("Failed to get DO stub: {:?}", e), 500);
+            return Response::error(format!("Failed to get DO stub: {e:?}"), 500);
         }
     };
 
@@ -117,7 +116,7 @@ async fn handle_websocket(req: Request, ctx: RouteContext<()>) -> Result<Respons
             Ok(resp)
         }
         Err(err) => {
-            let err_str = format!("{:?}", err);
+            let err_str = format!("{err:?}");
             console_error!(
                 "Worker: Error forwarding WebSocket upgrade for code {}: {}",
                 code,
@@ -132,7 +131,7 @@ async fn handle_websocket(req: Request, ctx: RouteContext<()>) -> Result<Respons
                 )
             } else {
                 Response::error(
-                    format!("Worker failed to forward WebSocket request: {}", err_str),
+                    format!("Worker failed to forward WebSocket request: {err_str}"),
                     500,
                 )
             }

@@ -142,11 +142,11 @@ impl DurableObject for MatchDO {
             durable::WebSocketIncomingMessage::Binary(bytes) => match C2S::from_bytes(&bytes) {
                 Ok(c2s_msg) => {
                     if let Err(e) = Self::handle_c2s_message(self, ws, c2s_msg).await {
-                        eprintln!("Error handling C2S message: {:?}", e);
+                        eprintln!("Error handling C2S message: {e:?}");
                     }
                 }
                 Err(e) => {
-                    eprintln!("Failed to parse C2S message: {:?}", e);
+                    eprintln!("Failed to parse C2S message: {e:?}");
                 }
             },
         }
@@ -331,7 +331,7 @@ impl MatchDO {
                     // Send Welcome message
                     let welcome = S2C::Welcome { player_id };
                     let bytes = welcome.to_bytes().map_err(|e| {
-                        Error::RustError(format!("Failed to serialize Welcome: {:?}", e))
+                        Error::RustError(format!("Failed to serialize Welcome: {e:?}"))
                     })?;
                     ws.send_with_bytes(&bytes)?;
 
@@ -344,7 +344,7 @@ impl MatchDO {
                     // Send initial state
                     let state_msg = Self::generate_state_message(&gs);
                     let state_bytes = state_msg.to_bytes().map_err(|e| {
-                        Error::RustError(format!("Failed to serialize GameState: {:?}", e))
+                        Error::RustError(format!("Failed to serialize GameState: {e:?}"))
                     })?;
 
                     // Broadcast to all clients so everyone knows someone joined

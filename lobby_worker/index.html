@@ -5,44 +5,300 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Pong</title>
     <style>
-        body { margin: 0; padding: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; background: #000; color: #fff; font-family: 'Courier New', monospace; }
-        #gameContainer { position: relative; }
-        #canvas { border: 2px solid #fff; display: block; }
-        #score { position: absolute; top: 20px; left: 50%; transform: translateX(-50%); font-size: 48px; color: #fff; text-shadow: 0 0 10px #fff; pointer-events: none; }
-        #metrics { position: absolute; top: 20px; right: 20px; font-size: 13px; color: #fff; text-shadow: 0 0 5px #fff; pointer-events: none; background: rgba(0, 0, 0, 0.7); padding: 8px 12px; border-radius: 4px; font-family: 'Courier New', monospace; border: 1px solid rgba(255, 255, 255, 0.2); }
-        .metric-row { display: flex; align-items: center; margin: 4px 0; white-space: nowrap; }
-        .metric-label { color: #aaa; margin-right: 8px; min-width: 50px; }
-        .metric-value { font-weight: bold; color: #0f0; min-width: 50px; text-align: right; margin-right: 4px; }
-        .metric-unit { color: #888; font-size: 11px; }
-        #ui { margin-top: 30px; text-align: center; }
-        #status { margin: 15px 0; padding: 10px 20px; background: #222; border: 2px solid #fff; border-radius: 4px; font-size: 16px; }
-        input, button { padding: 10px 20px; margin: 5px; font-family: 'Courier New', monospace; font-size: 16px; border: 2px solid #fff; background: #000; color: #fff; }
-        button { cursor: pointer; transition: all 0.2s; }
-        button:hover:not(:disabled) { background: #fff; color: #000; }
-        button:disabled { opacity: 0.5; cursor: not-allowed; }
-        .controls { margin-top: 20px; font-size: 14px; color: #888; }
-        #matchCode { text-transform: uppercase; }
+        * { box-sizing: border-box; }
+        body { 
+            margin: 0; 
+            padding: 10px; 
+            min-height: 100vh; 
+            background: #000; 
+            color: #fff; 
+            font-family: 'Courier New', monospace;
+            display: flex;
+            flex-direction: column;
+        }
+        
+        #mainContainer {
+            display: flex;
+            flex-direction: row;
+            align-items: flex-start;
+            justify-content: center;
+            gap: 20px;
+            flex: 1;
+            max-width: 1400px;
+            margin: 0 auto;
+            width: 100%;
+        }
+        
+        #gameContainer { 
+            display: flex; 
+            flex-direction: column; 
+            align-items: center;
+            flex: 0 0 auto;
+        }
+        
+        #canvas { 
+            border: 2px solid #fff; 
+            display: block; 
+            max-width: 100%;
+            touch-action: none; /* Prevent scrolling on touch */
+        }
+        
+        #sidePanel {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            min-width: 200px;
+            flex: 0 0 auto;
+        }
+        
+        #score { 
+            font-size: 36px; 
+            color: #fff; 
+            text-shadow: 0 0 10px #fff; 
+            margin: 0;
+            text-align: center;
+            font-weight: bold;
+        }
+        
+        #metrics { 
+            font-size: 13px; 
+            color: #fff; 
+            text-shadow: 0 0 5px #fff; 
+            background: rgba(0, 0, 0, 0.7); 
+            padding: 8px 12px; 
+            border-radius: 4px; 
+            font-family: 'Courier New', monospace; 
+            border: 1px solid rgba(255, 255, 255, 0.2); 
+            margin: 0;
+        }
+        
+        .metric-row { 
+            display: flex; 
+            align-items: center; 
+            margin: 4px 0; 
+            white-space: nowrap; 
+        }
+        
+        .metric-label { 
+            color: #aaa; 
+            margin-right: 8px; 
+            min-width: 50px; 
+        }
+        
+        .metric-value { 
+            font-weight: bold; 
+            color: #0f0; 
+            min-width: 50px; 
+            text-align: right; 
+            margin-right: 4px; 
+        }
+        
+        .metric-unit { 
+            color: #888; 
+            font-size: 11px; 
+        }
+        
+        #ui { 
+            text-align: center;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        
+        #status { 
+            padding: 10px 20px; 
+            background: #222; 
+            border: 2px solid #fff; 
+            border-radius: 4px; 
+            font-size: 16px;
+            margin: 0;
+        }
+        
+        .button-group {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        
+        input, button { 
+            padding: 10px 20px; 
+            margin: 0;
+            font-family: 'Courier New', monospace; 
+            font-size: 16px; 
+            border: 2px solid #fff; 
+            background: #000; 
+            color: #fff;
+            width: 100%;
+        }
+        
+        button { 
+            cursor: pointer; 
+            transition: all 0.2s;
+            touch-action: manipulation; /* Better touch response */
+        }
+        
+        button:hover:not(:disabled) { 
+            background: #fff; 
+            color: #000; 
+        }
+        
+        button:active:not(:disabled) {
+            transform: scale(0.95);
+        }
+        
+        button:disabled { 
+            opacity: 0.5; 
+            cursor: not-allowed; 
+        }
+        
+        .controls { 
+            font-size: 14px; 
+            color: #888;
+            margin: 0;
+            padding: 10px;
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 4px;
+        }
+        
+        #matchCode { 
+            text-transform: uppercase; 
+        }
+        
+        /* Touch controls for mobile */
+        #touchControls {
+            display: none; /* Hidden by default, shown on mobile */
+            position: fixed;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 100%;
+            max-width: 400px;
+            padding: 0 20px;
+            z-index: 1000;
+        }
+        
+        .touch-button {
+            background: rgba(255, 255, 255, 0.2);
+            border: 2px solid rgba(255, 255, 255, 0.5);
+            border-radius: 8px;
+            padding: 20px;
+            font-size: 24px;
+            color: #fff;
+            text-align: center;
+            user-select: none;
+            -webkit-user-select: none;
+            touch-action: manipulation;
+        }
+        
+        .touch-button:active {
+            background: rgba(255, 255, 255, 0.4);
+        }
+        
+        .touch-controls-row {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 10px;
+        }
+        
+        /* Mobile layout - stack vertically */
+        @media (max-width: 768px) {
+            body {
+                padding: 5px;
+            }
+            
+            #mainContainer {
+                flex-direction: column;
+                align-items: center;
+                gap: 15px;
+            }
+            
+            #sidePanel {
+                width: 100%;
+                max-width: 400px;
+                order: 2; /* Show after canvas on mobile */
+            }
+            
+            #gameContainer {
+                order: 1; /* Show canvas first on mobile */
+                width: 100%;
+            }
+            
+            #canvas {
+                width: 100%;
+                max-width: 100vw;
+                height: auto;
+            }
+            
+            #touchControls {
+                display: block;
+            }
+            
+            .button-group {
+                flex-direction: row;
+                flex-wrap: wrap;
+            }
+            
+            .button-group button {
+                flex: 1;
+                min-width: 100px;
+            }
+            
+            #score {
+                font-size: 28px;
+            }
+            
+            #metrics {
+                font-size: 12px;
+            }
+        }
+        
+        /* Very small screens */
+        @media (max-width: 480px) {
+            #score {
+                font-size: 24px;
+            }
+            
+            input, button {
+                font-size: 14px;
+                padding: 8px 16px;
+            }
+        }
     </style>
 </head>
 <body>
-    <div id="gameContainer">
-        <canvas id="canvas" width="800" height="600"></canvas>
-        <div id="score">0 : 0</div>
-        <div id="metrics">
-            <div class="metric-row"><span class="metric-label">FPS:</span><span class="metric-value" id="fps">--</span></div>
-            <div class="metric-row"><span class="metric-label">Ping:</span><span class="metric-value" id="ping">--</span><span class="metric-unit">ms</span></div>
-            <div class="metric-row"><span class="metric-label">Update:</span><span class="metric-value" id="update">--</span><span class="metric-unit">ms</span></div>
+    <div id="mainContainer">
+        <div id="gameContainer">
+            <canvas id="canvas" width="640" height="480"></canvas>
+        </div>
+        <div id="sidePanel">
+            <div id="score">0 : 0</div>
+            <div id="metrics">
+                <div class="metric-row"><span class="metric-label">FPS:</span><span class="metric-value" id="fps">--</span></div>
+                <div class="metric-row"><span class="metric-label">Ping:</span><span class="metric-value" id="ping">--</span><span class="metric-unit">ms</span></div>
+                <div class="metric-row"><span class="metric-label">Update:</span><span class="metric-value" id="update">--</span><span class="metric-unit">ms</span></div>
+            </div>
+            <div id="ui">
+                <div id="status">Initializing...</div>
+                <div class="button-group">
+                    <input type="text" id="matchCode" placeholder="MATCH CODE" maxlength="5">
+                    <button id="joinBtn">JOIN</button>
+                    <button id="createBtn">CREATE</button>
+                    <button id="localBtn">VS AI</button>
+                </div>
+                <div class="controls">
+                    <strong>Controls:</strong><br>
+                    Desktop: ↑/↓ or W/S<br>
+                    Mobile: Touch buttons below
+                </div>
+            </div>
         </div>
     </div>
-    <div id="ui">
-        <div id="status">Initializing...</div>
-        <div>
-            <input type="text" id="matchCode" placeholder="MATCH CODE" maxlength="5">
-            <button id="joinBtn">JOIN</button>
-            <button id="createBtn">CREATE</button>
-            <button id="localBtn">VS AI</button>
+    <!-- Touch controls for mobile -->
+    <div id="touchControls">
+        <div class="touch-controls-row">
+            <div class="touch-button" id="touchUp">↑ UP</div>
+            <div class="touch-button" id="touchDown">↓ DOWN</div>
         </div>
-        <div class="controls">Controls: ↑/↓ or W/S to move your paddle</div>
     </div>
     <script type="module">
         // Cache busting for local development: use timestamp to force reload
@@ -122,8 +378,8 @@
                 const canvas = document.getElementById('canvas');
                 // Ensure canvas has correct size
                 if (!canvas.width || !canvas.height) {
-                    canvas.width = 800;
-                    canvas.height = 600;
+                    canvas.width = 640;
+                    canvas.height = 480;
                 }
                 if (!client) {
                     client = await new WasmClient(canvas);
@@ -258,6 +514,7 @@
         }
 
         function setupInput() {
+            // Keyboard controls
             window.addEventListener('keydown', (e) => { 
                 if (client) { 
                     client.on_key_down(e); 
@@ -270,6 +527,85 @@
                     sendInput(); // Send immediately on keyup
                 } 
             });
+            
+            // Touch controls for mobile
+            const touchUp = document.getElementById('touchUp');
+            const touchDown = document.getElementById('touchDown');
+            
+            if (touchUp && touchDown) {
+                // Prevent default touch behaviors
+                const preventDefault = (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                };
+                
+                // Touch start handlers
+                touchUp.addEventListener('touchstart', (e) => {
+                    preventDefault(e);
+                    if (client) {
+                        client.handle_key_string('ArrowUp', true);
+                        sendInput();
+                    }
+                });
+                
+                touchUp.addEventListener('touchend', (e) => {
+                    preventDefault(e);
+                    if (client) {
+                        client.handle_key_string('ArrowUp', false);
+                        sendInput();
+                    }
+                });
+                
+                touchDown.addEventListener('touchstart', (e) => {
+                    preventDefault(e);
+                    if (client) {
+                        client.handle_key_string('ArrowDown', true);
+                        sendInput();
+                    }
+                });
+                
+                touchDown.addEventListener('touchend', (e) => {
+                    preventDefault(e);
+                    if (client) {
+                        client.handle_key_string('ArrowDown', false);
+                        sendInput();
+                    }
+                });
+                
+                // Mouse support for touch buttons (for testing on desktop)
+                touchUp.addEventListener('mousedown', (e) => {
+                    e.preventDefault();
+                    if (client) {
+                        client.handle_key_string('ArrowUp', true);
+                        sendInput();
+                    }
+                });
+                
+                touchUp.addEventListener('mouseup', (e) => {
+                    e.preventDefault();
+                    if (client) {
+                        client.handle_key_string('ArrowUp', false);
+                        sendInput();
+                    }
+                });
+                
+                touchDown.addEventListener('mousedown', (e) => {
+                    e.preventDefault();
+                    if (client) {
+                        client.handle_key_string('ArrowDown', true);
+                        sendInput();
+                    }
+                });
+                
+                touchDown.addEventListener('mouseup', (e) => {
+                    e.preventDefault();
+                    if (client) {
+                        client.handle_key_string('ArrowDown', false);
+                        sendInput();
+                    }
+                });
+            }
+            
             // Also send periodically (for holding keys)
             setInterval(sendInput, 33);
         }

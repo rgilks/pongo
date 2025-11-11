@@ -11,15 +11,15 @@ mod state;
 use camera::{Camera, CameraUniform};
 use game_core::{
     create_ball, create_paddle, step, Ball, Config, Events, GameMap, GameRng, NetQueue, Paddle,
-    PaddleIntent, Params, Score, Time,
+    Score, Time,
 };
 use hecs::World;
 use mesh::{create_circle, create_rectangle, Mesh, Vertex};
 use network::handle_message;
 use proto::S2C;
-use state::GameState;
+use state::{GameState, GameStateSnapshot};
 use wasm_bindgen::prelude::*;
-use web_sys::{HtmlCanvasElement, KeyboardEvent};
+use web_sys::{window, HtmlCanvasElement, KeyboardEvent};
 use wgpu::util::DeviceExt;
 use wgpu::*;
 
@@ -67,8 +67,10 @@ pub struct Client {
     game_state: GameState,
     // Input state
     paddle_dir: i8, // -1 = up, 0 = stop, 1 = down
-    // Frame timing for interpolation
-    last_frame_time: f64,
+    // Frame timing for interpolation (using performance.now() for better precision)
+    last_frame_time: f64, // Last render frame time (in milliseconds)
+    last_sim_time: f64,   // Last simulation step time (in milliseconds)
+    sim_accumulator: f32, // Accumulated time for fixed timestep simulation
     // Performance metrics
     fps: f32,
     fps_frame_count: u32,
@@ -77,6 +79,9 @@ pub struct Client {
     ping_pending: Option<f64>, // Timestamp when ping was sent (in milliseconds since epoch)
     update_display_ms: f32,    // Throttled update delay for display (updates slower)
     update_last_display: f64,  // Last time we updated the display value
+    // Rendering optimizations
+    enable_trails: bool, // Enable/disable trail effect for performance
+    last_instance_data: Option<(InstanceData, InstanceData, InstanceData)>, // Cache to avoid unnecessary buffer writes
     // Local game mode (AI opponent)
     is_local_game: bool,
     local_world: Option<World>,
@@ -533,6 +538,8 @@ impl WasmClient {
             game_state: GameState::new(),
             paddle_dir: 0,
             last_frame_time: 0.0,
+            last_sim_time: 0.0,
+            sim_accumulator: 0.0,
             fps: 0.0,
             fps_frame_count: 0,
             fps_last_update: 0.0,
@@ -540,6 +547,8 @@ impl WasmClient {
             ping_pending: None,
             update_display_ms: 0.0,
             update_last_display: 0.0,
+            enable_trails: true, // Enable by default, can be toggled for performance
+            last_instance_data: None,
             is_local_game: false,
             local_world: None,
             local_time: None,
@@ -552,44 +561,49 @@ impl WasmClient {
         }))
     }
 
-    #[wasm_bindgen]
-    pub fn render(&mut self) -> Result<(), JsValue> {
-        let client = &mut self.0;
+    /// Get high-precision timestamp using performance.now() (faster than Date.now())
+    fn performance_now() -> f64 {
+        // Use js_sys::Reflect to access window.performance.now()
+        window()
+            .and_then(|w| {
+                js_sys::Reflect::get(&w, &JsValue::from_str("performance"))
+                    .ok()
+                    .and_then(|perf| {
+                        js_sys::Reflect::get(&perf, &JsValue::from_str("now"))
+                            .ok()
+                            .and_then(|now_fn| {
+                                let now_func: js_sys::Function = now_fn.dyn_into().ok()?;
+                                now_func.call0(&perf).ok()?.as_f64()
+                            })
+                    })
+            })
+            .unwrap_or_else(|| js_sys::Date::now())
+    }
 
-        let output = client
-            .surface
-            .get_current_texture()
-            .map_err(|e| format!("Failed to get current texture: {:?}", e))?;
+    /// Run game simulation step (called at fixed 60 Hz for local games)
+    fn step_simulation(client: &mut Client) {
+        if !client.is_local_game {
+            return;
+        }
 
-        let view = output
-            .texture
-            .create_view(&TextureViewDescriptor::default());
+        const SIM_FIXED_DT: f32 = 1.0 / 60.0; // 60 Hz fixed timestep
+        let now_ms = Self::performance_now();
 
-        let mut encoder = client
-            .device
-            .create_command_encoder(&CommandEncoderDescriptor {
-                label: Some("Render Encoder"),
-            });
+        // Initialize last_sim_time if needed
+        if client.last_sim_time == 0.0 {
+            client.last_sim_time = now_ms;
+            return;
+        }
 
-        // Update instance data
-        // Game config: 32x24 arena, paddles at x=1.5 and 30.5
-        let paddle_left_x = 1.5;
-        let paddle_right_x = 30.5;
-        let paddle_width = 0.8;
-        let paddle_height = 4.0;
-        let ball_radius = 0.5;
+        // Accumulate time for fixed timestep
+        let frame_time_ms = (now_ms - client.last_sim_time) / 1000.0; // Convert to seconds
+        client.sim_accumulator += frame_time_ms as f32;
+        client.last_sim_time = now_ms;
 
-        // Calculate frame delta time for interpolation
-        let now = js_sys::Date::now() / 1000.0; // Convert to seconds
-        let dt = if client.last_frame_time > 0.0 {
-            (now - client.last_frame_time) as f32
-        } else {
-            0.016 // ~60fps default
-        };
-        client.last_frame_time = now;
+        // Run simulation steps at fixed 60 Hz
+        while client.sim_accumulator >= SIM_FIXED_DT {
+            client.sim_accumulator -= SIM_FIXED_DT;
 
-        // Handle local game mode
-        if client.is_local_game {
             if let (
                 Some(ref mut world),
                 Some(ref mut time),
@@ -616,10 +630,10 @@ impl WasmClient {
                 let ai_dir = Self::calculate_ai_input(world, config);
                 net_queue.push_input(1, ai_dir);
 
-                // Update time
-                *time = Time::new(dt, time.now + dt);
+                // Update time with fixed timestep
+                *time = Time::new(SIM_FIXED_DT, time.now + SIM_FIXED_DT);
 
-                // Run game simulation step (this will increment score if ball exits arena)
+                // Run game simulation step
                 step(world, time, map, config, score, events, net_queue, rng);
 
                 // Extract data needed for update (before releasing borrows)
@@ -637,31 +651,25 @@ impl WasmClient {
                         paddle_right_y = paddle.y;
                     }
                 }
-                // Extract score values (score has been updated by step() if ball exited)
-                // Since score is a mutable reference to client.local_score, it's already updated in place
                 let score_left = score.left;
                 let score_right = score.right;
                 let has_winner = score.has_winner(config.win_score);
 
-                // Release borrows - score is already updated in place since it's a mutable reference
+                // Release borrows
                 drop(world);
                 drop(time);
-                drop(score); // Score in local_score is already updated
+                drop(score);
                 drop(events);
                 drop(net_queue);
                 drop(rng);
 
-                // Always update local_score first (this is what get_score() reads from)
-                // The score was already updated in place through the mutable reference,
-                // but we explicitly update it here to ensure it's current
-                // IMPORTANT: Update local_score BEFORE any other operations to ensure get_score() reads the latest values
+                // Update local_score
                 match &mut client.local_score {
                     Some(ref mut local_score) => {
                         local_score.left = score_left;
                         local_score.right = score_right;
                     }
                     None => {
-                        // This shouldn't happen, but create it if missing
                         client.local_score = Some(Score {
                             left: score_left,
                             right: score_right,
@@ -669,7 +677,7 @@ impl WasmClient {
                     }
                 }
 
-                // Update game state (for rendering) - also update score here for consistency
+                // Update game state for rendering
                 if let Some((ball_pos, ball_vel)) = ball_data {
                     use state::GameStateSnapshot;
                     client.game_state.set_current(GameStateSnapshot {
@@ -682,39 +690,79 @@ impl WasmClient {
                         tick: 0,
                     });
                 }
-                // Always update game_state scores, even if ball_data is None
                 client.game_state.set_scores(score_left, score_right);
 
-                // Check for win condition (reset scores if someone won)
+                // Check for win condition
                 if has_winner.is_some() {
                     if let Some(ref mut local_score) = client.local_score {
                         local_score.left = 0;
                         local_score.right = 0;
                     }
-                    // Also reset game_state scores
                     client.game_state.set_scores(0, 0);
                 }
             }
         }
+    }
 
-        // Update FPS tracking (update every second, cap at 120)
+    #[wasm_bindgen]
+    pub fn render(&mut self) -> Result<(), JsValue> {
+        let client = &mut self.0;
+
+        // Run simulation at fixed 60 Hz (separate from rendering)
+        Self::step_simulation(client);
+
+        // Get high-precision timestamp for rendering
+        let now_ms = Self::performance_now();
+
+        // Calculate render delta time for interpolation
+        let render_dt = if client.last_frame_time > 0.0 {
+            ((now_ms - client.last_frame_time) / 1000.0) as f32
+        } else {
+            0.008 // ~120fps default
+        };
+        client.last_frame_time = now_ms;
+
+        let output = client
+            .surface
+            .get_current_texture()
+            .map_err(|e| format!("Failed to get current texture: {:?}", e))?;
+
+        let view = output
+            .texture
+            .create_view(&TextureViewDescriptor::default());
+
+        let mut encoder = client
+            .device
+            .create_command_encoder(&CommandEncoderDescriptor {
+                label: Some("Render Encoder"),
+            });
+
+        // Game config: 32x24 arena, paddles at x=1.5 and 30.5
+        let paddle_left_x = 1.5;
+        let paddle_right_x = 30.5;
+        let paddle_width = 0.8;
+        let paddle_height = 4.0;
+        let ball_radius = 0.5;
+
+        // Update FPS tracking (update every second, no cap for high refresh displays)
         client.fps_frame_count += 1;
-        if now - client.fps_last_update >= 1.0 {
-            let calculated_fps =
-                client.fps_frame_count as f32 / (now - client.fps_last_update) as f32;
-            client.fps = calculated_fps.min(120.0); // Cap at 120 FPS
+        let now_sec = now_ms / 1000.0; // Convert to seconds for FPS calculation
+        if now_sec - (client.fps_last_update / 1000.0) >= 1.0 {
+            let time_diff_sec = (now_ms - client.fps_last_update) / 1000.0;
+            let calculated_fps = client.fps_frame_count as f32 / time_diff_sec as f32;
+            client.fps = calculated_fps; // No cap - support 120Hz, 144Hz, 240Hz displays
             client.fps_frame_count = 0;
-            client.fps_last_update = now;
+            client.fps_last_update = now_ms;
         }
 
         // Throttle update delay display (update every 200ms)
-        if now - client.update_last_display >= 0.2 {
+        if now_ms - client.update_last_display >= 200.0 {
             client.update_display_ms = client.game_state.time_since_update() * 1000.0;
-            client.update_last_display = now;
+            client.update_last_display = now_ms;
         }
 
-        // Update interpolation
-        client.game_state.update_interpolation(dt);
+        // Update interpolation with render delta time
+        client.game_state.update_interpolation(render_dt);
 
         let left_paddle_instance = InstanceData {
             transform: [
@@ -746,45 +794,190 @@ impl WasmClient {
             tint: [1.0, 1.0, 0.2, 1.0], // Yellowish
         };
 
-        // Update instance buffers
-        client.queue.write_buffer(
-            &client.left_paddle_instance_buffer,
-            0,
-            bytemuck::cast_slice(&[left_paddle_instance]),
-        );
-        client.queue.write_buffer(
-            &client.right_paddle_instance_buffer,
-            0,
-            bytemuck::cast_slice(&[right_paddle_instance]),
-        );
-        client.queue.write_buffer(
-            &client.ball_instance_buffer,
-            0,
-            bytemuck::cast_slice(&[ball_instance]),
-        );
+        // Only update buffers if data changed (optimization for 120+ FPS)
+        let current_instances = (left_paddle_instance, right_paddle_instance, ball_instance);
+        let needs_update = client
+            .last_instance_data
+            .map(|last| {
+                last.0.transform != current_instances.0.transform
+                    || last.1.transform != current_instances.1.transform
+                    || last.2.transform != current_instances.2.transform
+            })
+            .unwrap_or(true);
 
-        // Trail effect using ping-pong textures
-        // Step 1: Render current frame to the "write" trail texture
-        let (trail_read_view, trail_write_view, trail_read_bind_group) = if client.trail_use_a {
-            (
-                &client.trail_texture_view_b,
-                &client.trail_texture_view_a,
-                &client.trail_bind_group_b,
-            )
+        if needs_update {
+            client.queue.write_buffer(
+                &client.left_paddle_instance_buffer,
+                0,
+                bytemuck::cast_slice(&[left_paddle_instance]),
+            );
+            client.queue.write_buffer(
+                &client.right_paddle_instance_buffer,
+                0,
+                bytemuck::cast_slice(&[right_paddle_instance]),
+            );
+            client.queue.write_buffer(
+                &client.ball_instance_buffer,
+                0,
+                bytemuck::cast_slice(&[ball_instance]),
+            );
+            client.last_instance_data = Some(current_instances);
+        }
+
+        // Trail effect using ping-pong textures (optional for performance)
+        if client.enable_trails {
+            // Step 1: Render current frame to the "write" trail texture
+            let (_trail_read_view, trail_write_view, trail_read_bind_group) = if client.trail_use_a
+            {
+                (
+                    &client.trail_texture_view_b,
+                    &client.trail_texture_view_a,
+                    &client.trail_bind_group_b,
+                )
+            } else {
+                (
+                    &client.trail_texture_view_a,
+                    &client.trail_texture_view_b,
+                    &client.trail_bind_group_a,
+                )
+            };
+
+            // Render current frame to trail texture (write target)
+            {
+                let mut render_pass = encoder.begin_render_pass(&RenderPassDescriptor {
+                    label: Some("Trail Write Pass"),
+                    color_attachments: &[Some(RenderPassColorAttachment {
+                        view: trail_write_view,
+                        resolve_target: None,
+                        ops: Operations {
+                            load: LoadOp::Clear(Color {
+                                r: 0.0,
+                                g: 0.0,
+                                b: 0.0,
+                                a: 1.0,
+                            }),
+                            store: StoreOp::Store,
+                        },
+                    })],
+                    depth_stencil_attachment: None,
+                    timestamp_writes: None,
+                    occlusion_query_set: None,
+                });
+
+                // Draw game objects to trail texture
+                render_pass.set_pipeline(&client.render_pipeline);
+                render_pass.set_bind_group(0, &client.camera_bind_group, &[]);
+
+                // Draw left paddle
+                render_pass.set_vertex_buffer(0, client.rectangle_mesh.vertex_buffer.slice(..));
+                render_pass.set_vertex_buffer(1, client.left_paddle_instance_buffer.slice(..));
+                render_pass.set_index_buffer(
+                    client.rectangle_mesh.index_buffer.slice(..),
+                    IndexFormat::Uint16,
+                );
+                render_pass.draw_indexed(0..client.rectangle_mesh.index_count, 0, 0..1);
+
+                // Draw right paddle
+                render_pass.set_vertex_buffer(1, client.right_paddle_instance_buffer.slice(..));
+                render_pass.draw_indexed(0..client.rectangle_mesh.index_count, 0, 0..1);
+
+                // Draw ball
+                render_pass.set_vertex_buffer(0, client.circle_mesh.vertex_buffer.slice(..));
+                render_pass.set_vertex_buffer(1, client.ball_instance_buffer.slice(..));
+                render_pass.set_index_buffer(
+                    client.circle_mesh.index_buffer.slice(..),
+                    IndexFormat::Uint16,
+                );
+                render_pass.draw_indexed(0..client.circle_mesh.index_count, 0, 0..1);
+            }
+
+            // Step 2: Fade the previous trail texture and render to write target
+            {
+                let mut render_pass = encoder.begin_render_pass(&RenderPassDescriptor {
+                    label: Some("Trail Fade Pass"),
+                    color_attachments: &[Some(RenderPassColorAttachment {
+                        view: trail_write_view,
+                        resolve_target: None,
+                        ops: Operations {
+                            load: LoadOp::Load, // Load what we just rendered
+                            store: StoreOp::Store,
+                        },
+                    })],
+                    depth_stencil_attachment: None,
+                    timestamp_writes: None,
+                    occlusion_query_set: None,
+                });
+
+                // Render faded previous frame on top (creates trail accumulation)
+                render_pass.set_pipeline(&client.trail_render_pipeline);
+                render_pass.set_bind_group(0, trail_read_bind_group, &[]);
+                render_pass.set_vertex_buffer(0, client.trail_vertex_buffer.slice(..));
+                render_pass.draw(0..4, 0..1);
+            }
+
+            // Step 3: Render to main surface (faded trail + current frame)
+            {
+                let mut render_pass = encoder.begin_render_pass(&RenderPassDescriptor {
+                    label: Some("Main Render Pass"),
+                    color_attachments: &[Some(RenderPassColorAttachment {
+                        view: &view,
+                        resolve_target: None,
+                        ops: Operations {
+                            load: LoadOp::Clear(Color {
+                                r: 0.0,
+                                g: 0.0,
+                                b: 0.0,
+                                a: 1.0,
+                            }),
+                            store: StoreOp::Store,
+                        },
+                    })],
+                    depth_stencil_attachment: None,
+                    timestamp_writes: None,
+                    occlusion_query_set: None,
+                });
+
+                // First, draw the faded trail as background
+                render_pass.set_pipeline(&client.trail_render_pipeline);
+                render_pass.set_bind_group(0, trail_read_bind_group, &[]);
+                render_pass.set_vertex_buffer(0, client.trail_vertex_buffer.slice(..));
+                render_pass.draw(0..4, 0..1);
+
+                // Then draw game objects on top
+                render_pass.set_pipeline(&client.render_pipeline);
+                render_pass.set_bind_group(0, &client.camera_bind_group, &[]);
+
+                // Draw left paddle
+                render_pass.set_vertex_buffer(0, client.rectangle_mesh.vertex_buffer.slice(..));
+                render_pass.set_vertex_buffer(1, client.left_paddle_instance_buffer.slice(..));
+                render_pass.set_index_buffer(
+                    client.rectangle_mesh.index_buffer.slice(..),
+                    IndexFormat::Uint16,
+                );
+                render_pass.draw_indexed(0..client.rectangle_mesh.index_count, 0, 0..1);
+
+                // Draw right paddle
+                render_pass.set_vertex_buffer(1, client.right_paddle_instance_buffer.slice(..));
+                render_pass.draw_indexed(0..client.rectangle_mesh.index_count, 0, 0..1);
+
+                // Draw ball (circle) - trail effect handled by shader
+                render_pass.set_vertex_buffer(0, client.circle_mesh.vertex_buffer.slice(..));
+                render_pass.set_vertex_buffer(1, client.ball_instance_buffer.slice(..));
+                render_pass.set_index_buffer(
+                    client.circle_mesh.index_buffer.slice(..),
+                    IndexFormat::Uint16,
+                );
+                render_pass.draw_indexed(0..client.circle_mesh.index_count, 0, 0..1);
+            }
+
+            // Toggle ping-pong for next frame
+            client.trail_use_a = !client.trail_use_a;
         } else {
-            (
-                &client.trail_texture_view_a,
-                &client.trail_texture_view_b,
-                &client.trail_bind_group_a,
-            )
-        };
-
-        // Render current frame to trail texture (write target)
-        {
+            // No trails: Direct render to screen (much faster - 1 pass instead of 3)
             let mut render_pass = encoder.begin_render_pass(&RenderPassDescriptor {
-                label: Some("Trail Write Pass"),
+                label: Some("Main Render Pass (No Trails)"),
                 color_attachments: &[Some(RenderPassColorAttachment {
-                    view: trail_write_view,
+                    view: &view,
                     resolve_target: None,
                     ops: Operations {
                         load: LoadOp::Clear(Color {
@@ -801,7 +994,6 @@ impl WasmClient {
                 occlusion_query_set: None,
             });
 
-            // Draw game objects to trail texture
             render_pass.set_pipeline(&client.render_pipeline);
             render_pass.set_bind_group(0, &client.camera_bind_group, &[]);
 
@@ -828,88 +1020,6 @@ impl WasmClient {
             render_pass.draw_indexed(0..client.circle_mesh.index_count, 0, 0..1);
         }
 
-        // Step 2: Fade the previous trail texture and render to write target
-        {
-            let mut render_pass = encoder.begin_render_pass(&RenderPassDescriptor {
-                label: Some("Trail Fade Pass"),
-                color_attachments: &[Some(RenderPassColorAttachment {
-                    view: trail_write_view,
-                    resolve_target: None,
-                    ops: Operations {
-                        load: LoadOp::Load, // Load what we just rendered
-                        store: StoreOp::Store,
-                    },
-                })],
-                depth_stencil_attachment: None,
-                timestamp_writes: None,
-                occlusion_query_set: None,
-            });
-
-            // Render faded previous frame on top (creates trail accumulation)
-            render_pass.set_pipeline(&client.trail_render_pipeline);
-            render_pass.set_bind_group(0, trail_read_bind_group, &[]);
-            render_pass.set_vertex_buffer(0, client.trail_vertex_buffer.slice(..));
-            render_pass.draw(0..4, 0..1);
-        }
-
-        // Step 3: Render to main surface (faded trail + current frame)
-        {
-            let mut render_pass = encoder.begin_render_pass(&RenderPassDescriptor {
-                label: Some("Main Render Pass"),
-                color_attachments: &[Some(RenderPassColorAttachment {
-                    view: &view,
-                    resolve_target: None,
-                    ops: Operations {
-                        load: LoadOp::Clear(Color {
-                            r: 0.0,
-                            g: 0.0,
-                            b: 0.0,
-                            a: 1.0,
-                        }),
-                        store: StoreOp::Store,
-                    },
-                })],
-                depth_stencil_attachment: None,
-                timestamp_writes: None,
-                occlusion_query_set: None,
-            });
-
-            // First, draw the faded trail as background
-            render_pass.set_pipeline(&client.trail_render_pipeline);
-            render_pass.set_bind_group(0, trail_read_bind_group, &[]);
-            render_pass.set_vertex_buffer(0, client.trail_vertex_buffer.slice(..));
-            render_pass.draw(0..4, 0..1);
-
-            // Then draw game objects on top
-            render_pass.set_pipeline(&client.render_pipeline);
-            render_pass.set_bind_group(0, &client.camera_bind_group, &[]);
-
-            // Draw left paddle
-            render_pass.set_vertex_buffer(0, client.rectangle_mesh.vertex_buffer.slice(..));
-            render_pass.set_vertex_buffer(1, client.left_paddle_instance_buffer.slice(..));
-            render_pass.set_index_buffer(
-                client.rectangle_mesh.index_buffer.slice(..),
-                IndexFormat::Uint16,
-            );
-            render_pass.draw_indexed(0..client.rectangle_mesh.index_count, 0, 0..1);
-
-            // Draw right paddle
-            render_pass.set_vertex_buffer(1, client.right_paddle_instance_buffer.slice(..));
-            render_pass.draw_indexed(0..client.rectangle_mesh.index_count, 0, 0..1);
-
-            // Draw ball (circle) - trail effect handled by shader
-            render_pass.set_vertex_buffer(0, client.circle_mesh.vertex_buffer.slice(..));
-            render_pass.set_vertex_buffer(1, client.ball_instance_buffer.slice(..));
-            render_pass.set_index_buffer(
-                client.circle_mesh.index_buffer.slice(..),
-                IndexFormat::Uint16,
-            );
-            render_pass.draw_indexed(0..client.circle_mesh.index_count, 0, 0..1);
-        }
-
-        // Toggle ping-pong for next frame
-        client.trail_use_a = !client.trail_use_a;
-
         client.queue.submit(std::iter::once(encoder.finish()));
         output.present();
 
@@ -927,7 +1037,7 @@ impl WasmClient {
         // Handle ping response separately
         if let S2C::Pong { t_ms: _ } = msg {
             if let Some(sent_time) = client.ping_pending {
-                let current_time = js_sys::Date::now(); // milliseconds since epoch
+                let current_time = Self::performance_now(); // milliseconds since epoch
                 let rtt = current_time - sent_time;
                 client.ping_ms = rtt as f32;
                 client.ping_pending = None;
@@ -981,7 +1091,7 @@ impl WasmClient {
         let map = GameMap::new();
         let config = Config::new();
         let mut world = World::new();
-        let mut rng = GameRng::new(js_sys::Date::now() as u64);
+        let mut rng = GameRng::new(Self::performance_now() as u64);
 
         // Create paddles
         let left_paddle_y = map.paddle_spawn(0).y;
@@ -1085,11 +1195,8 @@ impl WasmClient {
         }
 
         if let Some((ball_pos, ball_vel)) = ball_data {
-            // Store previous state for interpolation
-            client.game_state.previous = client.game_state.current.clone();
-
-            // Update current state
-            client.game_state.current = GameStateSnapshot {
+            // Update current state using public method (handles interpolation setup)
+            let snapshot = GameStateSnapshot {
                 ball_x: ball_pos.x,
                 ball_y: ball_pos.y,
                 paddle_left_y,
@@ -1098,14 +1205,10 @@ impl WasmClient {
                 ball_vy: ball_vel.y,
                 tick: 0, // Not used in local mode
             };
-
-            // Reset interpolation timer
-            client.game_state.time_since_update = 0.0;
-            client.game_state.interpolation_alpha = 0.0;
+            client.game_state.set_current(snapshot);
 
             // Update scores
-            client.game_state.score_left = score.left;
-            client.game_state.score_right = score.right;
+            client.game_state.set_scores(score.left, score.right);
         }
     }
 
@@ -1132,7 +1235,7 @@ impl WasmClient {
     #[wasm_bindgen]
     pub fn send_ping(&mut self) -> Vec<u8> {
         let client = &mut self.0;
-        let now_ms = js_sys::Date::now(); // milliseconds since epoch
+        let now_ms = Self::performance_now(); // milliseconds since epoch
         let t_ms = now_ms as u32; // Send as u32 for protocol compatibility
         client.ping_pending = Some(now_ms); // Store full precision for calculation
         network::create_ping_message(t_ms).unwrap_or_default()
@@ -1150,5 +1253,15 @@ impl WasmClient {
     pub fn on_key_up(&mut self, event: KeyboardEvent) {
         let key = input::get_key_from_event(&event);
         self.0.paddle_dir = input::handle_key_up(&key, self.0.paddle_dir);
+    }
+
+    /// Handle key by string (for touch controls)
+    #[wasm_bindgen]
+    pub fn handle_key_string(&mut self, key: String, is_down: bool) {
+        if is_down {
+            self.0.paddle_dir = input::handle_key_down(&key, self.0.paddle_dir);
+        } else {
+            self.0.paddle_dir = input::handle_key_up(&key, self.0.paddle_dir);
+        }
     }
 }
