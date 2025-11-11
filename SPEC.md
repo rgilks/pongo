@@ -165,9 +165,11 @@ NetQueue { inputs: Vec<PaddleInputEvent> }
 - Fragment shader: Solid color output with trail accumulation
 
 ### Performance
-- Target: 60 fps with interpolation
+- Target: 120 fps rendering with fixed 60 Hz simulation
 - Extremely lightweight (< 100 vertices total)
-- Trail effects using ping-pong texture accumulation
+- Trail effects using ping-pong texture accumulation (optional)
+- Responsive layout adapts to screen size
+- Touch controls for mobile devices
 
 ---
 
@@ -233,10 +235,9 @@ Currently not implemented. When added:
 - **Game Modes**: Time limit, first to X points, best of N
 - **Visual Effects**: Particle trails, screen shake, bloom
 - **Sound Effects**: Ball hit, score, win
-- **Mobile Controls**: Touch buttons for Up/Down
 - **Leaderboard**: Persistent storage of match results
 
 ---
 
 **Last Updated**: 2025-11-11  
-**Status**: Core implementation complete with paddle physics and trail effects
+**Status**: Core implementation complete with paddle physics, trail effects, responsive layout, and mobile touch controls

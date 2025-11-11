@@ -24,7 +24,9 @@ This is a modern implementation of the classic 1970s Pong game, demonstrating:
   - Moving paddle up/down adds velocity to the ball
 - Miss the ball and your opponent scores
 - First to 11 points wins
-- **Controls**: Up/Down arrow keys or W/S keys
+- **Controls**: 
+  - Desktop: Up/Down arrow keys or W/S keys
+  - Mobile: Touch buttons (UP/DOWN)
 
 ## Quick Start
 
@@ -56,7 +58,8 @@ Visit `http://localhost:8787` to play!
 2. Click "CREATE" to start a match and get a 5-character code
 3. Open a second browser window/tab
 4. Enter the match code and click "JOIN"
-5. Use Up/Down arrow keys or W/S to control your paddle
+5. Use Up/Down arrow keys or W/S to control your paddle (desktop)
+   - On mobile, use the touch buttons at the bottom
 6. First to 11 points wins!
 
 **Benefits of local testing:**
@@ -132,9 +135,10 @@ pong/
 - **Rendering**: WebGPU via wgpu (v24.0)
 - **Graphics**: 2D orthographic camera, simple colored shapes
 - **Effects**: Motion blur trails on ball and paddles
-- **Interpolation**: Client-side interpolation for smooth 60fps movement
-- **Input**: Keyboard events (Up/Down or W/S)
+- **Interpolation**: Client-side interpolation for smooth movement (target 120 fps)
+- **Input**: Keyboard events (Up/Down or W/S) and touch controls (mobile)
 - **Network**: WebSocket client, receives game state snapshots at 20 Hz
+- **Layout**: Responsive design (side panel on desktop, stacked on mobile)
 
 ### Server (Cloudflare Durable Objects)
 
@@ -271,11 +275,12 @@ See `TEST-PLAN.md` for detailed test procedures covering:
 
 **Client:**
 
-- Target: 60 fps
+- Target: 120 fps (with fixed 60 Hz simulation)
 - Client-side interpolation for smooth movement
-- Motion blur trails for visual polish
+- Motion blur trails for visual polish (optional, can be disabled for performance)
 - Lightweight rendering (paddles + ball only)
-- Works on mobile devices
+- Responsive layout: side panel on desktop, stacked on mobile
+- Touch controls for mobile devices
 
 **Server:**
 
@@ -321,7 +326,6 @@ Potential additions:
 - Different game modes (time limit, first to X)
 - Enhanced visual effects
 - Sound effects
-- Mobile touch controls
 - Leaderboard
 
 ## License

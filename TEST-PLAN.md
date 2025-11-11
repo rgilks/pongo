@@ -54,13 +54,14 @@ npm run deploy
 **Steps**:
 
 1. Join match as left player
-2. Press Up arrow key
+2. Press Up arrow key (or W key)
 3. Verify paddle moves up
-4. Press Down arrow key
+4. Press Down arrow key (or S key)
 5. Verify paddle moves down
 6. Hold Up until paddle reaches top boundary
 7. Verify paddle stops at boundary
 8. Repeat for right player
+9. **Mobile**: Test touch buttons (UP/DOWN) - verify same behavior
 
 **Expected**:
 
@@ -68,6 +69,7 @@ npm run deploy
 - Paddles stay within arena bounds (Y: 2 to 22)
 - Movement is responsive (< 100ms latency)
 - Independent control for each player
+- Touch controls work on mobile devices
 
 ---
 
@@ -196,13 +198,15 @@ npm run deploy
 1. Start game
 2. Open browser performance tools
 3. Play for 2 minutes
-4. Check frame rate (should be 60 fps)
+4. Check frame rate (target: 120 fps, minimum: 60 fps)
 5. Check server logs for tick timing
+6. Verify FPS, Ping, and Update metrics display correctly
 
 **Expected**:
 
-- Client: Consistent 60 fps, no frame drops
+- Client: Consistent 120 fps target (60 fps minimum), no frame drops
 - Server: Ticks every 16.67ms (60 Hz)
+- Metrics display updating correctly
 - No memory leaks
 - CPU usage reasonable
 
@@ -252,12 +256,15 @@ npm run deploy
 
 1. Rapidly alternate Up/Down keys
 2. Verify paddle responds smoothly
+3. **Mobile**: Rapidly tap touch buttons
+4. Verify same smooth behavior
 
 **Expected**:
 
 - Paddle doesn't glitch or jump
 - All inputs processed correctly
 - Smooth movement despite rapid changes
+- Touch controls have same responsiveness as keyboard
 
 ---
 
@@ -295,7 +302,32 @@ Before each commit/deploy:
 - [ ] Scoring works
 - [ ] Win condition triggers
 - [ ] No console errors
-- [ ] Performance acceptable (60 fps client, 60 Hz server)
+- [ ] Performance acceptable (120 fps target, 60 fps minimum client, 60 Hz server)
+- [ ] Responsive layout works on desktop and mobile
+- [ ] Touch controls work on mobile devices
+
+---
+
+### TC-012: Responsive Layout
+
+**Objective**: Verify layout adapts to screen size
+
+**Steps**:
+
+1. Open game on desktop (width > 768px)
+2. Verify side-by-side layout (game left, panel right)
+3. Resize browser to mobile width (< 768px)
+4. Verify stacked layout (game top, controls bottom)
+5. Verify touch controls appear on mobile
+6. Verify touch controls hidden on desktop
+
+**Expected**:
+
+- Desktop: Side panel layout with game and controls side-by-side
+- Mobile: Stacked layout with game on top
+- Touch controls visible only on mobile
+- All elements properly positioned and visible
+- Layout transitions smoothly when resizing
 
 ---
 
@@ -306,4 +338,4 @@ Before each commit/deploy:
 ---
 
 **Last Updated**: 2025-11-11  
-**Status**: Core test plan for Pong with paddle physics
+**Status**: Core test plan for Pong with paddle physics, responsive layout, and mobile touch controls
