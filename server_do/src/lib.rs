@@ -296,7 +296,7 @@ impl MatchDO {
         let should_start_alarm = {
             let mut gs = self.game_state.borrow_mut();
             match msg {
-                C2S::Join { code: _ } => {
+                C2S::Join { code: _, .. } => {
                     // Check if we already have 2 players
                     if gs.clients.len() >= 2 {
                         console_log!("DO: Match full, rejecting new player");

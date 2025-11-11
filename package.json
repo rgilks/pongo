@@ -4,7 +4,7 @@
   "description": "Pong game with Rust + WebGPU + Cloudflare Durable Objects",
   "scripts": {
     "check": "npm run check:rust",
-    "check:rust": "cargo fmt --check && cargo clippy --workspace -- -D warnings && cargo test --workspace",
+    "check:rust": "cargo fmt --check && cargo check --workspace && cargo clippy --workspace -- -D warnings && cargo test --workspace",
     "fmt": "cargo fmt",
     "clippy": "cargo clippy --workspace -- -D warnings",
     "test": "cargo test --workspace",
@@ -24,4 +24,3 @@
     "node": ">=20.0.0"
   }
 }
-

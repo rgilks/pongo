@@ -1,6 +1,6 @@
 #!/bin/bash
 # Unified test script - combines steps 1-2 of iteration workflow
-# Runs: cargo fmt, cargo clippy, cargo test
+# Runs: cargo fmt, cargo check, cargo clippy, cargo test
 # Usage: ./scripts/test-all.sh
 
 set -e
@@ -20,8 +20,18 @@ else
 fi
 echo ""
 
-# Step 2: Clippy check
-echo "2️⃣  Running clippy (linter)..."
+# Step 2: Compilation check
+echo "2️⃣  Checking compilation..."
+if cargo check --workspace; then
+    echo "   ✅ Code compiles successfully"
+else
+    echo "   ❌ Compilation errors found"
+    exit 1
+fi
+echo ""
+
+# Step 3: Clippy check
+echo "3️⃣  Running clippy (linter)..."
 if cargo clippy --workspace -- -D warnings; then
     echo "   ✅ No clippy warnings or errors"
 else
@@ -30,8 +40,8 @@ else
 fi
 echo ""
 
-# Step 3: Run tests
-echo "3️⃣  Running unit tests..."
+# Step 4: Run tests
+echo "4️⃣  Running unit tests..."
 if cargo test --workspace; then
     echo "   ✅ All tests passed"
 else

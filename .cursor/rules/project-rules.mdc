@@ -30,9 +30,10 @@ alwaysApply: true
 
 1. **Fix linting errors and run tests** (automated)
 
-   - Run `npm run test:all` to run all checks (format, clippy, tests)
+   - Run `npm run test:all` to run all checks (format, check, clippy, tests)
    - Or manually:
      - Run `cargo fmt` to format code
+     - Run `cargo check --workspace` to verify compilation
      - Run `cargo clippy --workspace -- -D warnings` and fix all warnings/errors
      - Run `cargo test --workspace` and ensure all tests pass
 

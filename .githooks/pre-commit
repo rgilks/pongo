@@ -12,6 +12,13 @@ cargo fmt --check || {
     exit 1
 }
 
+# Run cargo check first to catch compilation errors
+echo "Checking compilation..."
+cargo check --workspace || {
+    echo "❌ Compilation check failed. Fix errors before committing."
+    exit 1
+}
+
 # Run Clippy with deny warnings
 echo "Running Clippy..."
 cargo clippy --workspace -- -D warnings || {
