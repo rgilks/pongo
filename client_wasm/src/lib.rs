@@ -147,7 +147,9 @@ pub struct Client {
     fps_frame_count: u32,
     fps_last_update: f64,
     ping_ms: f32,              // Current ping in milliseconds
-    ping_pending: Option<u32>, // Timestamp when ping was sent (for round-trip calculation)
+    ping_pending: Option<f64>, // Timestamp when ping was sent (in milliseconds since epoch)
+    update_display_ms: f32,    // Throttled update delay for display (updates slower)
+    update_last_display: f64,  // Last time we updated the display value
 }
 
 #[wasm_bindgen]
@@ -593,6 +595,8 @@ impl WasmClient {
             fps_last_update: 0.0,
             ping_ms: 0.0,
             ping_pending: None,
+            update_display_ms: 0.0,
+            update_last_display: 0.0,
         }))
     }
 
@@ -632,12 +636,20 @@ impl WasmClient {
         };
         client.last_frame_time = now;
 
-        // Update FPS tracking (update every second)
+        // Update FPS tracking (update every second, cap at 120)
         client.fps_frame_count += 1;
         if now - client.fps_last_update >= 1.0 {
-            client.fps = client.fps_frame_count as f32 / (now - client.fps_last_update) as f32;
+            let calculated_fps =
+                client.fps_frame_count as f32 / (now - client.fps_last_update) as f32;
+            client.fps = calculated_fps.min(120.0); // Cap at 120 FPS
             client.fps_frame_count = 0;
             client.fps_last_update = now;
+        }
+
+        // Throttle update delay display (update every 200ms)
+        if now - client.update_last_display >= 0.2 {
+            client.update_display_ms = client.game_state.time_since_update * 1000.0;
+            client.update_last_display = now;
         }
 
         // Update interpolation
@@ -892,12 +904,12 @@ impl WasmClient {
                 // Game over - winner determined
                 // Could update UI here if needed
             }
-            S2C::Pong { t_ms } => {
+            S2C::Pong { t_ms: _ } => {
                 // Calculate round-trip latency
-                // t_ms is the timestamp we sent in the ping
+                // We sent the timestamp in the ping, now calculate RTT
                 if let Some(sent_time) = client.ping_pending {
-                    let current_time = js_sys::Date::now() as u32;
-                    let rtt = current_time.saturating_sub(sent_time);
+                    let current_time = js_sys::Date::now(); // milliseconds since epoch
+                    let rtt = current_time - sent_time;
                     client.ping_ms = rtt as f32;
                     client.ping_pending = None;
                 }
@@ -937,13 +949,13 @@ impl WasmClient {
     }
 
     /// Get performance metrics: [fps, ping_ms, state_delay_ms]
-    /// state_delay_ms: Time since last game state update from server (in milliseconds)
+    /// state_delay_ms: Time since last game state update from server (in milliseconds, throttled)
     #[wasm_bindgen]
     pub fn get_metrics(&self) -> Vec<f32> {
         vec![
             self.0.fps,
             self.0.ping_ms,
-            self.0.game_state.time_since_update * 1000.0, // Convert to milliseconds
+            self.0.update_display_ms, // Throttled display value
         ]
     }
 
@@ -951,8 +963,9 @@ impl WasmClient {
     #[wasm_bindgen]
     pub fn send_ping(&mut self) -> Vec<u8> {
         let client = &mut self.0;
-        let t_ms = js_sys::Date::now() as u32;
-        client.ping_pending = Some(t_ms);
+        let now_ms = js_sys::Date::now(); // milliseconds since epoch
+        let t_ms = now_ms as u32; // Send as u32 for protocol compatibility
+        client.ping_pending = Some(now_ms); // Store full precision for calculation
         C2S::Ping { t_ms }.to_bytes().unwrap_or_default()
     }
 
