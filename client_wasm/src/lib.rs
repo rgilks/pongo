@@ -701,6 +701,9 @@ impl WasmClient {
                 let score_left = score.left;
                 let score_right = score.right;
                 let has_winner = score.has_winner(config.win_score);
+                if let Some(w) = has_winner {
+                    client.game_state.set_winner(w);
+                }
 
                 // Update local_score
                 match &mut client.local_score {
