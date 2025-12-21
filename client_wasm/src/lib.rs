@@ -846,12 +846,12 @@ impl WasmClient {
 
         let left_paddle_instance = InstanceData {
             transform: [paddle_left_x, left_paddle_y, paddle_width, paddle_height],
-            tint: [1.0, 1.0, 1.0, 1.0], // White
+            tint: [0.0, 1.0, 1.0, 1.0], // Cyan
         };
 
         let right_paddle_instance = InstanceData {
             transform: [paddle_right_x, right_paddle_y, paddle_width, paddle_height],
-            tint: [1.0, 1.0, 1.0, 1.0], // White
+            tint: [1.0, 0.0, 1.0, 1.0], // Magenta
         };
 
         let ball_instance = InstanceData {
