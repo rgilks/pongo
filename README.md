@@ -67,8 +67,7 @@ npm run deploy:test   # Deploy + verify
 
 ## Documentation
 
-- **[SPEC.md](SPEC.md)** — Technical specification
-- **[TEST-PLAN.md](TEST-PLAN.md)** — Test procedures
+See **[SPEC.md](SPEC.md)** for technical details.
 
 ## License
 
