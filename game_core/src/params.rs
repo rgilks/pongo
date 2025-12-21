@@ -19,7 +19,7 @@ impl Params {
     pub const BALL_SPEED_INCREASE: f32 = 1.05; // Multiply speed on paddle hit
 
     // Score
-    pub const WIN_SCORE: u8 = 11; // First to 11 wins
+    pub const WIN_SCORE: u8 = 5; // First to 5 wins
 
     // Physics
     pub const FIXED_DT: f32 = 0.0166; // ~60 Hz

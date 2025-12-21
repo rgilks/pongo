@@ -208,6 +208,18 @@ impl DurableObject for MatchDO {
                 console_log!("DO: Despawned paddle for player {}", player_id);
             }
 
+            // If game was running and a player remains, declare them winner (Forfeit)
+            if gs.game_started {
+                if let Some(&remaining_player) = gs.clients.keys().next() {
+                    console_log!("DO: Player {} left, declaring {} winner", player_id, remaining_player);
+                    Self::broadcast_game_over(&gs, remaining_player);
+                    gs.game_started = false;
+                } else {
+                    // Both left? Stop game.
+                    gs.game_started = false;
+                }
+            }
+
             // Stop game if we lost a player
             if gs.clients.len() < 2 {
                 gs.game_started = false;

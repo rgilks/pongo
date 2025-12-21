@@ -144,10 +144,29 @@
 
       #scoreRow {
         display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 5px;
+        width: 100%;
+        margin-bottom: 5px;
+      }
+      
+      #scoreContainer {
+        display: flex;
         align-items: center;
         justify-content: center;
         gap: 15px;
         width: 100%;
+      }
+
+      #winCondition {
+        font-size: 12px;
+        color: #0f0;
+        opacity: 0.8;
+        letter-spacing: 1px;
+        text-transform: uppercase;
+        text-shadow: 0 0 5px rgba(0, 255, 0, 0.5);
       }
 
       .mobile-btn {
@@ -493,9 +512,12 @@
       </div>
       <div id="sidePanel">
         <div id="scoreRow">
-          <button id="mobileUp" class="mobile-btn">▲</button>
-          <div id="score">0 : 1</div>
-          <button id="mobileDown" class="mobile-btn">▼</button>
+          <div id="scoreContainer">
+            <button id="mobileUp" class="mobile-btn">▲</button>
+            <div id="score">0 : 0</div>
+            <button id="mobileDown" class="mobile-btn">▼</button>
+          </div>
+          <div id="winCondition">First to 11 Wins</div>
         </div>
         <div id="metrics">
           <div class="metric-row">
