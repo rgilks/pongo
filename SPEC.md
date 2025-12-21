@@ -53,7 +53,7 @@
 
 ### Workspace Structure
 ```
-iso/
+pongo/
   game_core/      # hecs ECS, paddle/ball components & systems
   proto/          # C2S/S2C messages
   client_wasm/    # wgpu renderer, input handling, WebSocket

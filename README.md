@@ -2,7 +2,7 @@
 
 A multiplayer Pong game built with Rust + WebGPU (client) and Cloudflare Durable Objects (server).
 
-**Play now**: https://iso.rob-gilks.workers.dev
+**Play now**: https://pongo.rob-gilks.workers.dev
 
 ## What is This?
 
@@ -129,7 +129,7 @@ The hook runs:
 ## Project Structure
 
 ```
-iso/
+pongo/
 ├── game_core/      # ECS (hecs): components, systems, game logic
 ├── proto/          # C2S/S2C network messages (postcard)
 ├── client_wasm/     # WebGPU renderer, input, WebSocket client

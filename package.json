@@ -1,5 +1,5 @@
 {
-  "name": "iso",
+  "name": "pongo",
   "version": "0.1.0",
   "description": "Pong game with Rust + WebGPU + Cloudflare Durable Objects",
   "scripts": {
@@ -17,7 +17,7 @@
     "start": "npm run build && npm run dev",
     "deploy": "npx wrangler deploy",
     "deploy:test": "./scripts/deploy-test.sh",
-    "logs": "npx wrangler tail iso --format pretty",
+    "logs": "npx wrangler tail pongo --format pretty",
     "logs:check": "./scripts/check-logs.sh 10"
   },
   "devDependencies": {},

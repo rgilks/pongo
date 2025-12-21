@@ -18,7 +18,7 @@ npm run dev
 
 ```bash
 npm run deploy
-# Production at https://iso.rob-gilks.workers.dev
+# Production at https://pongo.rob-gilks.workers.dev
 ```
 
 ---
