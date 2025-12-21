@@ -367,6 +367,7 @@
       @media (max-width: 768px) {
         body {
           padding: 5px;
+          padding-bottom: 120px; /* Space for touch controls */
         }
 
         #mainContainer {
@@ -392,7 +393,8 @@
           height: auto;
         }
 
-        #touchControls {
+        /* Only show touch controls when game is active */
+        body.game-active #touchControls {
           display: block;
         }
 
@@ -600,6 +602,7 @@
         text.textContent = winner === "you" ? "🎉 YOU WIN! 🎉" : "😢 YOU LOSE";
         text.style.color = winner === "you" ? "#0f0" : "#f55";
         overlay.classList.add("show");
+        document.body.classList.remove("game-active");
       }
 
       function hideVictory() {
@@ -626,6 +629,7 @@
           updateScore(0, 0);
           updateStatus("Playing vs AI");
           isPlaying = true;
+          document.body.classList.add("game-active");
           setupInput();
           startRender();
         } catch (error) {
@@ -692,6 +696,7 @@
                 // Start game on first message if not started
                 if (!isPlaying) {
                   isPlaying = true;
+                  document.body.classList.add("game-active");
                   updateStatus("Playing!");
                   setupInput();
                   startRender();
@@ -709,6 +714,7 @@
             console.log("WS closed");
             updateStatus("Disconnected");
             isPlaying = false;
+            document.body.classList.remove("game-active");
           };
         } catch (error) {
           console.error("Join error:", error);
