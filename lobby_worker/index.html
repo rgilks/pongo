@@ -517,7 +517,7 @@
             <div id="score">0 : 0</div>
             <button id="mobileDown" class="mobile-btn">▼</button>
           </div>
-          <div id="winCondition">First to 11 Wins</div>
+          <div id="winCondition">First to 5 Wins</div>
         </div>
         <div id="metrics">
           <div class="metric-row">
@@ -847,10 +847,18 @@
               const score = client.get_score();
               if (score.length >= 2) {
                 updateScore(score[0], score[1]);
-                // Check for victory (first to 11)
-                if (score[0] >= 11 || score[1] >= 11) {
-                  const winner = score[0] >= 11 ? "you" : "opponent";
+                // Check for victory
+                const winner = client.get_winner();
+                if (winner) {
                   showVictory(winner);
+                  isPlaying = false;
+                  return; // Stop render loop
+                }
+                
+                // Fallback score check (first to 5)
+                if (score[0] >= 5 || score[1] >= 5) {
+                  const winnerName = score[0] >= 5 ? "you" : "opponent";
+                  showVictory(winnerName);
                   isPlaying = false;
                   return; // Stop render loop
                 }

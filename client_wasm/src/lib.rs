@@ -1193,6 +1193,20 @@ impl WasmClient {
         }
     }
 
+    /// Get winner ("you" or "opponent") if game is over
+    #[wasm_bindgen]
+    pub fn get_winner(&self) -> Option<String> {
+        if let Some(winner) = self.0.game_state.winner {
+            if Some(winner) == self.0.game_state.my_player_id {
+                Some("you".to_string())
+            } else {
+                Some("opponent".to_string())
+            }
+        } else {
+            None
+        }
+    }
+
     /// Start local game with AI opponent
     #[wasm_bindgen]
     pub fn start_local_game(&mut self) {

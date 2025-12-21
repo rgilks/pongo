@@ -32,9 +32,9 @@ pub fn handle_message(msg: S2C, game_state: &mut GameState) -> Result<(), String
             });
             game_state.set_scores(score_left, score_right);
         }
-        S2C::GameOver { winner: _ } => {
+        S2C::GameOver { winner } => {
             // Game over - winner determined
-            // Could update UI here if needed
+            game_state.set_winner(winner);
         }
         S2C::Pong { t_ms: _ } => {
             // Ping response handled by caller, should not reach here

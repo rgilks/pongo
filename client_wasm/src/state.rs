@@ -25,7 +25,8 @@ pub struct GameState {
     // Score (doesn't need interpolation)
     score_left: u8,
     score_right: u8,
-    my_player_id: Option<u8>,
+    pub my_player_id: Option<u8>,
+    pub winner: Option<u8>,
 }
 
 impl GameState {
@@ -47,6 +48,7 @@ impl GameState {
             score_left: 0,
             score_right: 0,
             my_player_id: None,
+            winner: None,
         }
     }
 
