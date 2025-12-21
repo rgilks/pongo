@@ -5,7 +5,7 @@
 
 set -e
 
-WORKER_URL="https://iso.rob-gilks.workers.dev"
+WORKER_URL="https://pongo.rob-gilks.workers.dev"
 LOG_CHECK_DURATION=${1:-10}
 
 echo "🚀 Deployment and Testing Workflow"

@@ -5,7 +5,7 @@
 set -e
 
 DURATION=${1:-10}
-WORKER_NAME="iso"
+WORKER_NAME="pongo"
 
 echo "🔍 Checking Cloudflare Workers logs for ${DURATION} seconds..."
 echo "Press Ctrl+C to stop early"
