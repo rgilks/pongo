@@ -12,8 +12,8 @@
         margin: 0;
         padding: 10px;
         min-height: 100vh;
-        background: linear-gradient(135deg, #0a0a0a 0%, #1a1a2e 50%, #0a0a0a 100%);
-        color: #fff;
+        background: radial-gradient(circle at center, #0a1a0a 0%, #000 100%);
+        color: #0f0;
         font-family: "Courier New", monospace;
         display: flex;
         flex-direction: column;
@@ -29,9 +29,9 @@
         left: 0;
         width: 100%;
         height: 100%;
-        background-image: linear-gradient(rgba(255, 255, 255, 0.03) 1px, transparent 1px),
-          linear-gradient(90deg, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
-        background-size: 50px 50px;
+        background-image: linear-gradient(rgba(0, 255, 0, 0.1) 1px, transparent 1px),
+          linear-gradient(90deg, rgba(0, 255, 0, 0.1) 1px, transparent 1px);
+        background-size: 20px 20px;
         pointer-events: none;
         z-index: 0;
       }
@@ -59,15 +59,13 @@
       }
 
       #canvas {
-        border: 3px solid #fff;
+        border: 4px solid #0f0;
         display: block;
         max-width: 100%;
         touch-action: none;
-        box-shadow: 0 0 20px rgba(255, 255, 255, 0.3),
-          0 0 40px rgba(0, 255, 255, 0.2),
-          inset 0 0 20px rgba(255, 255, 255, 0.1);
-        border-radius: 4px;
-        background: #000;
+        box-shadow: 0 0 20px rgba(0, 255, 0, 0.2), 0 0 40px rgba(0, 255, 0, 0.1);
+        border-radius: 2px;
+        background: #000500;
       }
 
       /* Countdown overlay */
@@ -78,8 +76,8 @@
         transform: translate(-50%, -50%);
         font-size: 120px;
         font-weight: bold;
-        color: #0ff;
-        text-shadow: 0 0 30px #0ff, 0 0 60px #0ff;
+        color: #0f0;
+        text-shadow: 0 0 10px #0f0;
         z-index: 100;
         opacity: 0;
         transition: opacity 0.2s, transform 0.2s;
@@ -115,7 +113,7 @@
         font-size: 48px;
         font-weight: bold;
         color: #0f0;
-        text-shadow: 0 0 20px #0f0, 0 0 40px #0f0;
+        text-shadow: none;
         animation: victoryPulse 0.5s ease-out infinite alternate;
       }
 
@@ -154,12 +152,12 @@
 
       .mobile-btn {
         display: none; /* Hidden on desktop */
-        background: rgba(0, 255, 255, 0.2);
-        border: 2px solid rgba(0, 255, 255, 0.5);
-        color: #fff;
-        font-size: 24px;
-        padding: 15px 10px;
-        border-radius: 8px;
+        background: #000;
+        border: 2px solid #0f0;
+        color: #0f0;
+        font-size: 32px;
+        padding: 5px 10px;
+        border-radius: 0;
         flex: 1;
         cursor: pointer;
         touch-action: manipulation;
@@ -168,13 +166,14 @@
       }
       
       .mobile-btn:active {
-        background: rgba(0, 255, 255, 0.4);
+        background: #0f0;
+        color: #000;
       }
 
       #score {
         font-size: 48px;
-        color: #fff;
-        text-shadow: 0 0 10px #fff, 0 0 20px rgba(0, 255, 255, 0.8);
+        color: #0f0;
+        text-shadow: 0 0 15px rgba(0, 255, 0, 0.7);
         margin: 0;
         text-align: center;
         font-weight: bold;
@@ -190,17 +189,18 @@
       /* Metrics visible but subtle */
       #metrics {
         font-size: 14px;
-        color: #aaa;
+        color: #0f0;
         padding: 8px;
-        opacity: 0.7;
-        background: rgba(0,0,0,0.3);
-        border-radius: 4px;
-        transition: opacity 0.3s, color 0.3s;
+        opacity: 0.8;
+        background: rgba(0, 20, 0, 0.6);
+        border: 1px solid #0f0;
+        border-radius: 0;
+        box-shadow: 0 0 10px rgba(0, 255, 0, 0.1);
+        transition: opacity 0.3s, box-shadow 0.3s;
       }
 
       #metrics:hover {
         opacity: 1;
-        color: #0ff;
       }
 
       .metric-row {
@@ -230,9 +230,11 @@
 
       #status {
         padding: 10px 16px;
-        background: rgba(0, 0, 0, 0.6);
-        border: 1px solid rgba(0, 255, 255, 0.3);
-        border-radius: 6px;
+        padding: 10px 16px;
+        background: rgba(0, 10, 0, 0.8);
+        border: 1px solid #0f0;
+        border-radius: 0;
+        box-shadow: 0 0 10px rgba(0, 255, 0, 0.1);
         font-size: 14px;
         margin: 0;
       }
@@ -242,27 +244,32 @@
         padding: 20px 40px;
         font-size: 28px;
         font-weight: bold;
-        background: linear-gradient(135deg, rgba(0, 255, 255, 0.3) 0%, rgba(0, 200, 255, 0.4) 100%);
-        border: 3px solid #0ff;
-        color: #fff;
-        text-shadow: 0 0 10px #0ff;
+        background: linear-gradient(180deg, #001100 0%, #003300 100%);
+        border: 2px solid #0f0;
+        color: #0f0;
+        text-shadow: 0 0 8px rgba(0, 255, 0, 0.6);
         cursor: pointer;
-        border-radius: 8px;
+        border-radius: 6px;
+        box-shadow: 0 0 15px rgba(0, 255, 0, 0.2), inset 0 0 15px rgba(0, 255, 0, 0.1);
         transition: all 0.2s ease;
         letter-spacing: 4px;
+        text-transform: uppercase;
       }
 
       #playBtn:hover {
-        transform: translateY(-3px);
-        box-shadow: 0 0 30px rgba(0, 255, 255, 0.6);
-        background: linear-gradient(135deg, rgba(0, 255, 255, 0.4) 0%, rgba(0, 200, 255, 0.5) 100%);
+        transform: translateY(-2px);
+        background: linear-gradient(180deg, #002200 0%, #004400 100%);
+        box-shadow: 0 0 25px rgba(0, 255, 0, 0.4), inset 0 0 20px rgba(0, 255, 0, 0.2);
+        text-shadow: 0 0 12px rgba(0, 255, 0, 0.8);
       }
 
       #playBtn:active {
         transform: translateY(0) scale(0.98);
+        box-shadow: 0 0 10px rgba(0, 255, 0, 0.3);
       }
 
       #playBtn:disabled {
+        filter: grayscale(1);
         opacity: 0.5;
         cursor: not-allowed;
         transform: none;
@@ -270,24 +277,31 @@
 
       /* Multiplayer section */
       #multiplayerSection {
-        border: 1px solid rgba(255, 255, 255, 0.2);
-        border-radius: 6px;
+        border: 1px solid #0f0;
+        border-radius: 0;
         overflow: hidden;
+        box-shadow: 0 0 10px rgba(0, 255, 0, 0.1);
+        transition: box-shadow 0.3s;
+      }
+
+      #multiplayerSection:hover {
+        box-shadow: 0 0 15px rgba(0, 255, 0, 0.2);
       }
 
       #multiplayerToggle {
         padding: 12px;
-        background: rgba(255, 255, 255, 0.05);
+        background: #000;
         cursor: pointer;
         display: flex;
         justify-content: space-between;
         align-items: center;
         font-size: 14px;
-        transition: background 0.2s;
+        border-bottom: 1px solid #0f0;
       }
 
       #multiplayerToggle:hover {
-        background: rgba(255, 255, 255, 0.1);
+        background: #0f0;
+        color: #000;
       }
 
       #multiplayerToggle .arrow {
@@ -330,10 +344,10 @@
         padding: 10px;
         font-family: inherit;
         font-size: 14px;
-        border: 1px solid rgba(0, 255, 255, 0.4);
-        background: rgba(0, 0, 0, 0.5);
-        color: #fff;
-        border-radius: 4px;
+        border: 1px solid #0f0;
+        background: #000;
+        color: #0f0;
+        border-radius: 0;
         box-sizing: border-box;
       }
 
@@ -341,27 +355,26 @@
         text-align: center;
         font-weight: bold;
         letter-spacing: 2px;
-        background: rgba(0, 255, 255, 0.1);
-        border-color: #0ff;
-        color: #0ff;
+        border: 2px solid #0f0;
       }
       #multiplayerContent button {
         cursor: pointer;
-        transition: all 0.2s;
+        transition: all 0.1s;
+        text-transform: uppercase;
       }
 
       #multiplayerContent button:hover {
-        background: rgba(0, 255, 255, 0.2);
-        border-color: #0ff;
+        background: #0f0;
+        color: #000;
       }
 
       .controls {
         font-size: 12px;
-        color: #888;
+        color: #0f0;
         margin-top: 8px;
         padding: 8px;
-        background: rgba(0, 0, 0, 0.3);
-        border-radius: 4px;
+        background: transparent;
+        border: none;
       }
 
       #matchCode {
@@ -480,9 +493,9 @@
       </div>
       <div id="sidePanel">
         <div id="scoreRow">
-          <button id="mobileUp" class="mobile-btn">▲ UP</button>
-          <div id="score">0 : 0</div>
-          <button id="mobileDown" class="mobile-btn">▼ DOWN</button>
+          <button id="mobileUp" class="mobile-btn">▲</button>
+          <div id="score">0 : 1</div>
+          <button id="mobileDown" class="mobile-btn">▼</button>
         </div>
         <div id="metrics">
           <div class="metric-row">
@@ -497,10 +510,10 @@
         </div>
         <div id="ui">
           <div id="status">Loading...</div>
-          <button id="playBtn" disabled>▶ PLAY</button>
+          <button id="playBtn" disabled>[ PLAY ]</button>
           <div id="multiplayerSection">
             <div id="multiplayerToggle">
-              <span>🌐 MULTIPLAYER</span>
+              <span>MULTIPLAYER</span>
               <span class="arrow">▼</span>
             </div>
             <div id="multiplayerContent">
@@ -517,7 +530,7 @@
               <div id="activeMatchControls" style="display: none;">
                 <div class="match-code-display">MATCH: <span id="displayCode">???</span></div>
                 <button id="copyLinkBtn">COPY INVITE LINK</button>
-                <button id="leaveBtn" style="background: rgba(255, 50, 50, 0.3); border-color: #f55;">LEAVE MATCH</button>
+                <button id="leaveBtn" style="border-color: #f55; color: #f55;">LEAVE MATCH</button>
               </div>
             </div>
           </div>

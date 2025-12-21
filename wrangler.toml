@@ -3,7 +3,7 @@ main = "worker/index.js"
 compatibility_date = "2024-01-01"
 
 [build]
-command = "wasm-pack build --target web --out-dir worker/pkg lobby_worker"
+command = "wasm-pack build --target web --out-dir worker/pkg lobby_worker && cp lobby_worker/index.html worker/pkg/index.html"
 
 [assets]
 directory = "./worker/pkg"

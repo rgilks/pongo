@@ -846,12 +846,12 @@ impl WasmClient {
 
         let left_paddle_instance = InstanceData {
             transform: [paddle_left_x, left_paddle_y, paddle_width, paddle_height],
-            tint: [0.0, 1.0, 1.0, 1.0], // Cyan
+            tint: [0.0, 1.0, 0.0, 1.0], // Terminal Green
         };
 
         let right_paddle_instance = InstanceData {
             transform: [paddle_right_x, right_paddle_y, paddle_width, paddle_height],
-            tint: [1.0, 0.0, 1.0, 1.0], // Magenta
+            tint: [0.0, 1.0, 0.0, 1.0], // Terminal Green
         };
 
         let ball_instance = InstanceData {
@@ -861,7 +861,7 @@ impl WasmClient {
                 ball_radius * 2.0,
                 ball_radius * 2.0,
             ],
-            tint: [1.0, 1.0, 0.2, 1.0], // Yellowish
+            tint: [1.0, 1.0, 1.0, 1.0], // White (classic) or Green? Let's go White for contrast
         };
 
         // Only update buffers if data changed (optimization for 120+ FPS)
