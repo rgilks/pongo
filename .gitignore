@@ -1,31 +1,20 @@
 # Rust
 target/
 **/*.rs.bk
-# Note: Cargo.lock should be committed for workspace projects
 
 # Node
 node_modules/
 npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
 package-lock.json
-yarn.lock
 
 # IDE
 .vscode/
 .idea/
-*.swp
-*.swo
-*~
 
 # OS
 .DS_Store
-Thumbs.db
 
-# Build artifacts
-dist/
-build/
-# Generated WASM packages (from wasm-pack)
+# WASM build output
 **/pkg/
 *.wasm
 *.js.map
@@ -34,8 +23,3 @@ build/
 # Cloudflare
 .dev.vars
 .wrangler/
-.wrangler.toml.bak
-
-# Generated documentation
-target/doc/
-
