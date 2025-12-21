@@ -54,24 +54,32 @@ impl GameState {
     /// Target: 60fps render, 20-60Hz server updates
     pub fn update_interpolation(&mut self, dt: f32) {
         self.time_since_update += dt;
-        // Interpolate over ~60ms (20Hz update rate = 1/20 = 0.05s)
-        // Use slightly longer duration to handle jitter and ensure smoothness
-        let interpolation_duration = 0.06; // 60ms for smoother interpolation
+        // Use 16ms (1 frame at 60fps) for snappy response
+        let interpolation_duration = 0.016;
         self.interpolation_alpha = (self.time_since_update / interpolation_duration).min(1.0);
     }
 
-    /// Get interpolated position
+    /// Get interpolated position with basic lerp
     fn interpolate(&self, prev: f32, curr: f32) -> f32 {
         prev + (curr - prev) * self.interpolation_alpha
     }
 
-    /// Get current interpolated positions
-    pub fn get_ball_x(&self) -> f32 {
-        self.interpolate(self.previous.ball_x, self.current.ball_x)
+    /// Get extrapolated ball position using velocity
+    fn extrapolate_ball(&self, pos: f32, vel: f32) -> f32 {
+        // Extrapolate ball position based on velocity and time since last update
+        // This makes the ball appear smoother between server updates
+        pos + vel * self.time_since_update
     }
 
+    /// Get current ball X with velocity extrapolation
+    pub fn get_ball_x(&self) -> f32 {
+        // Use velocity extrapolation for smooth ball movement
+        self.extrapolate_ball(self.current.ball_x, self.current.ball_vx)
+    }
+
+    /// Get current ball Y with velocity extrapolation
     pub fn get_ball_y(&self) -> f32 {
-        self.interpolate(self.previous.ball_y, self.current.ball_y)
+        self.extrapolate_ball(self.current.ball_y, self.current.ball_vy)
     }
 
     pub fn get_paddle_left_y(&self) -> f32 {
