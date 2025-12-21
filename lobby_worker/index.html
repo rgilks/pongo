@@ -144,6 +144,33 @@
         flex: 0 0 auto;
       }
 
+      #scoreRow {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 15px;
+        width: 100%;
+      }
+
+      .mobile-btn {
+        display: none; /* Hidden on desktop */
+        background: rgba(0, 255, 255, 0.2);
+        border: 2px solid rgba(0, 255, 255, 0.5);
+        color: #fff;
+        font-size: 24px;
+        padding: 15px 10px;
+        border-radius: 8px;
+        flex: 1;
+        cursor: pointer;
+        touch-action: manipulation;
+        user-select: none;
+        -webkit-user-select: none;
+      }
+      
+      .mobile-btn:active {
+        background: rgba(0, 255, 255, 0.4);
+      }
+
       #score {
         font-size: 48px;
         color: #fff;
@@ -160,13 +187,15 @@
         color: #0f0;
       }
 
-      /* Metrics hidden by default, show on hover */
+      /* Metrics visible but subtle */
       #metrics {
-        font-size: 12px;
-        color: #666;
+        font-size: 14px;
+        color: #aaa;
         padding: 8px;
-        opacity: 0.3;
-        transition: opacity 0.3s;
+        opacity: 0.7;
+        background: rgba(0,0,0,0.3);
+        border-radius: 4px;
+        transition: opacity 0.3s, color 0.3s;
       }
 
       #metrics:hover {
@@ -293,7 +322,29 @@
         color: #fff;
         border-radius: 4px;
       }
+      #multiplayerContent input,
+      #multiplayerContent button,
+      .match-code-display {
+        width: 100%;
+        margin-bottom: 8px;
+        padding: 10px;
+        font-family: inherit;
+        font-size: 14px;
+        border: 1px solid rgba(0, 255, 255, 0.4);
+        background: rgba(0, 0, 0, 0.5);
+        color: #fff;
+        border-radius: 4px;
+        box-sizing: border-box;
+      }
 
+      .match-code-display {
+        text-align: center;
+        font-weight: bold;
+        letter-spacing: 2px;
+        background: rgba(0, 255, 255, 0.1);
+        border-color: #0ff;
+        color: #0ff;
+      }
       #multiplayerContent button {
         cursor: pointer;
         transition: all 0.2s;
@@ -367,7 +418,11 @@
       @media (max-width: 768px) {
         body {
           padding: 5px;
-          padding-bottom: 120px; /* Space for touch controls */
+          /* No extra bottom padding needed now controls are integrated */
+        }
+
+        .mobile-btn {
+          display: block; /* Show on mobile */
         }
 
         #mainContainer {
@@ -406,11 +461,9 @@
           font-size: 22px;
           padding: 16px 30px;
         }
-      }
 
-      @media (max-width: 480px) {
         #score {
-          font-size: 28px;
+          font-size: 36px;
         }
       }
     </style>
@@ -426,7 +479,11 @@
         </div>
       </div>
       <div id="sidePanel">
-        <div id="score">0 : 0</div>
+        <div id="scoreRow">
+          <button id="mobileUp" class="mobile-btn">▲ UP</button>
+          <div id="score">0 : 0</div>
+          <button id="mobileDown" class="mobile-btn">▼ DOWN</button>
+        </div>
         <div id="metrics">
           <div class="metric-row">
             <span class="metric-label">FPS:</span>
@@ -447,9 +504,21 @@
               <span class="arrow">▼</span>
             </div>
             <div id="multiplayerContent">
-              <input type="text" id="matchCode" placeholder="MATCH CODE" maxlength="5" />
-              <button id="joinBtn">JOIN MATCH</button>
-              <button id="createBtn">CREATE MATCH</button>
+            <div id="multiplayerContent">
+              <!-- Lobby View: Join or Create -->
+              <div id="lobbyControls">
+                <input type="text" id="matchCode" placeholder="MATCH CODE" maxlength="5" />
+                <div style="display: flex; gap: 8px;">
+                  <button id="joinBtn" style="flex: 1;">JOIN</button>
+                  <button id="createBtn" style="flex: 1;">CREATE</button>
+                </div>
+              </div>
+              <!-- Active Match View: Code and Copy -->
+              <div id="activeMatchControls" style="display: none;">
+                <div class="match-code-display">MATCH: <span id="displayCode">???</span></div>
+                <button id="copyLinkBtn">COPY INVITE LINK</button>
+                <button id="leaveBtn" style="background: rgba(255, 50, 50, 0.3); border-color: #f55;">LEAVE MATCH</button>
+              </div>
             </div>
           </div>
           <div class="controls">
@@ -460,12 +529,7 @@
       </div>
     </div>
     <!-- Touch controls for mobile -->
-    <div id="touchControls">
-      <div class="touch-controls-row">
-        <div class="touch-button" id="touchUp">↑ UP</div>
-        <div class="touch-button" id="touchDown">↓ DOWN</div>
-      </div>
-    </div>
+    <!-- Touch controls removed (integrated into scoreRow) -->
     <script type="module">
       // Sound effects using Web Audio API
       const AudioContext = window.AudioContext || window.webkitAudioContext;
@@ -646,6 +710,10 @@
           const data = await response.json();
           document.getElementById("matchCode").value = data.code;
           updateStatus(`Match created: ${data.code}`);
+          const url = new URL(window.location);
+          url.searchParams.set("code", data.code);
+          window.history.pushState({}, "", url);
+          // document.getElementById("copyLinkBtn").style.display = "block"; // Handled by showActiveMatch
           await joinMatch();
         } catch (error) {
           console.error("Create error:", error);
@@ -672,6 +740,17 @@
           console.log("✅ Client initialized");
           const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
           const wsUrl = `${protocol}//${window.location.host}/ws/${code}`;
+          // Update URL if not already set
+          const url = new URL(window.location);
+          if (url.searchParams.get("code") !== code) {
+            url.searchParams.set("code", code);
+            window.history.pushState({}, "", url);
+          }
+          // Show active match controls
+          document.getElementById("lobbyControls").style.display = "none";
+          document.getElementById("activeMatchControls").style.display = "block";
+          document.getElementById("displayCode").textContent = code;
+          
           ws = new WebSocket(wsUrl);
           ws.binaryType = "arraybuffer";
           ws.onopen = async () => {
@@ -819,33 +898,31 @@
           }
         }, { capture: true, passive: false });
 
-        // Touch controls
-        const touchUp = document.getElementById("touchUp");
-        const touchDown = document.getElementById("touchDown");
-        if (touchUp && touchDown) {
-          const preventDefault = (e) => { e.preventDefault(); e.stopPropagation(); };
-          touchUp.addEventListener("touchstart", (e) => {
-            preventDefault(e);
-            if (client) { client.handle_key_string("ArrowUp", true); sendInput(); }
-          });
-          touchUp.addEventListener("touchend", (e) => {
-            preventDefault(e);
-            if (client) { client.handle_key_string("ArrowUp", false); sendInput(); }
-          });
-          touchDown.addEventListener("touchstart", (e) => {
-            preventDefault(e);
-            if (client) { client.handle_key_string("ArrowDown", true); sendInput(); }
-          });
-          touchDown.addEventListener("touchend", (e) => {
-            preventDefault(e);
-            if (client) { client.handle_key_string("ArrowDown", false); sendInput(); }
-          });
-          // Mouse support for testing
-          touchUp.addEventListener("mousedown", (e) => { e.preventDefault(); if (client) { client.handle_key_string("ArrowUp", true); sendInput(); }});
-          touchUp.addEventListener("mouseup", (e) => { e.preventDefault(); if (client) { client.handle_key_string("ArrowUp", false); sendInput(); }});
-          touchDown.addEventListener("mousedown", (e) => { e.preventDefault(); if (client) { client.handle_key_string("ArrowDown", true); sendInput(); }});
-          touchDown.addEventListener("mouseup", (e) => { e.preventDefault(); if (client) { client.handle_key_string("ArrowDown", false); sendInput(); }});
-        }
+        // Mobile controls (integrated buttons)
+        const mobileUp = document.getElementById("mobileUp");
+        const mobileDown = document.getElementById("mobileDown");
+
+        const setupTouch = (info) => {
+             const btn = info.btn;
+             const key = info.key;
+             if (!btn) return;
+             const prevent = (e) => { 
+                 // e.preventDefault(); // Don't prevent default click behavior if not needed, but for game buttons helpful
+                 if (e.type !== 'click') e.preventDefault(); 
+             };
+             
+             btn.addEventListener("touchstart", (e) => { prevent(e); if (client) { client.handle_key_string(key, true); sendInput(); } });
+             btn.addEventListener("touchend", (e) => { prevent(e); if (client) { client.handle_key_string(key, false); sendInput(); } });
+             
+             // Mouse fallback
+             btn.addEventListener("mousedown", (e) => { if (client) { client.handle_key_string(key, true); sendInput(); } });
+             btn.addEventListener("mouseup", (e) => { if (client) { client.handle_key_string(key, false); sendInput(); } });
+             // Mouse leave cancels input?
+             btn.addEventListener("mouseleave", (e) => { if (client) { client.handle_key_string(key, false); sendInput(); } });
+        };
+        
+        setupTouch({btn: mobileUp, key: "ArrowUp"});
+        setupTouch({btn: mobileDown, key: "ArrowDown"});
 
         setInterval(sendInput, 33);
       }
@@ -861,6 +938,35 @@
         window.startLocalGame();
       });
 
+      // Copy Link button
+      document.getElementById("copyLinkBtn").addEventListener("click", () => {
+        const url = window.location.href;
+        navigator.clipboard.writeText(url).then(() => {
+          const btn = document.getElementById("copyLinkBtn");
+          const originalText = btn.textContent;
+          btn.textContent = "COPIED!";
+          setTimeout(() => btn.textContent = originalText, 2000);
+        });
+      });
+
+      // Leave button
+      document.getElementById("leaveBtn").addEventListener("click", () => {
+        if (ws) ws.close();
+        if (client) {
+            // Reset game state?
+            // client.reset(); // If exposed
+        }
+        document.getElementById("lobbyControls").style.display = "block";
+        document.getElementById("activeMatchControls").style.display = "none";
+        
+        // Clear URL code
+        const url = new URL(window.location);
+        url.searchParams.delete("code");
+        window.history.pushState({}, "", url);
+        document.getElementById("matchCode").value = "";
+        updateStatus("Left match");
+      });
+
       async function main() {
         try {
           console.log("🚀 Starting main()...");
@@ -871,6 +977,18 @@
           document.getElementById("playBtn").addEventListener("click", window.startLocalGame);
           document.getElementById("createBtn").addEventListener("click", window.createMatch);
           document.getElementById("joinBtn").addEventListener("click", window.joinMatch);
+
+          // Auto-join from URL
+          const urlParams = new URLSearchParams(window.location.search);
+          const code = urlParams.get("code");
+          if (code) {
+             console.log("🔗 Found match code in URL:", code);
+             document.getElementById("multiplayerSection").classList.add("open");
+             document.getElementById("matchCode").value = code;
+             updateStatus("Joining from link...");
+             await window.joinMatch();
+          }
+
           console.log("✅ UI initialized");
         } catch (error) {
           console.error("❌ Error in main():", error);
