@@ -32,6 +32,7 @@ struct InstanceData {
 }
 
 /// Main client state
+#[allow(dead_code)] // Fields used via WGPU bindings, not directly read
 pub struct Client {
     device: Device,
     queue: Queue,
