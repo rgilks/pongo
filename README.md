@@ -7,25 +7,20 @@ A multiplayer Pong game built with **Rust + WebGPU** (client) and **Cloudflare D
 ## Quick Start
 
 ```bash
-# Prerequisites: Rust, Node 20+, wasm-pack
-cargo install wasm-pack
-npx wrangler login      # One-time Cloudflare auth
-
-# Build and run locally
-npm run build
-npm run dev             # http://localhost:8787
+cargo install wasm-pack       # Prerequisites: Rust, Node 20+
+npx wrangler login            # One-time Cloudflare auth
+npm run build && npm run dev  # http://localhost:8787
 ```
 
 ## How to Play
 
 | Mode | How |
 |------|-----|
-| **Multiplayer** | Click CREATE → share 5-char code → friend clicks JOIN |
-| **VS AI** | Click VS AI for single-player |
+| **Multiplayer** | CREATE → share code → JOIN |
+| **VS AI** | Click VS AI |
 
-**Controls:** Arrow keys or W/S (desktop) · Touch buttons (mobile)
-
-**Rules:** First to 11 points wins. Ball trajectory affected by where and how you hit it.
+**Controls:** Arrow keys or W/S · Touch on mobile  
+**Rules:** First to 11. Hit position affects ball trajectory.
 
 ## Project Structure
 
@@ -41,19 +36,11 @@ pongo/
 
 ## Commands
 
-| Command | Description |
-|---------|-------------|
-| `npm run build` | Build WASM packages |
-| `npm run dev` | Local server (localhost:8787) |
-| `npm run test` | Run all tests |
-| `npm run deploy` | Deploy to Cloudflare |
-| `npm run logs` | View production logs |
-
-**Full dev cycle:**
 ```bash
-npm run test:all      # Format, lint, test
-npm run build && npm run dev
-npm run deploy:test   # Deploy + verify
+npm run build        # Build WASM
+npm run dev          # Local server
+npm run test         # Run tests  
+npm run deploy       # Deploy to Cloudflare
 ```
 
 ## Troubleshooting
@@ -61,11 +48,8 @@ npm run deploy:test   # Deploy + verify
 | Issue | Fix |
 |-------|-----|
 | Build fails | `cargo install wasm-pack` |
-| Port 8787 in use | Kill process or edit `wrangler.toml` |
+| Port in use | Kill process or edit `wrangler.toml` |
 | Reset state | Delete `.wrangler/state/` |
-| Not logged in | `npx wrangler login` |
-
-## Documentation
 
 See **[SPEC.md](SPEC.md)** for technical details.
 
