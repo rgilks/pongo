@@ -336,11 +336,12 @@ mod integration_tests {
             mut respawn_state,
         ) = setup_game();
 
-        // Set score to 10 (one point from winning)
-        for _ in 0..10 {
+        // Set score to one point from winning
+        let target = config.win_score - 1;
+        for _ in 0..target {
             score.increment_left();
         }
-        assert_eq!(score.left, 10, "Score should be 10 before final point");
+        assert_eq!(score.left, target, "Score should be {} before final point", target);
 
         // Position ball to score (must exit right edge)
         for (_entity, ball) in world.query_mut::<&mut Ball>() {
@@ -362,7 +363,7 @@ mod integration_tests {
         );
 
         // Verify win condition
-        assert_eq!(score.left, 11, "Score should be 11 after final point");
+        assert_eq!(score.left, config.win_score, "Score should be {} after final point", config.win_score);
         assert_eq!(
             score.has_winner(config.win_score),
             Some(0),
