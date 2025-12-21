@@ -567,7 +567,7 @@ impl WasmClient {
             ping_pending: None,
             update_display_ms: 0.0,
             update_last_display: 0.0,
-            enable_trails: false, // Disabled for better performance (50 FPS → ~60 FPS)
+            enable_trails: true, // Visual polish - ball trail effect
             last_instance_data: None,
             is_local_game: false,
             local_world: None,
