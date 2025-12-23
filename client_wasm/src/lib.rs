@@ -110,6 +110,8 @@ pub struct Client {
     last_reconciled_tick: u32,                     // Last server tick we reconciled to
     predicted_tick: u32,                           // Current predicted tick
     input_history: Vec<(u32, i8)>,                 // History of (seq, paddle_dir) inputs for replay
+    // Local paddle position for immediate input response (bypasses prediction/reconciliation)
+    local_paddle_y: f32,
 }
 
 #[wasm_bindgen]
@@ -593,6 +595,7 @@ impl WasmClient {
             last_reconciled_tick: 0,
             predicted_tick: 0,
             input_history: Vec::new(),
+            local_paddle_y: 12.0, // Center of arena
         }))
     }
 
@@ -811,41 +814,33 @@ impl WasmClient {
         // Update interpolation with render delta time
         client.game_state.update_interpolation(render_dt);
 
-        // Get paddle positions: use predicted state for own paddle, server state for opponent
-        let player_id = client.game_state.get_player_id().unwrap_or(0);
-        let left_paddle_y =
-            if !client.is_local_game && client.predicted_world.is_some() && player_id == 0 {
-                // Use predicted state for own paddle (left)
-                if let Some(ref world) = client.predicted_world {
-                    world
-                        .query::<&Paddle>()
-                        .iter()
-                        .find(|(_e, p)| p.player_id == 0)
-                        .map(|(_e, p)| p.y)
-                        .unwrap_or_else(|| client.game_state.get_paddle_left_y())
-                } else {
-                    client.game_state.get_paddle_left_y()
-                }
-            } else {
-                client.game_state.get_paddle_left_y()
-            };
+        // Update local paddle position directly from input for immediate response
+        // This runs every render frame regardless of prediction state
+        if !client.is_local_game {
+            const PADDLE_SPEED: f32 = 18.0; // Match params.rs
+            const ARENA_HEIGHT: f32 = 24.0;
+            const PADDLE_HEIGHT: f32 = 4.0;
+            let half_height = PADDLE_HEIGHT / 2.0;
+            
+            client.local_paddle_y += client.paddle_dir as f32 * PADDLE_SPEED * render_dt;
+            client.local_paddle_y = client.local_paddle_y.clamp(half_height, ARENA_HEIGHT - half_height);
+        }
 
-        let right_paddle_y =
-            if !client.is_local_game && client.predicted_world.is_some() && player_id == 1 {
-                // Use predicted state for own paddle (right)
-                if let Some(ref world) = client.predicted_world {
-                    world
-                        .query::<&Paddle>()
-                        .iter()
-                        .find(|(_e, p)| p.player_id == 1)
-                        .map(|(_e, p)| p.y)
-                        .unwrap_or_else(|| client.game_state.get_paddle_right_y())
-                } else {
-                    client.game_state.get_paddle_right_y()
-                }
-            } else {
-                client.game_state.get_paddle_right_y()
-            };
+        // Get paddle positions: use local_paddle_y for own paddle, server state for opponent
+        let player_id = client.game_state.get_player_id().unwrap_or(0);
+        let left_paddle_y = if !client.is_local_game && player_id == 0 {
+            // Use local position for own paddle (immediate input response)
+            client.local_paddle_y
+        } else {
+            client.game_state.get_paddle_left_y()
+        };
+
+        let right_paddle_y = if !client.is_local_game && player_id == 1 {
+            // Use local position for own paddle (immediate input response)
+            client.local_paddle_y
+        } else {
+            client.game_state.get_paddle_right_y()
+        };
 
         let left_paddle_instance = InstanceData {
             transform: [paddle_left_x, left_paddle_y, paddle_width, paddle_height],
@@ -1138,6 +1133,13 @@ impl WasmClient {
             if client.predicted_world.is_none() && !client.is_local_game {
                 if let Some(snapshot) = client.game_state.get_current_snapshot() {
                     Self::initialize_prediction(client, &snapshot);
+                    // Initialize local paddle position from server
+                    let player_id = client.game_state.get_player_id().unwrap_or(0);
+                    client.local_paddle_y = if player_id == 0 {
+                        snapshot.paddle_left_y
+                    } else {
+                        snapshot.paddle_right_y
+                    };
                 }
             }
         }
