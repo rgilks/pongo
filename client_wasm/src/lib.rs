@@ -112,6 +112,7 @@ pub struct Client {
     input_history: Vec<(u32, i8)>,                 // History of (seq, paddle_dir) inputs for replay
     // Local paddle position for immediate input response (bypasses prediction/reconciliation)
     local_paddle_y: f32,
+    local_paddle_initialized: bool, // Only initialize from server ONCE
 }
 
 #[wasm_bindgen]
@@ -596,6 +597,7 @@ impl WasmClient {
             predicted_tick: 0,
             input_history: Vec::new(),
             local_paddle_y: 12.0, // Center of arena
+            local_paddle_initialized: false,
         }))
     }
 
@@ -1134,13 +1136,16 @@ impl WasmClient {
             if client.predicted_world.is_none() && !client.is_local_game {
                 if let Some(snapshot) = client.game_state.get_current_snapshot() {
                     Self::initialize_prediction(client, &snapshot);
-                    // Initialize local paddle position from server
-                    let player_id = client.game_state.get_player_id().unwrap_or(0);
-                    client.local_paddle_y = if player_id == 0 {
-                        snapshot.paddle_left_y
-                    } else {
-                        snapshot.paddle_right_y
-                    };
+                    // Initialize local paddle position from server ONCE only
+                    if !client.local_paddle_initialized {
+                        let player_id = client.game_state.get_player_id().unwrap_or(0);
+                        client.local_paddle_y = if player_id == 0 {
+                            snapshot.paddle_left_y
+                        } else {
+                            snapshot.paddle_right_y
+                        };
+                        client.local_paddle_initialized = true;
+                    }
                 }
             }
         }
