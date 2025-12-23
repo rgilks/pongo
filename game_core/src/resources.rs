@@ -73,7 +73,7 @@ impl Default for Config {
             arena_height: 24.0,
             paddle_width: 0.8,   // Match params.rs
             paddle_height: 4.0,
-            paddle_speed: 12.0,  // Match params.rs
+            paddle_speed: 18.0,  // Match params.rs
             ball_radius: 0.5,
             ball_speed_initial: 8.0,
             ball_speed_max: 16.0,
