@@ -75,10 +75,10 @@ impl Default for Config {
             paddle_height: 4.0,
             paddle_speed: 18.0,  // Match params.rs
             ball_radius: 0.5,
-            ball_speed_initial: 8.0,
-            ball_speed_max: 16.0,
+            ball_speed_initial: 12.0, // Match params.rs
+            ball_speed_max: 24.0,     // Match params.rs
             ball_speed_increase: 1.05,
-            win_score: 11,
+            win_score: 5,            // Match params.rs
         }
     }
 }
