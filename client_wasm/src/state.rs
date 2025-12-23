@@ -56,8 +56,8 @@ impl GameState {
     /// Target: 60fps render, 20-60Hz server updates
     pub fn update_interpolation(&mut self, dt: f32) {
         self.time_since_update += dt;
-        // Use 16ms (1 frame at 60fps) for snappy response
-        let interpolation_duration = 0.016;
+        // Server sends updates at 20Hz (50ms). Use 60ms to add a small buffer for network jitter.
+        let interpolation_duration = 0.060;
         self.interpolation_alpha = (self.time_since_update / interpolation_duration).min(1.0);
     }
 
@@ -114,6 +114,10 @@ impl GameState {
 
     pub fn get_player_id(&self) -> Option<u8> {
         self.my_player_id
+    }
+
+    pub fn set_winner(&mut self, winner: u8) {
+        self.winner = Some(winner);
     }
 
     pub fn time_since_update(&self) -> f32 {
