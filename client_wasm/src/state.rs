@@ -27,6 +27,9 @@ pub struct GameState {
     score_right: u8,
     pub my_player_id: Option<u8>,
     pub winner: Option<u8>,
+    // Smooth correction state for ball position
+    ball_display_x: f32,
+    ball_display_y: f32,
 }
 
 impl GameState {
@@ -49,6 +52,8 @@ impl GameState {
             score_right: 0,
             my_player_id: None,
             winner: None,
+            ball_display_x: 16.0,
+            ball_display_y: 12.0,
         }
     }
 
@@ -56,9 +61,19 @@ impl GameState {
     /// Target: 60fps render, 20-60Hz server updates
     pub fn update_interpolation(&mut self, dt: f32) {
         self.time_since_update += dt;
-        // Server sends updates at 20Hz (50ms). Use 60ms to add a small buffer for network jitter.
-        let interpolation_duration = 0.060;
+        // Server sends updates at 20Hz (50ms). Use 100ms (2x) for jitter tolerance.
+        let interpolation_duration = 0.100;
         self.interpolation_alpha = (self.time_since_update / interpolation_duration).min(1.0);
+
+        // Smoothly blend display position toward target using exponential smoothing
+        // This prevents jarring jumps when new server state arrives
+        let target_x = self.extrapolate_ball_internal(self.current.ball_x, self.current.ball_vx);
+        let target_y = self.extrapolate_ball_internal(self.current.ball_y, self.current.ball_vy);
+        
+        // Smoothing factor: higher = faster convergence (0.15 = ~6 frames to 90% convergence)
+        let smoothing = 0.15;
+        self.ball_display_x += (target_x - self.ball_display_x) * smoothing;
+        self.ball_display_y += (target_y - self.ball_display_y) * smoothing;
     }
 
     /// Get interpolated position with basic lerp
@@ -66,22 +81,21 @@ impl GameState {
         prev + (curr - prev) * self.interpolation_alpha
     }
 
-    /// Get extrapolated ball position using velocity
-    fn extrapolate_ball(&self, pos: f32, vel: f32) -> f32 {
-        // Extrapolate ball position based on velocity and time since last update
-        // This makes the ball appear smoother between server updates
-        pos + vel * self.time_since_update
+    /// Internal extrapolation with clamped time to prevent overshooting
+    fn extrapolate_ball_internal(&self, pos: f32, vel: f32) -> f32 {
+        // Clamp extrapolation to max 100ms to prevent large jumps on network delays
+        let clamped_time = self.time_since_update.min(0.100);
+        pos + vel * clamped_time
     }
 
-    /// Get current ball X with velocity extrapolation
+    /// Get current ball X with smooth display position
     pub fn get_ball_x(&self) -> f32 {
-        // Use velocity extrapolation for smooth ball movement
-        self.extrapolate_ball(self.current.ball_x, self.current.ball_vx)
+        self.ball_display_x
     }
 
-    /// Get current ball Y with velocity extrapolation
+    /// Get current ball Y with smooth display position
     pub fn get_ball_y(&self) -> f32 {
-        self.extrapolate_ball(self.current.ball_y, self.current.ball_vy)
+        self.ball_display_y
     }
 
     pub fn get_paddle_left_y(&self) -> f32 {
@@ -97,6 +111,7 @@ impl GameState {
         self.current = snapshot;
         self.time_since_update = 0.0;
         self.interpolation_alpha = 0.0;
+        // Note: ball_display_x/y are NOT reset here - they smoothly converge via update_interpolation
     }
 
     pub fn set_scores(&mut self, left: u8, right: u8) {

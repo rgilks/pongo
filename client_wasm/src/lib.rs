@@ -1431,19 +1431,29 @@ impl WasmClient {
             return;
         }
 
-        // Server is behind - we need to rewind and replay
-        // For now, we'll just reset to server state (simple approach)
-        // A more sophisticated approach would rewind to server_tick and replay inputs
-        client.predicted_world = None;
-        client.predicted_time = None;
-        client.predicted_map = None;
-        client.predicted_config = None;
-        client.predicted_score = None;
-        client.predicted_events = None;
-        client.predicted_net_queue = None;
-        client.predicted_rng = None;
-        client.last_reconciled_tick = server_tick;
-        client.predicted_tick = server_tick;
+        // Server is behind - we need to decide whether to rewind or keep predicting.
+        // For Pong, we can be more lenient to avoid "jerky" snapping.
+        // If the server is only a few ticks behind, we keep our predicted world.
+        // We'll reset only if the server is significantly behind (latency spike)
+        // or if we've predicted too far ahead.
+        let tick_diff = client.predicted_tick.saturating_sub(server_tick);
+        if tick_diff > 20 {
+            // More than ~333ms divergence at 60Hz - force a reset
+            client.predicted_world = None;
+            client.predicted_time = None;
+            client.predicted_map = None;
+            client.predicted_config = None;
+            client.predicted_score = None;
+            client.predicted_events = None;
+            client.predicted_net_queue = None;
+            client.predicted_rng = None;
+            client.last_reconciled_tick = server_tick;
+            client.predicted_tick = server_tick;
+        } else {
+            // Server is slightly behind, which is expected due to network latency.
+            // We keep our predicted state to maintain smoothness.
+            client.last_reconciled_tick = server_tick;
+        }
     }
 
     /// Calculate AI input for opponent paddle
