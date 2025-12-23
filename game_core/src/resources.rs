@@ -63,6 +63,7 @@ pub struct Config {
     pub ball_speed_initial: f32,
     pub ball_speed_max: f32,
     pub ball_speed_increase: f32, // Multiplier on paddle hit
+    pub ball_paddle_overlap: f32, // How much the ball can sink into the paddle
     pub win_score: u8,
 }
 
@@ -78,6 +79,7 @@ impl Default for Config {
             ball_speed_initial: 12.0, // Match params.rs
             ball_speed_max: 24.0,     // Match params.rs
             ball_speed_increase: 1.05,
+            ball_paddle_overlap: 0.2, // Match params.rs
             win_score: 5,            // Match params.rs
         }
     }

@@ -56,7 +56,9 @@ pub fn check_collisions(world: &mut World, map: &GameMap, config: &Config, event
         let dx = (ball_pos.x - paddle_x).abs();
         let dy = (ball_pos.y - paddle_y).abs();
 
-        if dx < paddle_half_width + ball_radius && dy < paddle_half_height + ball_radius {
+        if dx < paddle_half_width + ball_radius - config.ball_paddle_overlap
+            && dy < paddle_half_height + ball_radius
+        {
             // Collision detected! Check if ball is moving toward paddle
             let should_bounce =
                 (player_id == 0 && ball_vel.x < 0.0) || (player_id == 1 && ball_vel.x > 0.0);
@@ -104,11 +106,13 @@ pub fn check_collisions(world: &mut World, map: &GameMap, config: &Config, event
 
                 ball_vel = normalized_vel;
 
-                // Push ball out of paddle
+                // Push ball out of paddle (respecting overlap)
                 if player_id == 0 {
-                    ball_pos.x = paddle_x + paddle_half_width + ball_radius;
+                    ball_pos.x =
+                        paddle_x + paddle_half_width + ball_radius - config.ball_paddle_overlap;
                 } else {
-                    ball_pos.x = paddle_x - paddle_half_width - ball_radius;
+                    ball_pos.x =
+                        paddle_x - paddle_half_width - ball_radius + config.ball_paddle_overlap;
                 }
 
                 events.ball_hit_paddle = true;
@@ -399,5 +403,47 @@ mod tests {
 
         assert!(!events.ball_hit_paddle);
         assert!(!events.ball_hit_wall);
+    }
+
+    #[test]
+    fn test_ball_paddle_overlap() {
+        let (mut world, config, map, mut events) = setup_world();
+        let paddle_x = config.paddle_x(0);
+        let paddle_y = 12.0;
+        create_paddle(&mut world, 0, paddle_y);
+
+        let paddle_half_width = config.paddle_width / 2.0;
+        let ball_radius = config.ball_radius;
+        let overlap = config.ball_paddle_overlap;
+
+        // Position ball such that it's just outside the overlap threshold
+        let start_x = paddle_x + paddle_half_width + ball_radius - overlap + 0.01;
+        let ball_pos = glam::Vec2::new(start_x, paddle_y);
+        let ball_vel = glam::Vec2::new(-8.0, 0.0);
+        create_ball(&mut world, ball_pos, ball_vel);
+
+        // First check: no collision yet
+        check_collisions(&mut world, &map, &config, &mut events);
+        assert!(!events.ball_hit_paddle);
+
+        // Move ball slightly inside the threshold
+        for (_e, ball) in world.query_mut::<&mut Ball>() {
+            ball.pos.x -= 0.02;
+        }
+
+        // Second check: collision should trigger
+        check_collisions(&mut world, &map, &config, &mut events);
+        assert!(events.ball_hit_paddle);
+
+        // Verify push-out position respects overlap
+        for (_e, ball) in world.query::<&Ball>().iter() {
+            let expected_x = paddle_x + paddle_half_width + ball_radius - overlap;
+            assert!(
+                (ball.pos.x - expected_x).abs() < 0.001,
+                "Ball should be pushed out to the overlap point, got {}, expected {}",
+                ball.pos.x,
+                expected_x
+            );
+        }
     }
 }
