@@ -79,7 +79,7 @@ impl Default for Config {
             ball_speed_initial: 12.0, // Match params.rs
             ball_speed_max: 24.0,     // Match params.rs
             ball_speed_increase: 1.05,
-            ball_paddle_overlap: 0.2, // Match params.rs
+            ball_paddle_overlap: 0.4, // Match params.rs
             win_score: 5,            // Match params.rs
         }
     }

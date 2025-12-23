@@ -70,8 +70,8 @@ impl GameState {
         let target_x = self.extrapolate_ball_internal(self.current.ball_x, self.current.ball_vx);
         let target_y = self.extrapolate_ball_internal(self.current.ball_y, self.current.ball_vy);
         
-        // Smoothing factor: higher = faster convergence (0.15 = ~6 frames to 90% convergence)
-        let smoothing = 0.15;
+        // Smoothing factor: higher = faster convergence (0.3 = ~3 frames to 90% convergence)
+        let smoothing = 0.3;
         self.ball_display_x += (target_x - self.ball_display_x) * smoothing;
         self.ball_display_y += (target_y - self.ball_display_y) * smoothing;
     }

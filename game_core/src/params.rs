@@ -17,7 +17,7 @@ impl Params {
     pub const BALL_SPEED_INITIAL: f32 = 12.0; // (was 8.0)
     pub const BALL_SPEED_MAX: f32 = 24.0; // (was 16.0)
     pub const BALL_SPEED_INCREASE: f32 = 1.05; // Multiply speed on paddle hit
-    pub const BALL_PADDLE_OVERLAP: f32 = 0.2; // How much the ball can sink into the paddle
+    pub const BALL_PADDLE_OVERLAP: f32 = 0.4; // How much the ball can sink into the paddle
 
     // Score
     pub const WIN_SCORE: u8 = 5; // First to 5 wins
