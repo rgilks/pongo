@@ -827,15 +827,16 @@ impl WasmClient {
         }
 
         // Get paddle positions: use local_paddle_y for own paddle, server state for opponent
-        let player_id = client.game_state.get_player_id().unwrap_or(0);
-        let left_paddle_y = if !client.is_local_game && player_id == 0 {
+        let my_player_id = client.game_state.get_player_id();
+        
+        let left_paddle_y = if !client.is_local_game && my_player_id == Some(0) {
             // Use local position for own paddle (immediate input response)
             client.local_paddle_y
         } else {
             client.game_state.get_paddle_left_y()
         };
 
-        let right_paddle_y = if !client.is_local_game && player_id == 1 {
+        let right_paddle_y = if !client.is_local_game && my_player_id == Some(1) {
             // Use local position for own paddle (immediate input response)
             client.local_paddle_y
         } else {
