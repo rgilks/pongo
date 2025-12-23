@@ -29,6 +29,8 @@ struct GameState {
     game_started: bool,
     tick: u32,
     last_input: HashMap<u8, i8>, // Track last input per player to reduce logging
+    last_tick_time: u64,         // Unix timestamp in ms
+    accumulator: f32,            // Accumulated time for catch-up steps
 }
 
 #[durable_object]
@@ -71,6 +73,8 @@ impl DurableObject for MatchDO {
             game_started: false,
             tick: 0,
             last_input: HashMap::new(),
+            last_tick_time: Date::now() as u64,
+            accumulator: 0.0,
         };
 
         Self {
@@ -237,22 +241,23 @@ impl DurableObject for MatchDO {
 
     #[allow(clippy::await_holding_refcell_ref)] // We drop the RefCell borrow before await
     async fn alarm(&self) -> Result<Response> {
-        // Game loop - runs at 60 Hz
-        let tick_interval_ms = 16; // ~60 Hz
+        // Game loop - runs at 60 Hz target
+        let tick_interval_ms = 16; // ~60 Hz simulation step
 
         let mut gs = self.game_state.borrow_mut();
 
         // Check for idle clients and disconnect them (1 minute timeout)
-        let now = Date::now() as u64 / 1000; // Current time in seconds
+        let now_ms = Date::now() as u64;
+        let now_seconds = now_ms / 1000;
         let idle_timeout_seconds = 60; // 1 minute
         let mut clients_to_remove = Vec::new();
 
         for (player_id, client_info) in gs.clients.iter() {
-            if now.saturating_sub(client_info.last_activity) > idle_timeout_seconds {
+            if now_seconds.saturating_sub(client_info.last_activity) > idle_timeout_seconds {
                 console_log!(
                     "DO: Client {} idle for {}s, disconnecting",
                     player_id,
-                    now.saturating_sub(client_info.last_activity)
+                    now_seconds.saturating_sub(client_info.last_activity)
                 );
                 clients_to_remove.push(*player_id);
             }
@@ -294,8 +299,26 @@ impl DurableObject for MatchDO {
             return Response::ok("No clients, stopping alarm loop");
         }
 
-        // Run simulation
-        Self::step_game_simulation(&mut gs);
+        // Calculate real elapsed time since last alarm
+        let elapsed_ms = now_ms.saturating_sub(gs.last_tick_time);
+        gs.last_tick_time = now_ms;
+
+        // Add to accumulator, capped to avoid large jumps if DO was hibernated
+        gs.accumulator += elapsed_ms.min(100) as f32; // Max 100ms catchup per alarm
+
+        // Run simulation steps
+        let mut steps_run = 0;
+        const MAX_STEPS: u32 = 10; // Avoid "death spiral" if simulation is too slow
+        
+        while gs.accumulator >= tick_interval_ms as f32 && steps_run < MAX_STEPS {
+            Self::step_game_simulation(&mut gs);
+            gs.accumulator -= tick_interval_ms as f32;
+            steps_run += 1;
+        }
+
+        if steps_run > 1 && gs.tick % 60 == 0 {
+            console_log!("DO: Catching up, ran {} steps in one alarm", steps_run);
+        }
 
         // Release borrow before async call
         drop(gs);
