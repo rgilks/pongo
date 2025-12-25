@@ -26,27 +26,26 @@ pub fn step(
     net_queue: &mut NetQueue,
     rng: &mut GameRng,
     respawn_state: &mut RespawnState,
-    accumulator: &mut f32,
 ) {
     // Clamp dt to prevent large jumps
     let clamped_dt = time.dt.min(Params::MAX_DT);
-    *accumulator += clamped_dt;
-    let mut remaining_dt = *accumulator;
 
     // Clear events at start of frame
     events.clear();
 
-    // Ingest inputs (apply to paddle intents)
-    ingest_inputs(world, net_queue);
+    // Fixed micro-steps for stable physics
+    let mut remaining_dt = clamped_dt;
+    while remaining_dt > 0.0 {
+        let step_dt = remaining_dt.min(Params::FIXED_DT);
+        remaining_dt -= step_dt;
 
-    while remaining_dt >= Params::FIXED_DT {
-        // Run physics step
-        let step_dt = Params::FIXED_DT; // Use fixed dt for physics steps
-
-        // Update timers
+        // Update respawn timer
         respawn_state.update(step_dt);
 
-        // 3. Handle ball respawn after delay
+        // 1. Ingest inputs (apply to paddle intents)
+        ingest_inputs(world, net_queue);
+
+        // 2. Handle ball respawn after delay
         if !respawn_state.can_respawn() {
             // During respawn delay: keep ball at center with zero velocity
             for (_entity, ball) in world.query_mut::<&mut Ball>() {
@@ -74,11 +73,7 @@ pub fn step(
             // 5. Check scoring (ball exited arena)
             check_scoring(world, map, score, events, rng, config, respawn_state);
         }
-
-        remaining_dt -= step_dt;
     }
-
-    *accumulator = remaining_dt;
 
     // Update time
     time.now += clamped_dt;
@@ -153,7 +148,7 @@ mod integration_tests {
             mut respawn_state,
         ) = setup_game();
 
-        let mut accumulator = 0.0;
+        
 
         // Run one step
         step(
@@ -166,7 +161,7 @@ mod integration_tests {
             &mut net_queue,
             &mut rng,
             &mut respawn_state,
-            &mut accumulator,
+
         );
 
         // Verify ball moved
@@ -196,7 +191,7 @@ mod integration_tests {
             mut respawn_state,
         ) = setup_game();
 
-        let mut accumulator = 0.0;
+        
 
         // Get initial paddle position
         let mut initial_paddle_y = 0.0;
@@ -220,7 +215,7 @@ mod integration_tests {
             &mut net_queue,
             &mut rng,
             &mut respawn_state,
-            &mut accumulator,
+
         );
 
         // Verify paddle moved
@@ -248,7 +243,7 @@ mod integration_tests {
             mut respawn_state,
         ) = setup_game();
 
-        let mut accumulator = 0.0;
+        
 
         // Position ball near top wall
         for (_entity, ball) in world.query_mut::<&mut Ball>() {
@@ -268,7 +263,7 @@ mod integration_tests {
                 &mut net_queue,
                 &mut rng,
                 &mut respawn_state,
-                &mut accumulator,
+    
             );
             if events.ball_hit_wall {
                 break;
@@ -294,7 +289,7 @@ mod integration_tests {
             mut respawn_state,
         ) = setup_game();
 
-        let mut accumulator = 0.0;
+        
 
         // Position ball to exit right edge (must be beyond width after movement)
         for (_entity, ball) in world.query_mut::<&mut Ball>() {
@@ -313,7 +308,7 @@ mod integration_tests {
             &mut net_queue,
             &mut rng,
             &mut respawn_state,
-            &mut accumulator,
+
         );
 
         // Verify scoring occurred
@@ -349,7 +344,7 @@ mod integration_tests {
             mut respawn_state,
         ) = setup_game();
 
-        let mut accumulator = 0.0;
+        
 
         // Set score to one point from winning
         let target = config.win_score - 1;
@@ -378,7 +373,7 @@ mod integration_tests {
             &mut net_queue,
             &mut rng,
             &mut respawn_state,
-            &mut accumulator,
+
         );
 
         // Verify win condition
@@ -408,7 +403,7 @@ mod integration_tests {
             mut respawn_state,
         ) = setup_game();
 
-        let mut accumulator = 0.0;
+        
 
         // Run 100 steps
         for _ in 0..100 {
@@ -422,7 +417,7 @@ mod integration_tests {
                 &mut net_queue,
                 &mut rng,
                 &mut respawn_state,
-                &mut accumulator,
+    
             );
             events.clear();
 

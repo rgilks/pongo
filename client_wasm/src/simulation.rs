@@ -14,7 +14,6 @@ pub struct LocalGame {
     pub net_queue: NetQueue,
     pub rng: GameRng,
     pub respawn_state: RespawnState,
-    pub accumulator: f32,
 }
 
 impl LocalGame {
@@ -45,7 +44,6 @@ impl LocalGame {
             net_queue: NetQueue::new(),
             rng,
             respawn_state: RespawnState::new(),
-            accumulator: 0.0,
         }
     }
 
@@ -79,7 +77,6 @@ impl LocalGame {
             &mut self.net_queue,
             &mut self.rng,
             &mut self.respawn_state,
-            &mut self.accumulator,
         );
 
         let winner = self.score.has_winner(self.config.win_score);

@@ -128,7 +128,6 @@ impl ClientPredictor {
                 net_queue,
                 rng,
                 respawn_state,
-                &mut self.accumulator,
             );
 
             self.predicted_tick += 1;
@@ -193,8 +192,6 @@ impl ClientPredictor {
                     net_queue,
                     rng,
                     respawn_state,
-                    // Use a dummy accumulator for step since outer loop handles timing
-                    &mut 0.0,
                 );
 
                 self.predicted_tick += 1;

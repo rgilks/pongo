@@ -63,7 +63,7 @@ pub struct GameState {
     pub tick: u32,
     pub last_input: HashMap<u8, i8>, // Track last input per player to reduce logging
     pub last_tick_time: u64,         // Unix timestamp in ms
-    pub accumulator: f32,            // Accumulated time for catch-up steps
+    pub accumulator: f32,            // For alarm loop catch-up timing
 }
 
 impl GameState {
@@ -212,7 +212,6 @@ impl GameState {
             &mut self.net_queue,
             &mut self.rng,
             &mut self.respawn_state,
-            &mut self.accumulator,
         );
 
         // Return winner if any
