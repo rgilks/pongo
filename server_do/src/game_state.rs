@@ -230,6 +230,10 @@ impl GameState {
         self.events = Events::new();
         self.tick = 0;
         self.last_input.clear();
+        self.net_queue = NetQueue::new();
+        self.accumulator = 0.0;
+        self.last_tick_time = self.env.now();
+        self.time = Time::default();
 
         // Reset world entities (keep clients)
         self.world.clear();
