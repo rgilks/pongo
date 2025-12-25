@@ -137,10 +137,7 @@ impl WasmClient {
                 client.game_state.set_scores(score_left, score_right);
 
                 // Check for win condition reset
-                if winner.is_some() {
-                    // Reset logic if needed, or game just ends?
-                    // Original code had logic to reset score in local_score, but here we just rely on set_scores
-                }
+
             }
         }
     }
@@ -217,9 +214,7 @@ impl WasmClient {
 
     #[wasm_bindgen]
     pub fn on_message(&mut self, bytes: Vec<u8>) -> Result<(), JsValue> {
-        // Move huge logic to client_wasm/src/network.rs ?
-        // Or keep here if small enough.
-        // It was 50 lines.
+
         let client = &mut self.0;
         let msg = proto::S2C::from_bytes(&bytes)
             .map_err(|e| format!("Failed to deserialize: {:?}", e))?;
