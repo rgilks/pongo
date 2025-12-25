@@ -127,6 +127,31 @@ impl GameState {
         self.winner = Some(winner);
     }
 
+    /// Reset game state for new game
+    pub fn reset(&mut self) {
+        let initial = GameStateSnapshot {
+            ball_x: 16.0,
+            ball_y: 12.0,
+            paddle_left_y: 12.0,
+            paddle_right_y: 12.0,
+            ball_vx: 0.0,
+            ball_vy: 0.0,
+            tick: 0,
+            score_left: 0,
+            score_right: 0,
+        };
+        self.current = initial.clone();
+        self.previous = initial;
+        self.winner = None;
+        self.score_left = 0;
+        self.score_right = 0;
+        self.time_since_update = 0.0;
+        self.interpolation_alpha = 1.0;
+        self.ball_display_x = 16.0;
+        self.ball_display_y = 12.0;
+        self.my_player_id = None;
+    }
+
     pub fn time_since_update(&self) -> f32 {
         self.time_since_update
     }

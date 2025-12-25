@@ -4,36 +4,66 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Pong</title>
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Outfit:wght@700;900&display=swap" rel="stylesheet">
+    
     <style>
+      :root {
+        --bg-dark: #0f172a;
+        --bg-deep: #020617;
+        --primary: #6366f1;
+        --primary-hover: #4f46e5;
+        --secondary: #ec4899;
+        --accent: #06b6d4;
+        --success: #10b981;
+        --danger: #ef4444;
+        
+        --text-main: #f8fafc;
+        --text-muted: #94a3b8;
+        
+        --glass-bg: rgba(30, 41, 59, 0.6);
+        --glass-border: rgba(255, 255, 255, 0.08);
+        --glass-shine: rgba(255, 255, 255, 0.05);
+        
+        --shadow-sm: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+        --shadow-lg: 0 20px 25px -5px rgba(0, 0, 0, 0.2), 0 10px 10px -5px rgba(0, 0, 0, 0.1);
+        --glow-primary: 0 0 25px rgba(99, 102, 241, 0.25);
+      }
+
       * {
         box-sizing: border-box;
       }
+
       body {
         margin: 0;
-        padding: 10px;
+        padding: 20px;
         min-height: 100vh;
-        background: radial-gradient(circle at center, #0a1a0a 0%, #000 100%);
-        color: #0f0;
-        font-family: "Courier New", monospace;
+        background: radial-gradient(circle at top center, #1e293b 0%, #020617 100%);
+        color: var(--text-main);
+        font-family: 'Inter', sans-serif;
         display: flex;
         flex-direction: column;
-        position: relative;
+        align-items: center;
+        justify-content: center;
         overflow-x: hidden;
       }
 
-      /* Animated background grid */
+      /* Subtle animated grid background */
       body::before {
         content: "";
         position: fixed;
-        top: 0;
-        left: 0;
+        inset: 0;
         width: 100%;
         height: 100%;
-        background-image: linear-gradient(rgba(0, 255, 0, 0.1) 1px, transparent 1px),
-          linear-gradient(90deg, rgba(0, 255, 0, 0.1) 1px, transparent 1px);
-        background-size: 20px 20px;
+        background-image: 
+          linear-gradient(rgba(255, 255, 255, 0.03) 1px, transparent 1px),
+          linear-gradient(90deg, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
+        background-size: 50px 50px;
         pointer-events: none;
         z-index: 0;
+        mask-image: radial-gradient(circle at center, black 40%, transparent 100%);
       }
 
       #mainContainer {
@@ -41,11 +71,9 @@
         flex-direction: row;
         align-items: flex-start;
         justify-content: center;
-        gap: 20px;
-        flex: 1;
-        max-width: 1400px;
-        margin: 0 auto;
+        gap: 40px;
         width: 100%;
+        max-width: 1100px;
         position: relative;
         z-index: 1;
       }
@@ -54,18 +82,20 @@
         display: flex;
         flex-direction: column;
         align-items: center;
-        flex: 0 0 auto;
         position: relative;
+        border-radius: 20px;
+        padding: 6px;
+        background: linear-gradient(145deg, rgba(255,255,255,0.05), rgba(255,255,255,0.01));
+        box-shadow: var(--shadow-lg), var(--glow-primary);
+        border: 1px solid var(--glass-border);
       }
 
       #canvas {
-        border: 4px solid #0f0;
         display: block;
         max-width: 100%;
+        background: #000;
+        border-radius: 14px;
         touch-action: none;
-        box-shadow: 0 0 20px rgba(0, 255, 0, 0.2), 0 0 40px rgba(0, 255, 0, 0.1);
-        border-radius: 2px;
-        background: #000500;
       }
 
       /* Countdown overlay */
@@ -74,500 +104,416 @@
         top: 50%;
         left: 50%;
         transform: translate(-50%, -50%);
-        font-size: 120px;
-        font-weight: bold;
-        color: #0f0;
-        text-shadow: 0 0 10px #0f0;
+        font-family: 'Outfit', sans-serif;
+        font-size: 140px;
+        font-weight: 900;
+        color: white;
+        text-shadow: 0 0 40px var(--primary);
         z-index: 100;
         opacity: 0;
-        transition: opacity 0.2s, transform 0.2s;
+        transition: opacity 0.2s, transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
         pointer-events: none;
       }
 
       #countdown.show {
         opacity: 1;
-        transform: translate(-50%, -50%) scale(1.2);
+        transform: translate(-50%, -50%) scale(1.1);
       }
 
       /* Victory overlay */
       #victoryOverlay {
         position: absolute;
-        top: 0;
-        left: 0;
-        width: 100%;
-        height: 100%;
+        inset: 0;
+        background: rgba(2, 6, 23, 0.85);
+        backdrop-filter: blur(12px);
+        border-radius: 14px;
         display: none;
         align-items: center;
         justify-content: center;
         flex-direction: column;
-        background: rgba(0, 0, 0, 0.8);
         z-index: 200;
+        opacity: 0;
+        transition: opacity 0.4s ease;
       }
 
       #victoryOverlay.show {
         display: flex;
-        animation: fadeIn 0.5s ease-out;
+        opacity: 1;
       }
 
       #victoryText {
-        font-size: 48px;
-        font-weight: bold;
-        color: #0f0;
-        text-shadow: none;
-        animation: victoryPulse 0.5s ease-out infinite alternate;
+        font-family: 'Outfit', sans-serif;
+        font-size: 64px;
+        font-weight: 800;
+        margin-bottom: 30px;
+        text-align: center;
+        letter-spacing: -1px;
+      }
+      
+      .status-win {
+        background: linear-gradient(to right, #4ade80, #3b82f6);
+        -webkit-background-clip: text;
+        background-clip: text;
+        -webkit-text-fill-color: transparent;
+        text-shadow: 0 0 30px rgba(74, 222, 128, 0.3);
+      }
+      
+      .status-lose {
+        background: linear-gradient(to right, #f472b6, #ef4444);
+        -webkit-background-clip: text;
+        background-clip: text;
+        -webkit-text-fill-color: transparent;
+        text-shadow: 0 0 30px rgba(239, 68, 68, 0.3);
       }
 
       #playAgainBtn {
-        margin-top: 20px;
-        padding: 15px 40px;
-        font-size: 24px;
+        padding: 16px 40px;
+        font-size: 18px;
+        font-weight: 700;
+        font-family: 'Outfit', sans-serif;
+        letter-spacing: 1px;
+        color: white;
+        background: var(--primary);
+        border: none;
+        border-radius: 100px;
         cursor: pointer;
+        box-shadow: 0 10px 20px -5px rgba(99, 102, 241, 0.4);
+        transition: all 0.2s ease;
+        text-transform: uppercase;
       }
 
-      @keyframes fadeIn {
-        from { opacity: 0; }
-        to { opacity: 1; }
+      #playAgainBtn:hover {
+        transform: translateY(-2px);
+        background: var(--primary-hover);
+        box-shadow: 0 15px 25px -5px rgba(99, 102, 241, 0.5);
       }
 
-      @keyframes victoryPulse {
-        from { transform: scale(1); }
-        to { transform: scale(1.1); }
-      }
-
+      /* Side Panel */
       #sidePanel {
         display: flex;
         flex-direction: column;
-        gap: 15px;
-        min-width: 220px;
-        flex: 0 0 auto;
+        gap: 20px;
+        width: 320px;
+        flex-shrink: 0;
       }
 
-      #scoreRow {
+      /* Card Style */
+      .panel-card {
+        background: var(--glass-bg);
+        border: 1px solid var(--glass-border);
+        border-radius: 16px;
+        padding: 24px;
+        box-shadow: var(--shadow-sm);
         display: flex;
         flex-direction: column;
-        align-items: center;
-        justify-content: center;
-        gap: 5px;
-        width: 100%;
-        margin-bottom: 5px;
+        gap: 16px;
       }
-      
+
+      /* Score Section */
       #scoreContainer {
         display: flex;
         align-items: center;
         justify-content: center;
-        gap: 15px;
+        gap: 12px;
         width: 100%;
       }
 
-      #winCondition {
-        font-size: 12px;
-        color: #0f0;
-        opacity: 0.8;
-        letter-spacing: 1px;
-        text-transform: uppercase;
-        text-shadow: 0 0 5px rgba(0, 255, 0, 0.5);
-      }
-
-      .mobile-btn {
-        display: none; /* Hidden on desktop */
-        background: #000;
-        border: 2px solid #0f0;
-        color: #0f0;
-        font-size: 32px;
-        padding: 5px 10px;
-        border-radius: 0;
-        flex: 1;
-        cursor: pointer;
-        touch-action: manipulation;
-        user-select: none;
-        -webkit-user-select: none;
-      }
-      
-      .mobile-btn:active {
-        background: #0f0;
-        color: #000;
-      }
-
       #score {
-        font-size: 48px;
-        color: #0f0;
-        text-shadow: 0 0 15px rgba(0, 255, 0, 0.7);
+        font-family: 'Outfit', sans-serif;
+        font-size: 56px;
+        font-weight: 800;
+        color: white;
         margin: 0;
         text-align: center;
-        font-weight: bold;
-        letter-spacing: 4px;
-        transition: transform 0.15s ease-out, color 0.15s;
+        letter-spacing: -1px;
+        line-height: 1;
+        transition: transform 0.1s cubic-bezier(0.4, 0, 0.2, 1);
       }
 
       #score.flash {
-        transform: scale(1.3);
-        color: #0f0;
+        transform: scale(1.15);
+        color: var(--accent);
+        text-shadow: 0 0 20px rgba(6, 182, 212, 0.5);
+      }
+      
+      #winCondition {
+        text-align: center;
+        font-size: 11px;
+        text-transform: uppercase;
+        letter-spacing: 2px;
+        color: var(--text-muted);
+        font-weight: 600;
+        margin-top: 4px;
       }
 
-      /* Metrics visible but subtle */
+      /* Metrics */
       #metrics {
         display: flex;
         justify-content: center;
-        gap: 24px;
-        font-size: 14px;
-        color: #0f0;
-        padding: 8px 16px;
-        opacity: 0.8;
-        background: rgba(0, 20, 0, 0.6);
-        border: 1px solid #0f0;
-        border-radius: 0;
-        box-shadow: 0 0 10px rgba(0, 255, 0, 0.1);
-        transition: opacity 0.3s, box-shadow 0.3s;
+        gap: 16px;
+        padding: 0;
+        background: transparent;
+        border: none;
+        box-shadow: none;
+        opacity: 0.6;
+        transition: opacity 0.2s;
       }
-
-      #metrics:hover {
-        opacity: 1;
-      }
+      
+      #metrics:hover { opacity: 1; }
 
       .metric-row {
         display: flex;
         align-items: center;
-        margin: 0;
-        white-space: nowrap;
+        font-size: 12px;
+        color: var(--text-muted);
+        font-variant-numeric: tabular-nums;
       }
+      
+      .metric-label { margin-right: 6px; }
+      .metric-value { font-weight: 600; color: var(--text-main); }
 
-      .metric-label {
-        color: inherit;
-        margin-right: 4px;
-        min-width: 50px;
-      }
-
-      .metric-value {
-        min-width: 30px;
-        text-align: right;
-      }
-
-      #ui {
-        text-align: center;
-        display: flex;
-        flex-direction: column;
-        gap: 12px;
-      }
-
-      #status {
-        padding: 10px 16px;
-        padding: 10px 16px;
-        background: rgba(0, 10, 0, 0.8);
-        border: 1px solid #0f0;
-        border-radius: 0;
-        box-shadow: 0 0 10px rgba(0, 255, 0, 0.1);
-        font-size: 14px;
-        margin: 0;
-      }
-
-      /* Big PLAY button */
+      /* UI Controls */
       #playBtn {
-        padding: 20px 40px;
-        font-size: 28px;
-        font-weight: bold;
-        background: linear-gradient(180deg, #001100 0%, #003300 100%);
-        border: 2px solid #0f0;
-        color: #0f0;
-        text-shadow: 0 0 8px rgba(0, 255, 0, 0.6);
-        cursor: pointer;
-        border-radius: 6px;
-        box-shadow: 0 0 15px rgba(0, 255, 0, 0.2), inset 0 0 15px rgba(0, 255, 0, 0.1);
-        transition: all 0.2s ease;
-        letter-spacing: 4px;
+        width: 100%;
+        padding: 20px;
+        font-family: 'Outfit', sans-serif;
+        font-size: 20px;
+        font-weight: 700;
+        letter-spacing: 2px;
         text-transform: uppercase;
+        background: linear-gradient(135deg, var(--primary) 0%, #4f46e5 100%);
+        border: none;
+        color: white;
+        border-radius: 12px;
+        cursor: pointer;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.1), 0 10px 15px -3px rgba(99, 102, 241, 0.3);
+        transition: all 0.2s ease;
       }
-
+      
       #playBtn:hover {
         transform: translateY(-2px);
-        background: linear-gradient(180deg, #002200 0%, #004400 100%);
-        box-shadow: 0 0 25px rgba(0, 255, 0, 0.4), inset 0 0 20px rgba(0, 255, 0, 0.2);
-        text-shadow: 0 0 12px rgba(0, 255, 0, 0.8);
+        filter: brightness(1.1);
+        box-shadow: 0 20px 25px -5px rgba(99, 102, 241, 0.4);
       }
-
-      #playBtn:active {
-        transform: translateY(0) scale(0.98);
-        box-shadow: 0 0 10px rgba(0, 255, 0, 0.3);
-      }
-
+      
       #playBtn:disabled {
-        filter: grayscale(1);
-        opacity: 0.5;
+        background: #334155;
+        color: #64748b;
+        cursor: not-allowed;
+        transform: none;
+        box-shadow: none;
+      }
+      
+      #playBtn.playing {
+        background: rgba(16, 185, 129, 0.2);
+        border: 1px solid rgba(16, 185, 129, 0.4);
+        color: #6ee7b7;
+        box-shadow: none;
+        cursor: default;
+        pointer-events: none;
+        padding: 14px 20px;
+        font-size: 14px;
+        letter-spacing: 1px;
+      }
+      
+      .btn-challenge {
+        width: 100%;
+        padding: 14px 20px;
+        background: linear-gradient(135deg, #ec4899 0%, #8b5cf6 100%);
+        border: none;
+        border-radius: 10px;
+        color: white;
+        font-family: 'Outfit', sans-serif;
+        font-size: 14px;
+        font-weight: 700;
+        letter-spacing: 1px;
+        text-transform: uppercase;
+        cursor: pointer;
+        box-shadow: 0 4px 15px rgba(236, 72, 153, 0.3);
+        transition: all 0.2s ease;
+      }
+      
+      .btn-challenge:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 6px 20px rgba(236, 72, 153, 0.4);
+      }
+      
+      .btn-challenge:disabled {
+        background: #334155;
+        box-shadow: none;
         cursor: not-allowed;
         transform: none;
       }
-
-      /* Multiplayer section */
-      #multiplayerSection {
-        border: 1px solid #0f0;
-        border-radius: 0;
-        overflow: hidden;
-        box-shadow: 0 0 10px rgba(0, 255, 0, 0.1);
-        transition: box-shadow 0.3s;
-      }
-
-      #multiplayerSection:hover {
-        box-shadow: 0 0 15px rgba(0, 255, 0, 0.2);
-      }
-
-      #multiplayerToggle {
-        padding: 12px;
-        background: #000;
-        cursor: pointer;
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        font-size: 14px;
-        border-bottom: 1px solid #0f0;
-      }
-
-      #multiplayerToggle:hover {
-        background: #0f0;
-        color: #000;
-      }
-
-      #multiplayerToggle .arrow {
-        transition: transform 0.3s;
-      }
-
-      #multiplayerSection.open #multiplayerToggle .arrow {
-        transform: rotate(180deg);
-      }
-
-      #multiplayerContent {
-        max-height: 0;
-        overflow: hidden;
-        transition: max-height 0.3s ease-out;
-        padding: 0 12px;
-      }
-
-      #multiplayerSection.open #multiplayerContent {
-        max-height: 200px;
-        padding: 12px;
-      }
-
-      #multiplayerContent input,
-      #multiplayerContent button {
-        width: 100%;
-        margin-bottom: 8px;
-        padding: 10px;
-        font-family: inherit;
-        font-size: 14px;
-        border: 1px solid rgba(0, 255, 255, 0.4);
-        background: rgba(0, 0, 0, 0.5);
-        color: #fff;
-        border-radius: 4px;
-      }
-      #multiplayerContent input,
-      #multiplayerContent button,
-      .match-code-display {
-        width: 100%;
-        margin-bottom: 8px;
-        padding: 10px;
-        font-family: inherit;
-        font-size: 14px;
-        border: 1px solid #0f0;
-        background: #000;
-        color: #0f0;
-        border-radius: 0;
-        box-sizing: border-box;
-      }
-
-      .match-code-display {
+      
+      .waiting-state {
         text-align: center;
-        font-weight: bold;
-        letter-spacing: 2px;
-        border: 2px solid #0f0;
+        padding: 8px 0;
       }
-      #multiplayerContent button {
-        cursor: pointer;
-        transition: all 0.1s;
-        text-transform: uppercase;
+      
+      .waiting-text {
+        font-size: 13px;
+        color: var(--text-main);
+        margin-bottom: 8px;
       }
-
-      #multiplayerContent button:hover {
-        background: #0f0;
-        color: #000;
+      
+      .waiting-subtext {
+        font-size: 11px;
+        color: var(--success);
+        margin-bottom: 12px;
       }
-
-      .controls {
-        font-size: 12px;
-        color: #0f0;
-        margin-top: 8px;
-        padding: 8px;
+      
+      .btn-leave {
+        width: 100%;
+        padding: 10px;
         background: transparent;
-        border: none;
-      }
-
-      #matchCode {
+        border: 1px solid rgba(239, 68, 68, 0.3);
+        border-radius: 8px;
+        color: #fca5a5;
+        font-weight: 600;
+        font-size: 11px;
+        cursor: pointer;
+        transition: all 0.2s;
         text-transform: uppercase;
-        text-align: center;
-        letter-spacing: 3px;
       }
-
-      /* Touch controls for mobile */
-      #touchControls {
+      
+      .btn-leave:hover {
+        background: rgba(239, 68, 68, 0.1);
+        color: #f87171;
+      }
+      
+      .controls-info {
+        margin-top: 12px;
+        padding-top: 12px;
+        border-top: 1px solid var(--glass-border);
+        text-align: center;
+        font-size: 11px;
+        color: #64748b;
+        line-height: 1.6;
+      }
+      
+      /* Hidden helper input for match code */
+      #matchCode {
         display: none;
-        position: fixed;
-        bottom: 20px;
-        left: 50%;
-        transform: translateX(-50%);
-        width: 100%;
-        max-width: 400px;
-        padding: 0 20px;
-        z-index: 1000;
       }
 
-      .touch-button {
-        background: linear-gradient(135deg, rgba(0, 255, 255, 0.2) 0%, rgba(0, 200, 255, 0.3) 100%);
-        border: 2px solid rgba(0, 255, 255, 0.6);
-        border-radius: 12px;
-        padding: 24px;
-        font-size: 28px;
-        color: #fff;
-        text-align: center;
-        user-select: none;
-        -webkit-user-select: none;
-        touch-action: manipulation;
-        text-shadow: 0 0 10px rgba(0, 255, 255, 0.8);
-        box-shadow: 0 0 20px rgba(0, 255, 255, 0.4);
-        transition: all 0.2s ease;
-        font-weight: bold;
+      .mobile-btn {
+        display: none;
       }
 
-      .touch-button:active {
-        background: linear-gradient(135deg, rgba(0, 255, 255, 0.4) 0%, rgba(0, 200, 255, 0.5) 100%);
-        transform: scale(0.95);
-      }
-
-      .touch-controls-row {
-        display: flex;
-        gap: 10px;
-      }
-
-      .touch-controls-row > div {
-        flex: 1;
-      }
-
-      /* Mobile layout */
-      @media (max-width: 768px) {
-        body {
-          padding: 5px;
-          /* No extra bottom padding needed now controls are integrated */
-        }
-
-        .mobile-btn {
-          display: block; /* Show on mobile */
-        }
-
+      /* Mobile Layout */
+      @media (max-width: 850px) {
         #mainContainer {
           flex-direction: column;
           align-items: center;
-          gap: 15px;
+          gap: 20px;
         }
-
+        
         #sidePanel {
           width: 100%;
-          max-width: 400px;
           order: 2;
         }
-
+        
         #gameContainer {
           order: 1;
+        }
+        
+        /* Mobile: spread buttons to edges */
+        #scoreContainer {
           width: 100%;
+          justify-content: space-between;
+          padding: 0 8px;
         }
-
-        #canvas {
-          width: 100%;
-          max-width: 100vw;
-          height: auto;
+        
+        /* Mobile Touch Buttons */
+        .mobile-btn {
+           display: flex;
+           align-items: center;
+           justify-content: center;
+           background: rgba(255,255,255,0.08);
+           border: 1px solid var(--glass-border);
+           color: var(--text-main);
+           font-size: 24px;
+           width: 60px;
+           height: 60px;
+           border-radius: 12px;
+           cursor: pointer;
+           touch-action: manipulation;
+           user-select: none;
+           -webkit-user-select: none;
         }
-
-        /* Only show touch controls when game is active */
-        body.game-active #touchControls {
-          display: block;
-        }
-
-        #score {
-          font-size: 32px;
-        }
-
-        #playBtn {
-          font-size: 22px;
-          padding: 16px 30px;
-        }
-
-        #score {
-          font-size: 36px;
+        
+        .mobile-btn:active {
+          background: rgba(255,255,255,0.2);
+          transform: scale(0.95);
         }
       }
     </style>
   </head>
   <body>
     <div id="mainContainer">
+      <!-- Game Area -->
       <div id="gameContainer">
         <canvas id="canvas" width="640" height="480"></canvas>
         <div id="countdown"></div>
         <div id="victoryOverlay">
-          <div id="victoryText">🎉 YOU WIN! 🎉</div>
-          <button id="playAgainBtn">PLAY AGAIN</button>
+          <div id="victoryText">VICTORY</div>
+          <button id="playAgainBtn">Play Again</button>
         </div>
       </div>
+      
+      <!-- Side/Control Panel -->
       <div id="sidePanel">
-        <div id="scoreRow">
-          <div id="scoreContainer">
-            <button id="mobileUp" class="mobile-btn">▲</button>
-            <div id="score">0 : 0</div>
-            <button id="mobileDown" class="mobile-btn">▼</button>
-          </div>
-          <div id="winCondition">First to 5 Wins</div>
-        </div>
-        <div id="metrics">
-          <div class="metric-row">
-            <span class="metric-label">FPS:</span>
-            <span class="metric-value" id="fps">--</span>
-          </div>
-          <div class="metric-row">
-            <span class="metric-label">Ping:</span>
-            <span class="metric-value" id="ping">--</span>
-            <span class="metric-unit">ms</span>
-          </div>
-        </div>
-        <div id="ui">
-          <div id="status">Loading...</div>
-          <button id="playBtn" disabled>[ PLAY ]</button>
-          <div id="multiplayerSection">
-            <div id="multiplayerToggle">
-              <span>MULTIPLAYER</span>
-              <span class="arrow">▼</span>
+        <!-- Single Control Card -->
+        <div class="panel-card">
+          <div id="scoreRow">
+            <div id="scoreContainer">
+              <button id="mobileUp" class="mobile-btn">▲</button>
+              <div id="score">0 : 0</div>
+              <button id="mobileDown" class="mobile-btn">▼</button>
             </div>
-            <div id="multiplayerContent">
-            <div id="multiplayerContent">
-              <!-- Lobby View: Join or Create -->
-              <div id="lobbyControls">
-                <input type="text" id="matchCode" placeholder="MATCH CODE" maxlength="5" />
-                <div style="display: flex; gap: 8px;">
-                  <button id="joinBtn" style="flex: 1;">JOIN</button>
-                  <button id="createBtn" style="flex: 1;">CREATE</button>
-                </div>
-              </div>
-              <!-- Active Match View: Code and Copy -->
-              <div id="activeMatchControls" style="display: none;">
-                <div class="match-code-display">MATCH: <span id="displayCode">???</span></div>
-                <button id="copyLinkBtn">COPY INVITE LINK</button>
-                <button id="leaveBtn" style="border-color: #f55; color: #f55;">LEAVE MATCH</button>
-              </div>
+            <div id="winCondition">First to 5 Wins</div>
+          </div>
+          
+          <div id="metrics">
+            <div class="metric-row">
+              <span class="metric-label">FPS</span>
+              <span class="metric-value" id="fps">--</span>
+            </div>
+            <div class="metric-row">
+              <span class="metric-label">PING</span>
+              <span class="metric-value" id="ping">--</span>
+              <span style="font-size: 10px; margin-left: 2px;">ms</span>
             </div>
           </div>
-          <div class="controls">
-            Controls: ↑/↓ or W/S<br />
-            Mobile: Touch buttons
+          
+          <button id="playBtn" disabled>Play Now</button>
+          
+          <!-- Hidden input to store match code -->
+          <input type="text" id="matchCode" maxlength="5" />
+          
+          <!-- Multiplayer: Create match button -->
+          <div id="lobbyControls">
+            <button id="createBtn" class="btn-challenge">Challenge a Friend</button>
+          </div>
+          
+          <!-- Waiting for opponent -->
+          <div id="activeMatchControls" style="display: none;">
+            <div class="waiting-state">
+              <div class="waiting-text">Waiting for opponent...</div>
+              <div class="waiting-subtext">✓ Link copied to clipboard</div>
+              <button id="leaveBtn" class="btn-leave">Cancel</button>
+            </div>
+          </div>
+          
+          <div class="controls-info">
+            CONTROLS<br>
+            W / S or ↑ / ↓ to Move
           </div>
         </div>
       </div>
     </div>
-    <!-- Touch controls for mobile -->
-    <!-- Touch controls removed (integrated into scoreRow) -->
+
+    <!-- JS Logic -->
     <script type="module">
       // Sound effects using Web Audio API
       const AudioContext = window.AudioContext || window.webkitAudioContext;
@@ -589,8 +535,8 @@
         switch (type) {
           case "paddle":
             osc.frequency.setValueAtTime(440, audioCtx.currentTime);
-            osc.type = "square";
-            gain.gain.setValueAtTime(0.15, audioCtx.currentTime);
+            osc.type = "sine";
+            gain.gain.setValueAtTime(0.1, audioCtx.currentTime);
             gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.1);
             osc.start();
             osc.stop(audioCtx.currentTime + 0.1);
@@ -604,16 +550,15 @@
             osc.stop(audioCtx.currentTime + 0.08);
             break;
           case "score":
-            osc.frequency.setValueAtTime(300, audioCtx.currentTime);
-            osc.frequency.exponentialRampToValueAtTime(600, audioCtx.currentTime + 0.2);
+            osc.frequency.setValueAtTime(400, audioCtx.currentTime);
+            osc.frequency.exponentialRampToValueAtTime(800, audioCtx.currentTime + 0.2);
             osc.type = "triangle";
-            gain.gain.setValueAtTime(0.2, audioCtx.currentTime);
+            gain.gain.setValueAtTime(0.1, audioCtx.currentTime);
             gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.3);
             osc.start();
             osc.stop(audioCtx.currentTime + 0.3);
             break;
           case "victory":
-            // Victory fanfare - three notes
             [0, 0.15, 0.3].forEach((delay, i) => {
               const o = audioCtx.createOscillator();
               const g = audioCtx.createGain();
@@ -621,7 +566,7 @@
               g.connect(audioCtx.destination);
               o.frequency.setValueAtTime([523, 659, 784][i], audioCtx.currentTime + delay);
               o.type = "triangle";
-              g.gain.setValueAtTime(0.2, audioCtx.currentTime + delay);
+              g.gain.setValueAtTime(0.1, audioCtx.currentTime + delay);
               g.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + delay + 0.3);
               o.start(audioCtx.currentTime + delay);
               o.stop(audioCtx.currentTime + delay + 0.3);
@@ -630,20 +575,17 @@
         }
       }
 
-      // Cache busting for local development
       const CACHE_BUST = new URLSearchParams(window.location.search).get("v") || Date.now();
       const wasmUrl = "/client_wasm/client_wasm.js?v=" + CACHE_BUST;
 
       let init, WasmClient;
       try {
-        console.log("📦 Loading WASM module from:", wasmUrl);
         const module = await import(wasmUrl);
         init = module.default;
         WasmClient = module.WasmClient;
-        console.log("✅ WASM module loaded successfully");
       } catch (error) {
-        console.error("❌ Failed to load WASM module:", error);
-        document.getElementById("status").textContent = "Error: Failed to load game";
+        console.error("Failed to load WASM:", error);
+        document.getElementById("status").textContent = "Failed to load game resource";
         throw error;
       }
 
@@ -651,16 +593,21 @@
       let ws = null;
       let lastScore = [0, 0];
       let isPlaying = false;
+      let victoryShown = false;
+      let renderLoopId = null;
+      let pingIntervalId = null;
 
       function updateStatus(msg) {
-        const el = document.getElementById("status");
-        if (el) el.textContent = msg;
+        // Show status in the play button when not actively playing
+        const playBtn = document.getElementById("playBtn");
+        if (playBtn && !playBtn.classList.contains("playing")) {
+          playBtn.textContent = msg;
+        }
       }
 
       function updateScore(left, right) {
         const el = document.getElementById("score");
         if (el) {
-          // Check if score changed for sound effect
           if (left !== lastScore[0] || right !== lastScore[1]) {
             playSound("score");
             el.classList.add("flash");
@@ -683,7 +630,6 @@
         }
       }
 
-      // Countdown before game starts
       async function showCountdown() {
         const el = document.getElementById("countdown");
         for (const text of ["3", "2", "1", "GO!"]) {
@@ -696,46 +642,77 @@
         }
       }
 
-      // Victory celebration
       function showVictory(winner) {
+        // Prevent calling multiple times
+        if (victoryShown) return;
+        victoryShown = true;
+        
         playSound("victory");
         const overlay = document.getElementById("victoryOverlay");
         const text = document.getElementById("victoryText");
-        text.textContent = winner === "you" ? "🎉 YOU WIN! 🎉" : "😢 YOU LOSE";
-        text.style.color = winner === "you" ? "#0f0" : "#f55";
+        
+        if (winner === "you") {
+            text.textContent = "VICTORY";
+            text.className = "status-win";
+        } else {
+            text.textContent = "DEFEAT";
+            text.className = "status-lose";
+        }
+        
         overlay.classList.add("show");
         document.body.classList.remove("game-active");
       }
 
       function hideVictory() {
         document.getElementById("victoryOverlay").classList.remove("show");
+        victoryShown = false;
+        
+        // Reset play button state
+        const playBtn = document.getElementById("playBtn");
+        playBtn.textContent = "Play Again";
+        playBtn.classList.remove("playing");
+        playBtn.disabled = false;
       }
 
       window.startLocalGame = async function () {
         try {
           initAudio();
-          hideVictory();
-          updateStatus("Starting...");
-          const canvas = document.getElementById("canvas");
-          if (!canvas.width || !canvas.height) {
-            canvas.width = 640;
-            canvas.height = 480;
+          
+          // Stop any existing game loop
+          if (renderLoopId) {
+            cancelAnimationFrame(renderLoopId);
+            renderLoopId = null;
           }
+          if (pingIntervalId) {
+            clearInterval(pingIntervalId);
+            pingIntervalId = null;
+          }
+          
+          hideVictory();
+          const playBtn = document.getElementById("playBtn");
+          
+          // Show starting state in button
+          playBtn.textContent = "Starting...";
+          playBtn.disabled = true;
+          
+          const canvas = document.getElementById("canvas");
           if (!client) {
             client = await new WasmClient(canvas);
-            console.log("✅ Client initialized");
           }
           await showCountdown();
           client.start_local_game();
           lastScore = [0, 0];
           updateScore(0, 0);
-          updateStatus("Playing vs AI");
+          
+          // Update button to show active state
+          playBtn.textContent = "Playing vs AI";
+          playBtn.classList.add("playing");
+          
           isPlaying = true;
           document.body.classList.add("game-active");
           setupInput();
           startRender();
         } catch (error) {
-          console.error("Local game error:", error);
           updateStatus("Error: " + error.message);
         }
       };
@@ -747,14 +724,23 @@
           const response = await fetch("/create");
           const data = await response.json();
           document.getElementById("matchCode").value = data.code;
-          updateStatus(`Match created: ${data.code}`);
+          
+          // Build the invite URL
           const url = new URL(window.location);
           url.searchParams.set("code", data.code);
+          const inviteUrl = url.toString();
+          
+          // Auto-copy to clipboard
+          try {
+            await navigator.clipboard.writeText(inviteUrl);
+          } catch (clipErr) {
+            console.warn("Could not copy to clipboard:", clipErr);
+          }
+          
           window.history.pushState({}, "", url);
-          // document.getElementById("copyLinkBtn").style.display = "block"; // Handled by showActiveMatch
+          updateStatus(`Waiting for friend...`);
           await joinMatch();
         } catch (error) {
-          console.error("Create error:", error);
           updateStatus("Error creating match");
         }
       };
@@ -762,44 +748,57 @@
       window.joinMatch = async function () {
         const code = document.getElementById("matchCode").value.trim().toUpperCase();
         if (code.length !== 5) {
-          updateStatus("Match code must be 5 characters");
+          updateStatus("Invalid code length");
           return;
         }
         try {
           initAudio();
+          
+          // Stop any existing game loops and WebSocket
+          if (renderLoopId) {
+            cancelAnimationFrame(renderLoopId);
+            renderLoopId = null;
+          }
+          if (pingIntervalId) {
+            clearInterval(pingIntervalId);
+            pingIntervalId = null;
+          }
+          if (ws) {
+            ws.close();
+            ws = null;
+          }
+          isPlaying = false;
+          victoryShown = false;
+          
           hideVictory();
           updateStatus("Connecting...");
           const canvas = document.getElementById("canvas");
-          if (!canvas.width || !canvas.height) {
-            canvas.width = 640;
-            canvas.height = 480;
+          if (!client) {
+            client = await new WasmClient(canvas);
           }
-          client = await new WasmClient(canvas);
-          console.log("✅ Client initialized");
+          // Reset client state for clean multiplayer session
+          client.reset_for_multiplayer();
+          
           const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
           const wsUrl = `${protocol}//${window.location.host}/ws/${code}`;
-          // Update URL if not already set
+          
           const url = new URL(window.location);
           if (url.searchParams.get("code") !== code) {
             url.searchParams.set("code", code);
             window.history.pushState({}, "", url);
           }
-          // Show active match controls
+          
           document.getElementById("lobbyControls").style.display = "none";
           document.getElementById("activeMatchControls").style.display = "block";
-          document.getElementById("displayCode").textContent = code;
           
           ws = new WebSocket(wsUrl);
           ws.binaryType = "arraybuffer";
           ws.onopen = async () => {
-            console.log("WS connected");
             try {
               ws.send(client.get_join_bytes(code));
               updateStatus("Waiting for opponent...");
             } catch (e) {
               console.error("Join error:", e);
-              updateStatus("Error joining");
-              return;
             }
           };
           ws.onmessage = (event) => {
@@ -810,37 +809,50 @@
                 if (score.length >= 2) {
                   updateScore(score[0], score[1]);
                 }
-                // Start game on first message if not started
                 if (!isPlaying) {
                   isPlaying = true;
                   document.body.classList.add("game-active");
-                  updateStatus("Playing!");
+                  
+                  // Update button to show match is active
+                  const playBtn = document.getElementById("playBtn");
+                  playBtn.textContent = "In Match";
+                  playBtn.classList.add("playing");
+                  
                   setupInput();
                   startRender();
                 }
-              } catch (e) {
-                console.error("Message error:", e);
-              }
+              } catch (e) {}
             }
           };
           ws.onerror = (error) => {
-            console.error("WS error:", error);
             updateStatus("Connection error");
           };
           ws.onclose = () => {
-            console.log("WS closed");
-            updateStatus("Disconnected");
             isPlaying = false;
             document.body.classList.remove("game-active");
+            
+            // Reset button state
+            const playBtn = document.getElementById("playBtn");
+            playBtn.textContent = "Play Now";
+            playBtn.classList.remove("playing");
+            
+            // Show lobby controls again
+            document.getElementById("lobbyControls").style.display = "block";
+            document.getElementById("activeMatchControls").style.display = "none";
+            
+            // Clear URL code
+            const url = new URL(window.location);
+            url.searchParams.delete("code");
+            window.history.pushState({}, "", url);
+            document.getElementById("matchCode").value = "";
+            
+            updateStatus("Disconnected");
           };
         } catch (error) {
-          console.error("Join error:", error);
           updateStatus("Error: " + error.message);
         }
       };
 
-      let renderLoopId = null;
-      let pingIntervalId = null;
       function startRender() {
         function render() {
           if (client) {
@@ -850,25 +862,20 @@
               const score = client.get_score();
               if (score.length >= 2) {
                 updateScore(score[0], score[1]);
-                // Check for victory
                 const winner = client.get_winner();
                 if (winner) {
                   showVictory(winner);
                   isPlaying = false;
-                  return; // Stop render loop
+                  return;
                 }
-                
-                // Fallback score check (first to 5)
                 if (score[0] >= 5 || score[1] >= 5) {
                   const winnerName = score[0] >= 5 ? "you" : "opponent";
                   showVictory(winnerName);
                   isPlaying = false;
-                  return; // Stop render loop
+                  return; 
                 }
               }
-            } catch (e) {
-              console.error("Render error:", e);
-            }
+            } catch (e) {}
           }
           if (isPlaying) {
             renderLoopId = requestAnimationFrame(render);
@@ -899,12 +906,10 @@
 
       function setupInput() {
         const pressedKeys = new Set();
-
         window.addEventListener("keydown", (e) => {
           const gameKeys = ["ArrowUp", "ArrowDown", "w", "W", "s", "S"];
           if (gameKeys.includes(e.key)) {
             e.preventDefault();
-            e.stopPropagation();
             const upKeys = ["ArrowUp", "w", "W"];
             const downKeys = ["ArrowDown", "s", "S"];
             if (upKeys.includes(e.key)) {
@@ -935,7 +940,6 @@
           const gameKeys = ["ArrowUp", "ArrowDown", "w", "W", "s", "S"];
           if (gameKeys.includes(e.key)) {
             e.preventDefault();
-            e.stopPropagation();
             pressedKeys.delete(e.key);
           }
           if (client) {
@@ -944,7 +948,6 @@
           }
         }, { capture: true, passive: false });
 
-        // Mobile controls (integrated buttons)
         const mobileUp = document.getElementById("mobileUp");
         const mobileDown = document.getElementById("mobileDown");
 
@@ -952,60 +955,38 @@
              const btn = info.btn;
              const key = info.key;
              if (!btn) return;
-             const prevent = (e) => { 
-                 // e.preventDefault(); // Don't prevent default click behavior if not needed, but for game buttons helpful
-                 if (e.type !== 'click') e.preventDefault(); 
+             const handle = (e, isDown) => {
+                 if (e.type !== 'click') e.preventDefault();
+                 if (client) {
+                     client.handle_key_string(key, isDown);
+                     sendInput();
+                 }
              };
-             
-             btn.addEventListener("touchstart", (e) => { prevent(e); if (client) { client.handle_key_string(key, true); sendInput(); } });
-             btn.addEventListener("touchend", (e) => { prevent(e); if (client) { client.handle_key_string(key, false); sendInput(); } });
-             
-             // Mouse fallback
-             btn.addEventListener("mousedown", (e) => { if (client) { client.handle_key_string(key, true); sendInput(); } });
-             btn.addEventListener("mouseup", (e) => { if (client) { client.handle_key_string(key, false); sendInput(); } });
-             // Mouse leave cancels input?
-             btn.addEventListener("mouseleave", (e) => { if (client) { client.handle_key_string(key, false); sendInput(); } });
+             btn.addEventListener("touchstart", (e) => handle(e, true));
+             btn.addEventListener("touchend", (e) => handle(e, false));
+             btn.addEventListener("mousedown", (e) => handle(e, true));
+             btn.addEventListener("mouseup", (e) => handle(e, false));
+             btn.addEventListener("mouseleave", (e) => handle(e, false));
         };
-        
         setupTouch({btn: mobileUp, key: "ArrowUp"});
         setupTouch({btn: mobileDown, key: "ArrowDown"});
-
         setInterval(sendInput, 33);
       }
 
-      // Multiplayer toggle
-      document.getElementById("multiplayerToggle").addEventListener("click", () => {
-        document.getElementById("multiplayerSection").classList.toggle("open");
-      });
+      // Multiplayer toggle removed - section is always visible
 
-      // Play again button
       document.getElementById("playAgainBtn").addEventListener("click", () => {
         hideVictory();
         window.startLocalGame();
       });
 
-      // Copy Link button
-      document.getElementById("copyLinkBtn").addEventListener("click", () => {
-        const url = window.location.href;
-        navigator.clipboard.writeText(url).then(() => {
-          const btn = document.getElementById("copyLinkBtn");
-          const originalText = btn.textContent;
-          btn.textContent = "COPIED!";
-          setTimeout(() => btn.textContent = originalText, 2000);
-        });
-      });
+      // Copy link button removed - link is auto-copied on match creation
 
-      // Leave button
       document.getElementById("leaveBtn").addEventListener("click", () => {
         if (ws) ws.close();
-        if (client) {
-            // Reset game state?
-            // client.reset(); // If exposed
-        }
         document.getElementById("lobbyControls").style.display = "block";
         document.getElementById("activeMatchControls").style.display = "none";
         
-        // Clear URL code
         const url = new URL(window.location);
         url.searchParams.delete("code");
         window.history.pushState({}, "", url);
@@ -1015,35 +996,26 @@
 
       async function main() {
         try {
-          console.log("🚀 Starting main()...");
           await init();
-          console.log("✅ WASM initialized");
-          updateStatus("Ready!");
+          updateStatus("Ready to Play");
           document.getElementById("playBtn").disabled = false;
           document.getElementById("playBtn").addEventListener("click", window.startLocalGame);
           document.getElementById("createBtn").addEventListener("click", window.createMatch);
-          document.getElementById("joinBtn").addEventListener("click", window.joinMatch);
 
-          // Auto-join from URL
+          // Auto-join if code in URL (from invite link)
           const urlParams = new URLSearchParams(window.location.search);
           const code = urlParams.get("code");
           if (code) {
-             console.log("🔗 Found match code in URL:", code);
-             document.getElementById("multiplayerSection").classList.add("open");
              document.getElementById("matchCode").value = code;
-             updateStatus("Joining from link...");
+             updateStatus("Joining game...");
              await window.joinMatch();
           }
-
-          console.log("✅ UI initialized");
         } catch (error) {
-          console.error("❌ Error in main():", error);
           updateStatus("Error: " + error.message);
         }
       }
 
       main().catch((error) => {
-        console.error("❌ Fatal error:", error);
         document.getElementById("status").textContent = "Fatal error: " + error.message;
       });
     </script>

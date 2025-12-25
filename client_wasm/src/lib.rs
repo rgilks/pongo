@@ -317,7 +317,29 @@ impl WasmClient {
     pub fn start_local_game(&mut self) {
         let seed = Self::performance_now() as u64;
         self.0.local_game = Some(LocalGame::new(seed));
+        self.0.game_state.reset();
         self.0.game_state.set_player_id(0);
+        // Reset simulation timing
+        self.0.last_sim_time = 0.0;
+        self.0.sim_accumulator = 0.0;
+    }
+
+    /// Reset client state for a new multiplayer session
+    #[wasm_bindgen]
+    pub fn reset_for_multiplayer(&mut self) {
+        // Clear any local game
+        self.0.local_game = None;
+        // Reset game state
+        self.0.game_state.reset();
+        // Reset predictor
+        self.0.predictor = ClientPredictor::new();
+        // Reset paddle state
+        self.0.local_paddle_y = 12.0;
+        self.0.local_paddle_initialized = false;
+        // Reset timing
+        self.0.last_frame_time = 0.0;
+        self.0.last_sim_time = 0.0;
+        self.0.sim_accumulator = 0.0;
     }
 
     #[wasm_bindgen]
