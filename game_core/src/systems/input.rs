@@ -1,4 +1,4 @@
-use crate::{NetQueue, Paddle, PaddleIntent};
+use crate::{NetQueue, Paddle};
 use hecs::World;
 
 /// Ingest network inputs and apply to paddle positions
