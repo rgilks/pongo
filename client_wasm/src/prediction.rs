@@ -5,6 +5,7 @@ use game_core::{
 };
 use hecs::World;
 
+#[allow(dead_code)]
 pub struct ClientPredictor {
     // Prediction state
     pub input_seq: u32,

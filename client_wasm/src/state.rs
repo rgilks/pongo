@@ -120,11 +120,6 @@ impl GameState {
             (self.current.paddle_right_y - self.paddle_right_display_y) * paddle_smoothing;
     }
 
-    /// Get interpolated position with basic lerp
-    fn interpolate(&self, prev: f32, curr: f32) -> f32 {
-        prev + (curr - prev) * self.interpolation_alpha
-    }
-
     /// Internal extrapolation with clamped time to prevent overshooting
     fn extrapolate_ball_internal(&self, pos: f32, vel: f32) -> f32 {
         // Clamp extrapolation to max 100ms to prevent large jumps on network delays
@@ -185,5 +180,116 @@ impl GameState {
 
     pub fn get_current_snapshot(&self) -> Option<GameStateSnapshot> {
         Some(self.current.clone())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_new_gamestate_has_initial_values() {
+        let state = GameState::new();
+        assert_eq!(state.get_ball_x(), 16.0);
+        assert_eq!(state.get_ball_y(), 12.0);
+        assert_eq!(state.get_paddle_left_y(), 12.0);
+        assert_eq!(state.get_paddle_right_y(), 12.0);
+        assert_eq!(state.get_scores(), (0, 0));
+        assert!(state.get_player_id().is_none());
+    }
+
+    #[test]
+    fn test_reset_clears_all_state() {
+        let mut state = GameState::new();
+
+        // Modify state
+        state.set_scores(3, 5);
+        state.set_player_id(1);
+        state.set_winner(0);
+        state.set_current(GameStateSnapshot {
+            ball_x: 20.0,
+            ball_y: 20.0,
+            paddle_left_y: 5.0,
+            paddle_right_y: 19.0,
+            ball_vx: 10.0,
+            ball_vy: -5.0,
+            tick: 100,
+            score_left: 3,
+            score_right: 5,
+        });
+
+        // Reset
+        state.reset();
+
+        // Verify reset values
+        assert_eq!(state.get_scores(), (0, 0));
+        assert_eq!(state.get_ball_x(), 16.0);
+        assert_eq!(state.get_ball_y(), 12.0);
+        assert_eq!(state.get_paddle_left_y(), 12.0);
+        assert_eq!(state.get_paddle_right_y(), 12.0);
+        assert_eq!(state.match_event, MatchEvent::None);
+    }
+
+    #[test]
+    fn test_paddle_smoothing_converges() {
+        let mut state = GameState::new();
+
+        // Set a new paddle position
+        state.set_current(GameStateSnapshot {
+            ball_x: 16.0,
+            ball_y: 12.0,
+            paddle_left_y: 20.0, // Target: 20
+            paddle_right_y: 4.0, // Target: 4
+            ball_vx: 0.0,
+            ball_vy: 0.0,
+            tick: 1,
+            score_left: 0,
+            score_right: 0,
+        });
+
+        // Initial display positions are at 12.0
+        assert_eq!(state.get_paddle_left_y(), 12.0);
+        assert_eq!(state.get_paddle_right_y(), 12.0);
+
+        // Apply smoothing multiple times
+        for _ in 0..20 {
+            state.update_interpolation(0.016); // ~60fps
+        }
+
+        // After smoothing, paddles should be close to target
+        assert!((state.get_paddle_left_y() - 20.0).abs() < 0.5);
+        assert!((state.get_paddle_right_y() - 4.0).abs() < 0.5);
+    }
+
+    #[test]
+    fn test_ball_display_smoothing() {
+        let mut state = GameState::new();
+
+        // Set ball at new position
+        state.set_current(GameStateSnapshot {
+            ball_x: 25.0,
+            ball_y: 20.0,
+            paddle_left_y: 12.0,
+            paddle_right_y: 12.0,
+            ball_vx: 10.0,
+            ball_vy: 5.0,
+            tick: 1,
+            score_left: 0,
+            score_right: 0,
+        });
+
+        // Initial display at 16, 12
+        let initial_x = state.get_ball_x();
+        let initial_y = state.get_ball_y();
+
+        // Apply smoothing
+        state.update_interpolation(0.016);
+
+        // Ball should have moved toward target (with extrapolation)
+        let after_x = state.get_ball_x();
+        let after_y = state.get_ball_y();
+
+        assert!(after_x > initial_x, "Ball X should increase toward target");
+        assert!(after_y > initial_y, "Ball Y should increase toward target");
     }
 }

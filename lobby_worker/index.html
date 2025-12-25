@@ -1397,13 +1397,8 @@
         const setupTouch = (info) => {
           const btn = info.btn;
           const key = info.key;
-          if (!btn) {
-            console.log('Mobile button not found:', key);
-            return;
-          }
-          console.log('Setting up mobile button:', key, btn);
+          if (!btn) return;
           const handle = (e, isDown) => {
-            console.log('Mobile button event:', key, isDown, 'client:', !!client);
             if (e.type !== 'click') e.preventDefault();
             if (client) {
               client.handle_key_string(key, isDown);
