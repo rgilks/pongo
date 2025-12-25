@@ -114,8 +114,10 @@ impl GameState {
         // Apply same exponential smoothing to paddle positions for smooth opponent movement
         // Use slightly higher smoothing (0.4) for more responsive paddle tracking
         let paddle_smoothing = 0.4;
-        self.paddle_left_display_y += (self.current.paddle_left_y - self.paddle_left_display_y) * paddle_smoothing;
-        self.paddle_right_display_y += (self.current.paddle_right_y - self.paddle_right_display_y) * paddle_smoothing;
+        self.paddle_left_display_y +=
+            (self.current.paddle_left_y - self.paddle_left_display_y) * paddle_smoothing;
+        self.paddle_right_display_y +=
+            (self.current.paddle_right_y - self.paddle_right_display_y) * paddle_smoothing;
     }
 
     /// Get interpolated position with basic lerp
