@@ -233,6 +233,10 @@ impl WasmClient {
                 client.local_paddle_y = 12.0;
                 client.local_paddle_initialized = false;
                 client.predictor = ClientPredictor::new();
+                // Reset timing to prevent massive dt on first frame
+                client.last_frame_time = 0.0;
+                client.last_sim_time = 0.0;
+                client.sim_accumulator = 0.0;
             }
             _ => {}
         }

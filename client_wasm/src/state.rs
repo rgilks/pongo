@@ -136,11 +136,11 @@ impl GameState {
     }
 
     pub fn set_current(&mut self, snapshot: GameStateSnapshot) {
+        // Simple version: just accept all incoming snapshots
         self.previous = self.current.clone();
         self.current = snapshot;
         self.time_since_update = 0.0;
         self.interpolation_alpha = 0.0;
-        // Note: ball_display_x/y are NOT reset here - they smoothly converge via update_interpolation
     }
 
     pub fn set_scores(&mut self, left: u8, right: u8) {

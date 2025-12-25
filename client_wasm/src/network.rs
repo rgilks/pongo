@@ -18,6 +18,7 @@ pub fn handle_message(msg: S2C, game_state: &mut GameState) -> Result<(), String
             game_state.match_event = MatchEvent::Countdown(seconds);
         }
         S2C::GameStart => {
+            game_state.reset();
             game_state.match_event = MatchEvent::GameStart;
             game_state.winner = None;
             game_state.set_scores(0, 0);

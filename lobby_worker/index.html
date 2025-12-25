@@ -994,6 +994,10 @@
       }
 
       async function enterCountdownMulti() {
+        // Reset client state for fresh start - critical for rematch smoothness
+        if (client) {
+          client.reset_for_multiplayer();
+        }
         // Server drives the countdown - we just display what it sends
         // The countdown display is handled by handleMatchEvent
         // Wait here until game_start is received
@@ -1067,6 +1071,10 @@
         setupInputIfNeeded();
         startRenderLoop();
         startPingInterval();
+        // Start input polling (must be called every game, not just once)
+        if (!inputIntervalId) {
+          inputIntervalId = setInterval(sendInput, 33);
+        }
       }
 
       function enterDisconnected() {
@@ -1323,8 +1331,7 @@
         };
         setupTouch({ btn: mobileUp, key: 'ArrowUp' });
         setupTouch({ btn: mobileDown, key: 'ArrowDown' });
-        
-        inputIntervalId = setInterval(sendInput, 33);
+        // Note: inputIntervalId is now started in enterPlayingMulti() to ensure it restarts on rematch
       }
 
       // ========================================
