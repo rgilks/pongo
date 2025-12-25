@@ -137,7 +137,6 @@ impl WasmClient {
                 client.game_state.set_scores(score_left, score_right);
 
                 // Check for win condition reset
-
             }
         }
     }
@@ -214,7 +213,6 @@ impl WasmClient {
 
     #[wasm_bindgen]
     pub fn on_message(&mut self, bytes: Vec<u8>) -> Result<(), JsValue> {
-
         let client = &mut self.0;
         let msg = proto::S2C::from_bytes(&bytes)
             .map_err(|e| format!("Failed to deserialize: {:?}", e))?;
