@@ -227,6 +227,16 @@ impl WasmClient {
             return Ok(());
         }
 
+        // Check for state changes that require local reset
+        match msg {
+            proto::S2C::MatchFound | proto::S2C::Countdown { .. } => {
+                client.local_paddle_y = 12.0;
+                client.local_paddle_initialized = false;
+                client.predictor = ClientPredictor::new();
+            }
+            _ => {}
+        }
+
         let is_game_state = matches!(msg, proto::S2C::GameState(_));
         let server_tick = if let proto::S2C::GameState(snapshot) = &msg {
             Some(snapshot.tick)
