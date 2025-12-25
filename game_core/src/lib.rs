@@ -148,8 +148,6 @@ mod integration_tests {
             mut respawn_state,
         ) = setup_game();
 
-        
-
         // Run one step
         step(
             &mut world,
@@ -161,7 +159,6 @@ mod integration_tests {
             &mut net_queue,
             &mut rng,
             &mut respawn_state,
-
         );
 
         // Verify ball moved
@@ -191,8 +188,6 @@ mod integration_tests {
             mut respawn_state,
         ) = setup_game();
 
-        
-
         // Get initial paddle position
         let mut initial_paddle_y = 0.0;
         for (_entity, paddle) in world.query::<&Paddle>().iter() {
@@ -215,7 +210,6 @@ mod integration_tests {
             &mut net_queue,
             &mut rng,
             &mut respawn_state,
-
         );
 
         // Verify paddle moved
@@ -243,8 +237,6 @@ mod integration_tests {
             mut respawn_state,
         ) = setup_game();
 
-        
-
         // Position ball near top wall
         for (_entity, ball) in world.query_mut::<&mut Ball>() {
             ball.pos = glam::Vec2::new(16.0, config.ball_radius + 0.1);
@@ -263,7 +255,6 @@ mod integration_tests {
                 &mut net_queue,
                 &mut rng,
                 &mut respawn_state,
-    
             );
             if events.ball_hit_wall {
                 break;
@@ -289,8 +280,6 @@ mod integration_tests {
             mut respawn_state,
         ) = setup_game();
 
-        
-
         // Position ball to exit right edge (must be beyond width after movement)
         for (_entity, ball) in world.query_mut::<&mut Ball>() {
             ball.pos = glam::Vec2::new(map.width - 0.1, 12.0);
@@ -308,7 +297,6 @@ mod integration_tests {
             &mut net_queue,
             &mut rng,
             &mut respawn_state,
-
         );
 
         // Verify scoring occurred
@@ -344,8 +332,6 @@ mod integration_tests {
             mut respawn_state,
         ) = setup_game();
 
-        
-
         // Set score to one point from winning
         let target = config.win_score - 1;
         for _ in 0..target {
@@ -373,7 +359,6 @@ mod integration_tests {
             &mut net_queue,
             &mut rng,
             &mut respawn_state,
-
         );
 
         // Verify win condition
@@ -403,8 +388,6 @@ mod integration_tests {
             mut respawn_state,
         ) = setup_game();
 
-        
-
         // Run 100 steps
         for _ in 0..100 {
             step(
@@ -417,7 +400,6 @@ mod integration_tests {
                 &mut net_queue,
                 &mut rng,
                 &mut respawn_state,
-    
             );
             events.clear();
 
