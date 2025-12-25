@@ -25,3 +25,6 @@ proto = { path = "../proto" }
 game_core = { path = "../game_core" }
 hecs = "0.10"
 getrandom = { version = "0.2", features = ["js"] }
+
+[dev-dependencies]
+wasm-bindgen-test = "0.3"

@@ -188,6 +188,12 @@ impl NetQueue {
     pub fn push_input(&mut self, player_id: u8, dir: i8) {
         self.inputs.push((player_id, dir));
     }
+
+    pub fn pop_inputs(&mut self) -> Vec<(u8, i8)> {
+        let inputs = self.inputs.clone();
+        self.inputs.clear();
+        inputs
+    }
 }
 
 #[cfg(test)]
