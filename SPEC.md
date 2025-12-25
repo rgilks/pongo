@@ -15,11 +15,11 @@
 |----------|-------|------|
 | Arena | 32 × 24 | units |
 | Paddle | 0.8 × 4.0 | units |
-| Paddle speed | 12 | units/sec |
+| Paddle speed | 18 | units/sec |
 | Ball radius | 0.5 | units |
-| Ball speed | 8 → 16 | units/sec |
+| Ball speed | 12 → 24 | units/sec |
 | Speed multiplier | 1.05× | per hit |
-| Win score | 11 | points |
+| Win score | 5 | points |
 
 ## Network Protocol
 
@@ -27,7 +27,7 @@
 ```rust
 enum C2S {
     Join { code: [u8; 5] },
-    Input { player_id: u8, paddle_dir: i8 },  // -1=up, 0=stop, 1=down
+    Input { player_id: u8, paddle_dir: i8, seq: u32 },  // -1=up, 0=stop, 1=down
     Ping { t_ms: u32 },
 }
 ```
@@ -46,7 +46,7 @@ enum S2C {
 
 **Components:** `Paddle { player_id, y }` · `Ball { pos, vel }` · `PaddleIntent { dir }`
 
-**Systems:** IngestInputs → MovePaddles → MoveBall → CheckCollisions → CheckScoring → ResetBall
+**Systems:** IngestInputs → MoveBall → MovePaddles → CheckCollisions → CheckScoring
 
 ## Timing
 
@@ -68,4 +68,4 @@ Own paddle uses local prediction for instant response. Server provides authorita
 
 ---
 
-*Constants defined in [game_core/src/params.rs](game_core/src/params.rs)*
+*Constants defined in [game_core/src/config.rs](game_core/src/config.rs)*
