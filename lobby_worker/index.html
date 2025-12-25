@@ -499,8 +499,9 @@
           <!-- Waiting for opponent -->
           <div id="activeMatchControls" style="display: none;">
             <div class="waiting-state">
-              <div class="waiting-text">Waiting for opponent...</div>
-              <div class="waiting-subtext">✓ Link copied to clipboard</div>
+              <div class="waiting-text" style="font-size: 1.1em;">Waiting for opponent...</div>
+              <div style="font-size: 0.9em; color: var(--accent); margin: 8px 0;">✓ Link copied to clipboard</div>
+              <div style="font-size: 0.85em; opacity: 0.8; margin-bottom: 15px;">Send it to a friend to join!</div>
               <button id="leaveBtn" class="btn-leave">Cancel</button>
             </div>
           </div>
@@ -592,26 +593,428 @@
       let client = null;
       let ws = null;
       let lastScore = [0, 0];
-      let isPlaying = false;
-      let victoryShown = false;
       let renderLoopId = null;
       let pingIntervalId = null;
+      let inputIntervalId = null;
+      let currentMatchCode = null;
 
-      function updateStatus(msg) {
-        // Show status in the play button when not actively playing
-        const playBtn = document.getElementById("playBtn");
-        if (playBtn && !playBtn.classList.contains("playing")) {
-          playBtn.textContent = msg;
+      // ========================================
+      // Finite State Machine
+      // ========================================
+      const GameState = {
+        IDLE: 'IDLE',
+        COUNTDOWN_LOCAL: 'COUNTDOWN_LOCAL',
+        PLAYING_LOCAL: 'PLAYING_LOCAL',
+        CONNECTING: 'CONNECTING',
+        WAITING: 'WAITING',
+        COUNTDOWN_MULTI: 'COUNTDOWN_MULTI',
+        PLAYING_MULTI: 'PLAYING_MULTI',
+        GAME_OVER_LOCAL: 'GAME_OVER_LOCAL',
+        GAME_OVER_MULTI: 'GAME_OVER_MULTI',
+        DISCONNECTED: 'DISCONNECTED'
+      };
+
+      const FSM = {
+        state: GameState.IDLE,
+
+        // Valid transitions: current state -> action -> next state
+        transitions: {
+          [GameState.IDLE]: {
+            'START_LOCAL': GameState.COUNTDOWN_LOCAL,
+            'CREATE_MATCH': GameState.CONNECTING,
+            'JOIN_MATCH': GameState.CONNECTING
+          },
+          [GameState.COUNTDOWN_LOCAL]: {
+            'COUNTDOWN_DONE': GameState.PLAYING_LOCAL
+          },
+          [GameState.PLAYING_LOCAL]: {
+            'GAME_OVER': GameState.GAME_OVER_LOCAL
+          },
+          [GameState.CONNECTING]: {
+            'CONNECTED': GameState.WAITING,
+            'CONNECTION_FAILED': GameState.IDLE
+          },
+          [GameState.WAITING]: {
+            'OPPONENT_JOINED': GameState.COUNTDOWN_MULTI,
+            'DISCONNECTED': GameState.IDLE,
+            'LEAVE': GameState.IDLE
+          },
+          [GameState.COUNTDOWN_MULTI]: {
+            'COUNTDOWN_DONE': GameState.PLAYING_MULTI,
+            'DISCONNECTED': GameState.DISCONNECTED
+          },
+          [GameState.PLAYING_MULTI]: {
+            'GAME_OVER': GameState.GAME_OVER_MULTI,
+            'DISCONNECTED': GameState.DISCONNECTED
+          },
+          [GameState.GAME_OVER_LOCAL]: {
+            'PLAY_AGAIN': GameState.COUNTDOWN_LOCAL,
+            'LEAVE': GameState.IDLE
+          },
+          [GameState.GAME_OVER_MULTI]: {
+            'REMATCH_STARTED': GameState.COUNTDOWN_MULTI,
+            'DISCONNECTED': GameState.DISCONNECTED,
+            'LEAVE': GameState.IDLE
+          },
+          [GameState.DISCONNECTED]: {
+            'LEAVE': GameState.IDLE
+          }
+        },
+
+        canTransition(action) {
+          const possibleTransitions = this.transitions[this.state];
+          return possibleTransitions && possibleTransitions[action];
+        },
+
+        async transition(action) {
+          const nextState = this.transitions[this.state]?.[action];
+          if (!nextState) {
+            console.warn(`Invalid transition: ${this.state} + ${action}`);
+            return false;
+          }
+          console.log(`FSM: ${this.state} --[${action}]--> ${nextState}`);
+          await this.exitState(this.state);
+          this.state = nextState;
+          await this.enterState(nextState);
+          return true;
+        },
+
+        async exitState(state) {
+          switch (state) {
+            case GameState.PLAYING_LOCAL:
+            case GameState.PLAYING_MULTI:
+              stopGameLoop();
+              break;
+            case GameState.WAITING:
+            case GameState.COUNTDOWN_MULTI:
+              stopEventPolling();
+              hideCountdownNumber();
+              break;
+            case GameState.GAME_OVER_MULTI:
+              stopEventPolling();
+              // Fallthrough
+            case GameState.GAME_OVER_LOCAL:
+              hideVictoryOverlay();
+              break;
+            case GameState.CONNECTING:
+          }
+        },
+
+        async enterState(state) {
+          updateUIForState(state);
+          switch (state) {
+            case GameState.IDLE:
+              await enterIdle();
+              break;
+            case GameState.COUNTDOWN_LOCAL:
+              await enterCountdownLocal();
+              break;
+            case GameState.PLAYING_LOCAL:
+              enterPlayingLocal();
+              break;
+            case GameState.CONNECTING:
+              await enterConnecting();
+              break;
+            case GameState.WAITING:
+              enterWaiting();
+              break;
+            case GameState.COUNTDOWN_MULTI:
+              await enterCountdownMulti();
+              break;
+            case GameState.PLAYING_MULTI:
+              enterPlayingMulti();
+              break;
+            case GameState.GAME_OVER_LOCAL:
+            case GameState.GAME_OVER_MULTI:
+              // Winner is set by showVictory call before transition
+              // Also ensure event polling continues for multi
+              if (state === GameState.GAME_OVER_MULTI) {
+                startEventPolling();
+              }
+              break;
+            case GameState.DISCONNECTED:
+              enterDisconnected();
+              break;
+          }
+        }
+      };
+
+      // ========================================
+      // State Entry Handlers
+      // ========================================
+      async function enterIdle() {
+        closeWebSocket();
+        stopGameLoop();
+        lastScore = [0, 0];
+        currentMatchCode = null;
+        
+        // Clear URL params
+        const url = new URL(window.location);
+        if (url.searchParams.has('code')) {
+          url.searchParams.delete('code');
+          window.history.pushState({}, '', url);
+        }
+        document.getElementById('matchCode').value = '';
+      }
+
+      async function enterCountdownLocal() {
+        initAudio();
+        const canvas = document.getElementById('canvas');
+        if (!client) {
+          client = await new WasmClient(canvas);
+        }
+        await showCountdown();
+        FSM.transition('COUNTDOWN_DONE');
+      }
+
+      function enterPlayingLocal() {
+        client.start_local_game();
+        lastScore = [0, 0];
+        updateScore(0, 0);
+        document.body.classList.add('game-active');
+        setupInputIfNeeded();
+        startRenderLoop();
+      }
+
+      async function enterConnecting() {
+        initAudio();
+        const canvas = document.getElementById('canvas');
+        if (!client) {
+          client = await new WasmClient(canvas);
+        }
+        
+        const code = currentMatchCode || document.getElementById('matchCode').value.trim().toUpperCase();
+        if (code.length !== 5) {
+          FSM.transition('CONNECTION_FAILED');
+          return;
+        }
+        currentMatchCode = code;
+        
+        // Update URL
+        const url = new URL(window.location);
+        if (url.searchParams.get('code') !== code) {
+          url.searchParams.set('code', code);
+          window.history.pushState({}, '', url);
+        }
+        
+        const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        const wsUrl = `${protocol}//${window.location.host}/ws/${code}`;
+        
+        try {
+          ws = new WebSocket(wsUrl);
+          ws.binaryType = 'arraybuffer';
+          
+          ws.onopen = () => {
+            try {
+              ws.send(client.get_join_bytes(code));
+              FSM.transition('CONNECTED');
+            } catch (e) {
+              console.error('Join error:', e);
+              FSM.transition('CONNECTION_FAILED');
+            }
+          };
+          
+          ws.onmessage = (event) => {
+            if (event.data instanceof ArrayBuffer) {
+              try {
+                client.on_message(new Uint8Array(event.data));
+                
+                // Poll for match events from server
+                const matchEvent = client.get_match_event();
+                if (matchEvent) {
+                  handleMatchEvent(matchEvent);
+                }
+                
+                // Update score if playing
+                if (FSM.state === GameState.PLAYING_MULTI) {
+                  const score = client.get_score();
+                  if (score.length >= 2) {
+                    updateScore(score[0], score[1]);
+                  }
+                }
+              } catch (e) { console.error('Message error:', e); }
+            }
+          };
+          
+          ws.onerror = () => {
+            if (FSM.state === GameState.CONNECTING) {
+              FSM.transition('CONNECTION_FAILED');
+            }
+          };
+          
+          ws.onclose = () => {
+            if (FSM.state === GameState.WAITING || FSM.state === GameState.COUNTDOWN_MULTI) {
+              FSM.transition('DISCONNECTED');
+            } else if (FSM.state === GameState.PLAYING_MULTI || FSM.state === GameState.GAME_OVER_MULTI) {
+              FSM.transition('DISCONNECTED');
+            } else if (FSM.state === GameState.CONNECTING) {
+              FSM.transition('CONNECTION_FAILED');
+            }
+          };
+        } catch (e) {
+          FSM.transition('CONNECTION_FAILED');
+        }
+      }
+
+      function enterWaiting() {
+        // Start polling for events while waiting
+        startEventPolling();
+      }
+
+      async function enterCountdownMulti() {
+        // Server drives the countdown - we just display what it sends
+        // The countdown display is handled by handleMatchEvent
+        // Wait here until game_start is received
+        // (Transition to PLAYING_MULTI is triggered by handleMatchEvent)
+      }
+
+      // Handle match events from server
+      function handleMatchEvent(event) {
+        console.log('Match event:', event, 'State:', FSM.state);
+        
+        if (event === 'match_found') {
+          if (FSM.state === GameState.WAITING) {
+            playSound('paddle');
+            FSM.transition('OPPONENT_JOINED');
+          }
+        } else if (event.startsWith('countdown:')) {
+          const seconds = parseInt(event.split(':')[1]);
+          showCountdownNumber(seconds);
+          
+          if (FSM.state === GameState.GAME_OVER_MULTI) {
+             FSM.transition('REMATCH_STARTED');
+          }
+        } else if (event === 'game_start') {
+          hideCountdownNumber();
+          if (FSM.state === GameState.COUNTDOWN_MULTI) {
+            FSM.transition('COUNTDOWN_DONE');
+          }
+        } else if (event === 'opponent_disconnected') {
+          if (FSM.state === GameState.WAITING || FSM.state === GameState.COUNTDOWN_MULTI || FSM.state === GameState.GAME_OVER_MULTI) {
+            FSM.transition('DISCONNECTED');
+          }
+        }
+      }
+
+      // Show a single countdown number
+      function showCountdownNumber(n) {
+        const el = document.getElementById('countdown');
+        el.textContent = n > 0 ? n.toString() : 'GO!';
+        el.classList.add('show');
+        playSound('paddle');
+        setTimeout(() => el.classList.remove('show'), 800);
+      }
+
+      function hideCountdownNumber() {
+        document.getElementById('countdown').classList.remove('show');
+      }
+
+      let eventPollingId = null;
+      function startEventPolling() {
+        stopEventPolling();
+        eventPollingId = setInterval(() => {
+          if (client && ws && ws.readyState === WebSocket.OPEN) {
+            const matchEvent = client.get_match_event();
+            if (matchEvent) {
+              handleMatchEvent(matchEvent);
+            }
+          }
+        }, 100);
+      }
+
+      function stopEventPolling() {
+        if (eventPollingId) {
+          clearInterval(eventPollingId);
+          eventPollingId = null;
+        }
+      }
+
+      function enterPlayingMulti() {
+        lastScore = [0, 0];
+        document.body.classList.add('game-active');
+        setupInputIfNeeded();
+        startRenderLoop();
+        startPingInterval();
+      }
+
+      function enterDisconnected() {
+        closeWebSocket();
+        stopGameLoop();
+      }
+
+      // ========================================
+      // UI Updates
+      // ========================================
+      function updateUIForState(state) {
+        const playBtn = document.getElementById('playBtn');
+        const lobbyControls = document.getElementById('lobbyControls');
+        const activeMatchControls = document.getElementById('activeMatchControls');
+        
+        switch (state) {
+          case GameState.IDLE:
+            playBtn.textContent = 'Play Now';
+            playBtn.disabled = false;
+            playBtn.classList.remove('playing');
+            lobbyControls.style.display = 'block';
+            activeMatchControls.style.display = 'none';
+            document.body.classList.remove('game-active');
+            break;
+            
+          case GameState.COUNTDOWN_LOCAL:
+            playBtn.textContent = 'Starting...';
+            playBtn.disabled = true;
+            break;
+            
+          case GameState.PLAYING_LOCAL:
+            playBtn.textContent = 'Playing vs AI';
+            playBtn.classList.add('playing');
+            break;
+            
+          case GameState.CONNECTING:
+            playBtn.textContent = 'Connecting...';
+            playBtn.disabled = true;
+            lobbyControls.style.display = 'none';
+            activeMatchControls.style.display = 'block';
+            break;
+            
+          case GameState.WAITING:
+            playBtn.textContent = 'Waiting...';
+            break;
+            
+          case GameState.COUNTDOWN_MULTI:
+            playBtn.textContent = 'Get Ready!';
+            activeMatchControls.style.display = 'none';
+            break;
+            
+          case GameState.PLAYING_MULTI:
+            playBtn.textContent = 'In Match';
+            playBtn.classList.add('playing');
+            activeMatchControls.style.display = 'none';
+            break;
+
+          case GameState.GAME_OVER_LOCAL:
+          case GameState.GAME_OVER_MULTI:
+            playBtn.textContent = 'Game Over';
+            playBtn.classList.remove('playing');
+            activeMatchControls.style.display = 'none';
+            break;
+            
+          case GameState.DISCONNECTED:
+            playBtn.textContent = 'Disconnected';
+            playBtn.disabled = false;
+            playBtn.classList.remove('playing');
+            document.body.classList.remove('game-active');
+            break;
         }
       }
 
       function updateScore(left, right) {
-        const el = document.getElementById("score");
+        const el = document.getElementById('score');
         if (el) {
           if (left !== lastScore[0] || right !== lastScore[1]) {
-            playSound("score");
-            el.classList.add("flash");
-            setTimeout(() => el.classList.remove("flash"), 200);
+            playSound('score');
+            el.classList.add('flash');
+            setTimeout(() => el.classList.remove('flash'), 200);
             lastScore = [left, right];
           }
           el.textContent = `${left} : ${right}`;
@@ -623,237 +1026,17 @@
           try {
             const metrics = client.get_metrics();
             if (metrics.length >= 2) {
-              document.getElementById("fps").textContent = Math.round(metrics[0]);
-              document.getElementById("ping").textContent = Math.round(metrics[1]);
+              document.getElementById('fps').textContent = Math.round(metrics[0]);
+              document.getElementById('ping').textContent = Math.round(metrics[1]);
             }
           } catch (e) {}
         }
       }
 
-      async function showCountdown() {
-        const el = document.getElementById("countdown");
-        for (const text of ["3", "2", "1", "GO!"]) {
-          el.textContent = text;
-          el.classList.add("show");
-          playSound("paddle");
-          await new Promise(r => setTimeout(r, 600));
-          el.classList.remove("show");
-          await new Promise(r => setTimeout(r, 100));
-        }
-      }
-
-      function showVictory(winner) {
-        // Prevent calling multiple times
-        if (victoryShown) return;
-        victoryShown = true;
-        
-        playSound("victory");
-        const overlay = document.getElementById("victoryOverlay");
-        const text = document.getElementById("victoryText");
-        
-        if (winner === "you") {
-            text.textContent = "VICTORY";
-            text.className = "status-win";
-        } else {
-            text.textContent = "DEFEAT";
-            text.className = "status-lose";
-        }
-        
-        overlay.classList.add("show");
-        document.body.classList.remove("game-active");
-      }
-
-      function hideVictory() {
-        document.getElementById("victoryOverlay").classList.remove("show");
-        victoryShown = false;
-        
-        // Reset play button state
-        const playBtn = document.getElementById("playBtn");
-        playBtn.textContent = "Play Again";
-        playBtn.classList.remove("playing");
-        playBtn.disabled = false;
-      }
-
-      window.startLocalGame = async function () {
-        try {
-          initAudio();
-          
-          // Stop any existing game loop
-          if (renderLoopId) {
-            cancelAnimationFrame(renderLoopId);
-            renderLoopId = null;
-          }
-          if (pingIntervalId) {
-            clearInterval(pingIntervalId);
-            pingIntervalId = null;
-          }
-          
-          hideVictory();
-          const playBtn = document.getElementById("playBtn");
-          
-          // Show starting state in button
-          playBtn.textContent = "Starting...";
-          playBtn.disabled = true;
-          
-          const canvas = document.getElementById("canvas");
-          if (!client) {
-            client = await new WasmClient(canvas);
-          }
-          await showCountdown();
-          client.start_local_game();
-          lastScore = [0, 0];
-          updateScore(0, 0);
-          
-          // Update button to show active state
-          playBtn.textContent = "Playing vs AI";
-          playBtn.classList.add("playing");
-          
-          isPlaying = true;
-          document.body.classList.add("game-active");
-          setupInput();
-          startRender();
-        } catch (error) {
-          updateStatus("Error: " + error.message);
-        }
-      };
-
-      window.createMatch = async function () {
-        try {
-          initAudio();
-          updateStatus("Creating match...");
-          const response = await fetch("/create");
-          const data = await response.json();
-          document.getElementById("matchCode").value = data.code;
-          
-          // Build the invite URL
-          const url = new URL(window.location);
-          url.searchParams.set("code", data.code);
-          const inviteUrl = url.toString();
-          
-          // Auto-copy to clipboard
-          try {
-            await navigator.clipboard.writeText(inviteUrl);
-          } catch (clipErr) {
-            console.warn("Could not copy to clipboard:", clipErr);
-          }
-          
-          window.history.pushState({}, "", url);
-          updateStatus(`Waiting for friend...`);
-          await joinMatch();
-        } catch (error) {
-          updateStatus("Error creating match");
-        }
-      };
-
-      window.joinMatch = async function () {
-        const code = document.getElementById("matchCode").value.trim().toUpperCase();
-        if (code.length !== 5) {
-          updateStatus("Invalid code length");
-          return;
-        }
-        try {
-          initAudio();
-          
-          // Stop any existing game loops and WebSocket
-          if (renderLoopId) {
-            cancelAnimationFrame(renderLoopId);
-            renderLoopId = null;
-          }
-          if (pingIntervalId) {
-            clearInterval(pingIntervalId);
-            pingIntervalId = null;
-          }
-          if (ws) {
-            ws.close();
-            ws = null;
-          }
-          isPlaying = false;
-          victoryShown = false;
-          
-          hideVictory();
-          updateStatus("Connecting...");
-          const canvas = document.getElementById("canvas");
-          if (!client) {
-            client = await new WasmClient(canvas);
-          }
-          // Reset client state for clean multiplayer session
-          client.reset_for_multiplayer();
-          
-          const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-          const wsUrl = `${protocol}//${window.location.host}/ws/${code}`;
-          
-          const url = new URL(window.location);
-          if (url.searchParams.get("code") !== code) {
-            url.searchParams.set("code", code);
-            window.history.pushState({}, "", url);
-          }
-          
-          document.getElementById("lobbyControls").style.display = "none";
-          document.getElementById("activeMatchControls").style.display = "block";
-          
-          ws = new WebSocket(wsUrl);
-          ws.binaryType = "arraybuffer";
-          ws.onopen = async () => {
-            try {
-              ws.send(client.get_join_bytes(code));
-              updateStatus("Waiting for opponent...");
-            } catch (e) {
-              console.error("Join error:", e);
-            }
-          };
-          ws.onmessage = (event) => {
-            if (event.data instanceof ArrayBuffer) {
-              try {
-                client.on_message(new Uint8Array(event.data));
-                const score = client.get_score();
-                if (score.length >= 2) {
-                  updateScore(score[0], score[1]);
-                }
-                if (!isPlaying) {
-                  isPlaying = true;
-                  document.body.classList.add("game-active");
-                  
-                  // Update button to show match is active
-                  const playBtn = document.getElementById("playBtn");
-                  playBtn.textContent = "In Match";
-                  playBtn.classList.add("playing");
-                  
-                  setupInput();
-                  startRender();
-                }
-              } catch (e) {}
-            }
-          };
-          ws.onerror = (error) => {
-            updateStatus("Connection error");
-          };
-          ws.onclose = () => {
-            isPlaying = false;
-            document.body.classList.remove("game-active");
-            
-            // Reset button state
-            const playBtn = document.getElementById("playBtn");
-            playBtn.textContent = "Play Now";
-            playBtn.classList.remove("playing");
-            
-            // Show lobby controls again
-            document.getElementById("lobbyControls").style.display = "block";
-            document.getElementById("activeMatchControls").style.display = "none";
-            
-            // Clear URL code
-            const url = new URL(window.location);
-            url.searchParams.delete("code");
-            window.history.pushState({}, "", url);
-            document.getElementById("matchCode").value = "";
-            
-            updateStatus("Disconnected");
-          };
-        } catch (error) {
-          updateStatus("Error: " + error.message);
-        }
-      };
-
-      function startRender() {
+      // ========================================
+      // Game Loop
+      // ========================================
+      function startRenderLoop() {
         function render() {
           if (client) {
             try {
@@ -862,27 +1045,51 @@
               const score = client.get_score();
               if (score.length >= 2) {
                 updateScore(score[0], score[1]);
+                
+                // Check for game over
                 const winner = client.get_winner();
                 if (winner) {
                   showVictory(winner);
-                  isPlaying = false;
+                  FSM.transition('GAME_OVER');
                   return;
                 }
                 if (score[0] >= 5 || score[1] >= 5) {
-                  const winnerName = score[0] >= 5 ? "you" : "opponent";
+                  const winnerName = score[0] >= 5 ? 'you' : 'opponent';
                   showVictory(winnerName);
-                  isPlaying = false;
-                  return; 
+                  if (FSM.state === GameState.PLAYING_LOCAL) {
+                    FSM.transition('GAME_OVER_LOCAL');
+                  } else {
+                    FSM.transition('GAME_OVER_MULTI');
+                  }
+                  return;
                 }
               }
             } catch (e) {}
           }
-          if (isPlaying) {
+          
+          if (FSM.state === GameState.PLAYING_LOCAL || FSM.state === GameState.PLAYING_MULTI) {
             renderLoopId = requestAnimationFrame(render);
           }
         }
         render();
+      }
 
+      function stopGameLoop() {
+        if (renderLoopId) {
+          cancelAnimationFrame(renderLoopId);
+          renderLoopId = null;
+        }
+        if (pingIntervalId) {
+          clearInterval(pingIntervalId);
+          pingIntervalId = null;
+        }
+        if (inputIntervalId) {
+          clearInterval(inputIntervalId);
+          inputIntervalId = null;
+        }
+      }
+
+      function startPingInterval() {
         pingIntervalId = setInterval(() => {
           if (ws && ws.readyState === WebSocket.OPEN && client) {
             try {
@@ -891,6 +1098,16 @@
             } catch (e) {}
           }
         }, 2000);
+      }
+
+      // ========================================
+      // WebSocket & Input
+      // ========================================
+      function closeWebSocket() {
+        if (ws) {
+          ws.close();
+          ws = null;
+        }
       }
 
       function sendInput() {
@@ -904,14 +1121,18 @@
         }
       }
 
-      function setupInput() {
+      let inputSetup = false;
+      function setupInputIfNeeded() {
+        if (inputSetup) return;
+        inputSetup = true;
+        
         const pressedKeys = new Set();
-        window.addEventListener("keydown", (e) => {
-          const gameKeys = ["ArrowUp", "ArrowDown", "w", "W", "s", "S"];
+        window.addEventListener('keydown', (e) => {
+          const gameKeys = ['ArrowUp', 'ArrowDown', 'w', 'W', 's', 'S'];
           if (gameKeys.includes(e.key)) {
             e.preventDefault();
-            const upKeys = ["ArrowUp", "w", "W"];
-            const downKeys = ["ArrowDown", "s", "S"];
+            const upKeys = ['ArrowUp', 'w', 'W'];
+            const downKeys = ['ArrowDown', 's', 'S'];
             if (upKeys.includes(e.key)) {
               downKeys.forEach(key => {
                 if (pressedKeys.has(key)) {
@@ -936,8 +1157,8 @@
           }
         }, { capture: true, passive: false });
 
-        window.addEventListener("keyup", (e) => {
-          const gameKeys = ["ArrowUp", "ArrowDown", "w", "W", "s", "S"];
+        window.addEventListener('keyup', (e) => {
+          const gameKeys = ['ArrowUp', 'ArrowDown', 'w', 'W', 's', 'S'];
           if (gameKeys.includes(e.key)) {
             e.preventDefault();
             pressedKeys.delete(e.key);
@@ -948,75 +1169,167 @@
           }
         }, { capture: true, passive: false });
 
-        const mobileUp = document.getElementById("mobileUp");
-        const mobileDown = document.getElementById("mobileDown");
+        const mobileUp = document.getElementById('mobileUp');
+        const mobileDown = document.getElementById('mobileDown');
 
         const setupTouch = (info) => {
-             const btn = info.btn;
-             const key = info.key;
-             if (!btn) return;
-             const handle = (e, isDown) => {
-                 if (e.type !== 'click') e.preventDefault();
-                 if (client) {
-                     client.handle_key_string(key, isDown);
-                     sendInput();
-                 }
-             };
-             btn.addEventListener("touchstart", (e) => handle(e, true));
-             btn.addEventListener("touchend", (e) => handle(e, false));
-             btn.addEventListener("mousedown", (e) => handle(e, true));
-             btn.addEventListener("mouseup", (e) => handle(e, false));
-             btn.addEventListener("mouseleave", (e) => handle(e, false));
+          const btn = info.btn;
+          const key = info.key;
+          if (!btn) return;
+          const handle = (e, isDown) => {
+            if (e.type !== 'click') e.preventDefault();
+            if (client) {
+              client.handle_key_string(key, isDown);
+              sendInput();
+            }
+          };
+          btn.addEventListener('touchstart', (e) => handle(e, true));
+          btn.addEventListener('touchend', (e) => handle(e, false));
+          btn.addEventListener('mousedown', (e) => handle(e, true));
+          btn.addEventListener('mouseup', (e) => handle(e, false));
+          btn.addEventListener('mouseleave', (e) => handle(e, false));
         };
-        setupTouch({btn: mobileUp, key: "ArrowUp"});
-        setupTouch({btn: mobileDown, key: "ArrowDown"});
-        setInterval(sendInput, 33);
+        setupTouch({ btn: mobileUp, key: 'ArrowUp' });
+        setupTouch({ btn: mobileDown, key: 'ArrowDown' });
+        
+        inputIntervalId = setInterval(sendInput, 33);
       }
 
-      // Multiplayer toggle removed - section is always visible
+      // ========================================
+      // Victory/Countdown Overlays
+      // ========================================
+      async function showCountdown() {
+        const el = document.getElementById('countdown');
+        for (const text of ['3', '2', '1', 'GO!']) {
+          el.textContent = text;
+          el.classList.add('show');
+          playSound('paddle');
+          await new Promise(r => setTimeout(r, 600));
+          el.classList.remove('show');
+          await new Promise(r => setTimeout(r, 100));
+        }
+      }
 
-      document.getElementById("playAgainBtn").addEventListener("click", () => {
-        hideVictory();
-        window.startLocalGame();
+      function showVictory(winner) {
+        playSound('victory');
+        const overlay = document.getElementById('victoryOverlay');
+        const text = document.getElementById('victoryText');
+        
+        if (winner === 'you') {
+          text.textContent = 'VICTORY';
+          text.className = 'status-win';
+        } else {
+          text.textContent = 'DEFEAT';
+          text.className = 'status-lose';
+        }
+        
+        // Reset button
+        const btn = document.getElementById('playAgainBtn');
+        btn.textContent = 'Play Again';
+        btn.disabled = false;
+        
+        overlay.classList.add('show');
+        document.body.classList.remove('game-active');
+      }
+
+      function hideVictoryOverlay() {
+        document.getElementById('victoryOverlay').classList.remove('show');
+      }
+
+      // ========================================
+      // Public API / Event Handlers
+      // ========================================
+      window.startLocalGame = async function() {
+        if (FSM.state === GameState.IDLE) {
+          await FSM.transition('START_LOCAL');
+        } else if (FSM.state === GameState.GAME_OVER_LOCAL) {
+          await FSM.transition('PLAY_AGAIN');
+        }
+      };
+
+      window.createMatch = async function() {
+        if (FSM.state !== GameState.IDLE) return;
+        try {
+          const response = await fetch('/create');
+          const data = await response.json();
+          document.getElementById('matchCode').value = data.code;
+          currentMatchCode = data.code;
+          
+          // Build and copy invite URL
+          const url = new URL(window.location);
+          url.searchParams.set('code', data.code);
+          try {
+            await navigator.clipboard.writeText(url.toString());
+          } catch (e) {
+            console.warn('Could not copy to clipboard:', e);
+          }
+          
+          await FSM.transition('CREATE_MATCH');
+        } catch (e) {
+          console.error('Create match error:', e);
+        }
+      };
+
+      window.joinMatch = async function() {
+        if (FSM.state !== GameState.IDLE) return;
+        const code = document.getElementById('matchCode').value.trim().toUpperCase();
+        if (code.length !== 5) return;
+        currentMatchCode = code;
+        await FSM.transition('JOIN_MATCH');
+      };
+
+      window.leaveGame = function() {
+        if (FSM.canTransition('LEAVE')) {
+          FSM.transition('LEAVE');
+        }
+      };
+
+      // ========================================
+      // Initialization
+      // ========================================
+      document.getElementById('playAgainBtn').addEventListener('click', () => {
+        if (FSM.state === GameState.GAME_OVER_LOCAL) {
+          FSM.transition('PLAY_AGAIN');
+        } else if (FSM.state === GameState.GAME_OVER_MULTI) {
+          // Send restart request
+          if (client && ws && ws.readyState === WebSocket.OPEN) {
+              try {
+                  const bytes = client.get_restart_bytes();
+                  ws.send(bytes);
+                  // Immediate reset for better UX
+                  client.reset_local_state();
+                  hideVictoryOverlay();
+              } catch (e) { console.error(e); }
+          }
+        }
       });
 
-      // Copy link button removed - link is auto-copied on match creation
-
-      document.getElementById("leaveBtn").addEventListener("click", () => {
-        if (ws) ws.close();
-        document.getElementById("lobbyControls").style.display = "block";
-        document.getElementById("activeMatchControls").style.display = "none";
-        
-        const url = new URL(window.location);
-        url.searchParams.delete("code");
-        window.history.pushState({}, "", url);
-        document.getElementById("matchCode").value = "";
-        updateStatus("Left match");
+      document.getElementById('leaveBtn').addEventListener('click', () => {
+        window.leaveGame();
       });
 
       async function main() {
         try {
           await init();
-          updateStatus("Ready to Play");
-          document.getElementById("playBtn").disabled = false;
-          document.getElementById("playBtn").addEventListener("click", window.startLocalGame);
-          document.getElementById("createBtn").addEventListener("click", window.createMatch);
+          document.getElementById('playBtn').disabled = false;
+          document.getElementById('playBtn').addEventListener('click', window.startLocalGame);
+          document.getElementById('createBtn').addEventListener('click', window.createMatch);
 
-          // Auto-join if code in URL (from invite link)
+          // Auto-join if code in URL
           const urlParams = new URLSearchParams(window.location.search);
-          const code = urlParams.get("code");
+          const code = urlParams.get('code');
           if (code) {
-             document.getElementById("matchCode").value = code;
-             updateStatus("Joining game...");
-             await window.joinMatch();
+            document.getElementById('matchCode').value = code;
+            currentMatchCode = code;
+            await FSM.transition('JOIN_MATCH');
           }
         } catch (error) {
-          updateStatus("Error: " + error.message);
+          console.error('Init error:', error);
         }
       }
 
       main().catch((error) => {
-        document.getElementById("status").textContent = "Fatal error: " + error.message;
+        console.error('Fatal error:', error);
       });
     </script>
   </body>

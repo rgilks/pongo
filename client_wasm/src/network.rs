@@ -1,6 +1,6 @@
 //! Network message handling
 
-use crate::state::GameState;
+use crate::state::{GameState, MatchEvent};
 use proto::{C2S, S2C};
 
 /// Handle incoming server message
@@ -9,13 +9,30 @@ pub fn handle_message(msg: S2C, game_state: &mut GameState) -> Result<(), String
         S2C::Welcome { player_id } => {
             game_state.set_player_id(player_id);
         }
+        S2C::MatchFound => {
+            game_state.match_event = MatchEvent::MatchFound;
+            game_state.winner = None;
+            game_state.set_scores(0, 0);
+        }
+        S2C::Countdown { seconds } => {
+            game_state.match_event = MatchEvent::Countdown(seconds);
+            game_state.winner = None;
+            game_state.set_scores(0, 0);
+        }
+        S2C::GameStart => {
+            game_state.match_event = MatchEvent::GameStart;
+            game_state.winner = None;
+            game_state.set_scores(0, 0);
+        }
         S2C::GameState(snapshot) => {
             game_state.set_scores(snapshot.score_left, snapshot.score_right);
             game_state.set_current(snapshot);
         }
         S2C::GameOver { winner } => {
-            // Game over - winner determined
             game_state.set_winner(winner);
+        }
+        S2C::OpponentDisconnected => {
+            game_state.match_event = MatchEvent::OpponentDisconnected;
         }
         S2C::Pong { t_ms: _ } => {
             // Ping response handled by caller, should not reach here
@@ -47,6 +64,13 @@ pub fn create_input_message(player_id: u8, paddle_dir: i8, seq: u32) -> Result<V
     }
     .to_bytes()
     .map_err(|e| format!("Failed to serialize input message: {:?}", e))
+}
+
+/// Create restart message bytes
+pub fn create_restart_message() -> Result<Vec<u8>, String> {
+    C2S::Restart
+        .to_bytes()
+        .map_err(|e| format!("Failed to serialize restart message: {:?}", e))
 }
 
 /// Create ping message bytes

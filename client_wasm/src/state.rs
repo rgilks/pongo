@@ -2,6 +2,16 @@
 
 pub use proto::GameStateSnapshot;
 
+/// Events from server for match lifecycle
+#[derive(Debug, Clone, PartialEq)]
+pub enum MatchEvent {
+    None,
+    MatchFound,
+    Countdown(u8),
+    GameStart,
+    OpponentDisconnected,
+}
+
 /// Game state tracking with interpolation
 pub struct GameState {
     // Current authoritative state from server
@@ -20,6 +30,8 @@ pub struct GameState {
     // Smooth correction state for ball position
     ball_display_x: f32,
     ball_display_y: f32,
+    // Latest match event from server
+    pub match_event: MatchEvent,
 }
 
 impl GameState {
@@ -46,6 +58,7 @@ impl GameState {
             winner: None,
             ball_display_x: 16.0,
             ball_display_y: 12.0,
+            match_event: MatchEvent::None,
         }
     }
 

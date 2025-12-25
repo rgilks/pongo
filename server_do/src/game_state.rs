@@ -7,6 +7,19 @@ use proto::*;
 use std::collections::HashMap;
 use worker::*;
 
+/// Server-side match lifecycle state
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MatchState {
+    /// Waiting for players to join
+    Waiting,
+    /// Both players connected, counting down
+    Countdown,
+    /// Game in progress
+    Playing,
+    /// Game ended
+    GameOver,
+}
+
 // Abstract connection for testing
 pub trait GameClient {
     fn send_bytes(&self, bytes: &[u8]) -> Result<()>;
@@ -59,7 +72,8 @@ pub struct GameState {
     pub respawn_state: RespawnState,
     pub clients: HashMap<u8, ClientInfo>, // player_id (0=left, 1=right) -> ClientInfo
     pub next_player_id: u8,
-    pub game_started: bool,
+    pub match_state: MatchState,
+    pub countdown_remaining: u8, // Countdown seconds remaining (3, 2, 1, 0)
     pub tick: u32,
     pub last_input: HashMap<u8, i8>, // Track last input per player to reduce logging
     pub last_tick_time: u64,         // Unix timestamp in ms
@@ -97,7 +111,8 @@ impl GameState {
             respawn_state: RespawnState::new(),
             clients: HashMap::new(),
             next_player_id: 0,
-            game_started: false,
+            match_state: MatchState::Waiting,
+            countdown_remaining: 3,
             tick: 0,
             last_input: HashMap::new(),
             last_tick_time: now,
@@ -129,12 +144,25 @@ impl GameState {
         let paddle_y = self.map.paddle_spawn(player_id).y;
         create_paddle(&mut self.world, player_id, paddle_y);
 
-        // Start game if 2 players
-        if self.clients.len() == 2 {
-            self.game_started = true;
+        // Check if match can start
+        if self.clients.len() == 2 && self.match_state == MatchState::Waiting {
+            self.env
+                .log("DO: Both players connected, starting countdown".to_string());
+            self.match_state = MatchState::Countdown;
+            self.countdown_remaining = 3;
+            self.broadcast_to_all(&S2C::MatchFound);
         }
 
         Some((player_id, was_empty))
+    }
+
+    /// Broadcast a message to all connected clients
+    pub fn broadcast_to_all(&self, msg: &S2C) {
+        if let Ok(bytes) = msg.to_bytes() {
+            for client_info in self.clients.values() {
+                let _ = client_info.client.send_bytes(&bytes);
+            }
+        }
     }
 
     pub fn remove_player(&mut self, player_id: u8) {
@@ -157,14 +185,27 @@ impl GameState {
             let _ = self.world.despawn(entity);
         }
 
-        // Forfeit logic
-        if self.game_started {
-            if let Some(&remaining_player) = self.clients.keys().next() {
-                self.broadcast_game_over(remaining_player);
+        // Handle disconnection based on match state
+        match self.match_state {
+            MatchState::Playing => {
+                // Forfeit: remaining player wins
+                if let Some(&remaining_player) = self.clients.keys().next() {
+                    self.broadcast_game_over(remaining_player);
+                }
+                self.match_state = MatchState::GameOver;
             }
-            self.game_started = false;
-        } else if self.clients.len() < 2 {
-            self.game_started = false;
+            MatchState::Countdown => {
+                // Cancel countdown, notify remaining player
+                self.broadcast_to_all(&S2C::OpponentDisconnected);
+                self.match_state = MatchState::Waiting;
+                self.countdown_remaining = 3;
+            }
+            MatchState::Waiting | MatchState::GameOver => {
+                // Just update state
+                if self.clients.is_empty() {
+                    self.match_state = MatchState::Waiting;
+                }
+            }
         }
     }
 
@@ -186,8 +227,68 @@ impl GameState {
         }
     }
 
+    /// Reset game state for a rematch
+    pub fn restart_match(&mut self) {
+        if self.match_state != MatchState::GameOver {
+            return;
+        }
+
+        self.env.log("DO: Restarting match".to_string());
+
+        // Reset game data
+        self.score = Score::new();
+        self.events = Events::new();
+        self.tick = 0;
+        self.last_input.clear();
+
+        // Reset world entities (keep clients)
+        self.world.clear();
+
+        // Respawn ball
+        let ball_pos = self.map.ball_spawn();
+        let ball_vel = glam::Vec2::new(self.config.ball_speed_initial, 0.0);
+        create_ball(&mut self.world, ball_pos, ball_vel);
+
+        // Respawn paddles
+        for &player_id in self.clients.keys() {
+            let paddle_y = self.map.paddle_spawn(player_id).y;
+            create_paddle(&mut self.world, player_id, paddle_y);
+        }
+
+        // Set state to countdown
+        self.match_state = MatchState::Countdown;
+        self.countdown_remaining = 3;
+
+        // Notify clients
+        self.broadcast_to_all(&S2C::Countdown { seconds: 3 });
+    }
+
+    /// Process one countdown tick. Returns true if countdown finished.
+    pub fn tick_countdown(&mut self) -> bool {
+        if self.match_state != MatchState::Countdown {
+            return false;
+        }
+
+        if self.countdown_remaining > 0 {
+            self.broadcast_to_all(&S2C::Countdown {
+                seconds: self.countdown_remaining,
+            });
+            self.env
+                .log(format!("DO: Countdown: {}", self.countdown_remaining));
+            self.countdown_remaining -= 1;
+            false
+        } else {
+            // Countdown finished, start game
+            self.env
+                .log("DO: Countdown complete, starting game!".to_string());
+            self.match_state = MatchState::Playing;
+            self.broadcast_to_all(&S2C::GameStart);
+            true
+        }
+    }
+
     pub fn step(&mut self) -> Option<u8> {
-        if !self.game_started {
+        if self.match_state != MatchState::Playing {
             return None;
         }
 
@@ -217,7 +318,7 @@ impl GameState {
         // Return winner if any
         if let Some(winner) = self.score.has_winner(self.config.win_score) {
             self.broadcast_game_over(winner);
-            self.game_started = false;
+            self.match_state = MatchState::GameOver;
             return Some(winner);
         }
 

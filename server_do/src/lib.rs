@@ -141,23 +141,22 @@ impl DurableObject for MatchDO {
 
     #[allow(clippy::await_holding_refcell_ref)] // We drop the RefCell borrow before await
     async fn alarm(&self) -> Result<Response> {
-        // Game loop - runs at 60 Hz target
-        let tick_interval_ms = 16; // ~60 Hz simulation step
+        use game_state::MatchState;
 
         let mut gs = self.game_state.borrow_mut();
 
         // Check for idle clients and disconnect them (1 minute timeout)
         let now_ms = gs.env.now();
         let now_seconds = now_ms / 1000;
-        let idle_timeout_seconds = 60; // 1 minute
+        let idle_timeout_seconds = 120; // 2 minutes
         let mut clients_to_remove = Vec::new();
 
         for (player_id, client_info) in gs.clients.iter() {
-            if now_seconds.saturating_sub(client_info.last_activity) > idle_timeout_seconds {
+            let elapsed = now_seconds.saturating_sub(client_info.last_activity);
+            if elapsed > idle_timeout_seconds {
                 gs.env.log(format!(
-                    "DO: Client {} idle for {}s, disconnecting",
-                    player_id,
-                    now_seconds.saturating_sub(client_info.last_activity)
+                    "DO: Client {} idle for {}s (now: {}, last: {}), disconnecting",
+                    player_id, elapsed, now_seconds, client_info.last_activity
                 ));
                 clients_to_remove.push(*player_id);
             }
@@ -173,45 +172,66 @@ impl DurableObject for MatchDO {
         if !has_clients {
             gs.env
                 .log("DO: No clients remaining, stopping alarm loop".to_string());
-            drop(gs); // Release borrow before return
+            drop(gs);
             return Response::ok("No clients, stopping alarm loop");
         }
 
-        // Calculate real elapsed time since last alarm
-        let elapsed_ms = now_ms.saturating_sub(gs.last_tick_time);
-        gs.last_tick_time = now_ms;
+        // Handle based on current match state
+        let current_state = gs.match_state;
+        let next_alarm_ms = match current_state {
+            MatchState::Waiting => {
+                // Just keep alarm running at low frequency for idle checks
+                500
+            }
+            MatchState::Countdown => {
+                // Tick countdown every second
+                gs.tick_countdown();
+                1000
+            }
+            MatchState::Playing => {
+                // Run game simulation at 60 Hz
+                let tick_interval_ms = 16;
 
-        // Add to accumulator, capped to avoid large jumps if DO was hibernated
-        gs.accumulator += elapsed_ms.min(100) as f32; // Max 100ms catchup per alarm
+                let elapsed_ms = now_ms.saturating_sub(gs.last_tick_time);
+                gs.last_tick_time = now_ms;
 
-        // Run simulation steps
-        let mut steps_run = 0;
-        const MAX_STEPS: u32 = 10; // Avoid "death spiral" if simulation is too slow
+                // Add to accumulator, capped to avoid large jumps
+                gs.accumulator += elapsed_ms.min(100) as f32;
 
-        while gs.accumulator >= tick_interval_ms as f32 && steps_run < MAX_STEPS {
-            gs.step();
-            gs.accumulator -= tick_interval_ms as f32;
-            steps_run += 1;
-        }
+                let mut steps_run = 0;
+                const MAX_STEPS: u32 = 10;
 
-        if steps_run > 1 && gs.tick % 60 == 0 {
-            gs.env.log(format!(
-                "DO: Catching up, ran {steps_run} steps in one alarm"
-            ));
-        }
+                while gs.accumulator >= tick_interval_ms as f32 && steps_run < MAX_STEPS {
+                    gs.step();
+                    gs.accumulator -= tick_interval_ms as f32;
+                    steps_run += 1;
+                }
 
-        // Broadcast state if game is running
-        if gs.game_started && (gs.tick == 1 || gs.tick % 3 == 0) {
-            gs.broadcast_state();
-        }
+                if steps_run > 1 && gs.tick % 60 == 0 {
+                    gs.env.log(format!(
+                        "DO: Catching up, ran {steps_run} steps in one alarm"
+                    ));
+                }
 
-        // Release borrow before async call
+                // Broadcast state regularly
+                if gs.tick == 1 || gs.tick % 3 == 0 {
+                    gs.broadcast_state();
+                }
+
+                tick_interval_ms
+            }
+            MatchState::GameOver => {
+                // Low frequency, just for cleanup
+                500
+            }
+        };
+
         drop(gs);
 
         // Schedule next alarm
         self.state
             .storage()
-            .set_alarm(Duration::from_millis(tick_interval_ms))
+            .set_alarm(Duration::from_millis(next_alarm_ms))
             .await?;
 
         Response::ok("Alarm processed")
@@ -257,6 +277,10 @@ impl MatchDO {
                     seq: _,
                 } => {
                     gs.handle_input(player_id, paddle_dir);
+                    None
+                }
+                C2S::Restart => {
+                    gs.restart_match();
                     None
                 }
                 C2S::Ping { t_ms } => {

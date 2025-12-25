@@ -1,4 +1,4 @@
-use crate::game_state::{Environment, GameClient, GameState};
+use crate::game_state::{Environment, GameClient, GameState, MatchState};
 use proto::S2C;
 use std::cell::RefCell;
 use worker::*;
@@ -62,7 +62,7 @@ fn test_game_initialization() {
     let gs = GameState::new(Box::new(MockEnv::new()));
     assert_eq!(gs.clients.len(), 0);
     assert_eq!(gs.next_player_id, 0);
-    assert!(!gs.game_started);
+    assert_eq!(gs.match_state, MatchState::Waiting);
 }
 
 #[test]
@@ -93,10 +93,11 @@ fn test_game_start_condition() {
     let mut gs = GameState::new(Box::new(MockEnv::new()));
 
     gs.add_player(Box::new(MockGameClient::new()));
-    assert!(!gs.game_started);
+    assert_eq!(gs.match_state, MatchState::Waiting);
 
     gs.add_player(Box::new(MockGameClient::new()));
-    assert!(gs.game_started);
+    // With two players, match should transition to Countdown (not Playing directly)
+    assert_eq!(gs.match_state, MatchState::Countdown);
 }
 
 #[test]

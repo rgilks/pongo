@@ -40,6 +40,9 @@ pub enum C2S {
 
     /// Ping for latency measurement
     Ping { t_ms: u32 },
+
+    /// Request to restart the match (valid only in GameOver state)
+    Restart,
 }
 
 // ============================================================================
@@ -53,13 +56,25 @@ pub enum S2C {
         player_id: u8, // 0 = left, 1 = right
     },
 
-    /// Game state snapshot
+    /// Opponent has connected, match is ready
+    MatchFound,
+
+    /// Synchronized countdown tick (3, 2, 1)
+    Countdown { seconds: u8 },
+
+    /// Game is starting now - begin playing
+    GameStart,
+
+    /// Game state snapshot (only sent during PLAYING)
     GameState(GameStateSnapshot),
 
     /// Game over message
     GameOver {
         winner: u8, // 0 = left, 1 = right
     },
+
+    /// Opponent disconnected
+    OpponentDisconnected,
 
     /// Pong response to ping
     Pong { t_ms: u32 },

@@ -266,6 +266,19 @@ impl WasmClient {
     }
 
     #[wasm_bindgen]
+    pub fn get_restart_bytes(&self) -> Vec<u8> {
+        network::create_restart_message().unwrap_or_default()
+    }
+
+    #[wasm_bindgen]
+    pub fn reset_local_state(&mut self) {
+        let client = &mut self.0;
+        client.game_state.winner = None;
+        client.game_state.set_scores(0, 0);
+        // Force rendering to update immediately
+    }
+
+    #[wasm_bindgen]
     pub fn get_input_bytes(&mut self) -> Vec<u8> {
         let client = &mut self.0;
         if client.local_game.is_some() {
@@ -310,6 +323,21 @@ impl WasmClient {
             }
         } else {
             None
+        }
+    }
+
+    /// Get and clear the latest match event from server
+    /// Returns: "match_found", "countdown:3", "countdown:2", "countdown:1", "game_start", "opponent_disconnected", or empty string
+    #[wasm_bindgen]
+    pub fn get_match_event(&mut self) -> String {
+        use state::MatchEvent;
+        let event = std::mem::replace(&mut self.0.game_state.match_event, MatchEvent::None);
+        match event {
+            MatchEvent::None => String::new(),
+            MatchEvent::MatchFound => "match_found".to_string(),
+            MatchEvent::Countdown(n) => format!("countdown:{}", n),
+            MatchEvent::GameStart => "game_start".to_string(),
+            MatchEvent::OpponentDisconnected => "opponent_disconnected".to_string(),
         }
     }
 
