@@ -10,14 +10,12 @@ pub fn handle_message(msg: S2C, game_state: &mut GameState) -> Result<(), String
             game_state.set_player_id(player_id);
         }
         S2C::MatchFound => {
+            game_state.reset();
             game_state.match_event = MatchEvent::MatchFound;
-            game_state.winner = None;
-            game_state.set_scores(0, 0);
         }
         S2C::Countdown { seconds } => {
+            game_state.reset();
             game_state.match_event = MatchEvent::Countdown(seconds);
-            game_state.winner = None;
-            game_state.set_scores(0, 0);
         }
         S2C::GameStart => {
             game_state.match_event = MatchEvent::GameStart;
@@ -56,10 +54,10 @@ pub fn create_join_message(code: &str) -> Result<Vec<u8>, String> {
 }
 
 /// Create input message bytes
-pub fn create_input_message(player_id: u8, paddle_dir: i8, seq: u32) -> Result<Vec<u8>, String> {
+pub fn create_input_message(player_id: u8, y: f32, seq: u32) -> Result<Vec<u8>, String> {
     C2S::Input {
         player_id,
-        paddle_dir,
+        y,
         seq,
     }
     .to_bytes()

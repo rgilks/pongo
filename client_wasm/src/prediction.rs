@@ -114,7 +114,20 @@ impl ClientPredictor {
             &mut self.rng,
             &mut self.respawn_state,
         ) {
-            net_queue.push_input(player_id, paddle_dir);
+             // Calculate new position
+            let mut current_y = 12.0;
+            for (_e, paddle) in world.query::<&game_core::Paddle>().iter() {
+                if paddle.player_id == player_id {
+                    current_y = paddle.y;
+                    break;
+                }
+            }
+            let mut new_y = current_y + (paddle_dir as f32) * config.paddle_speed * SIM_FIXED_DT;
+            let half_height = config.paddle_height / 2.0;
+            new_y = new_y.clamp(half_height, config.arena_height - half_height);
+
+            net_queue.push_input(player_id, new_y);
+            
             // Update time
             *time = Time::new(SIM_FIXED_DT, time.now + SIM_FIXED_DT);
 
@@ -177,8 +190,20 @@ impl ClientPredictor {
             ) {
                 // Clear queue first
                 net_queue.clear();
-                // Push current input (continuous)
-                net_queue.push_input(player_id, current_input);
+                
+                 // Calculate new position
+                let mut current_y = 12.0;
+                for (_e, paddle) in world.query::<&game_core::Paddle>().iter() {
+                    if paddle.player_id == player_id {
+                        current_y = paddle.y;
+                        break;
+                    }
+                }
+                let mut new_y = current_y + (current_input as f32) * config.paddle_speed * SIM_FIXED_DT;
+                let half_height = config.paddle_height / 2.0;
+                new_y = new_y.clamp(half_height, config.arena_height - half_height);
+
+                net_queue.push_input(player_id, new_y);
 
                 *time = Time::new(SIM_FIXED_DT, time.now + SIM_FIXED_DT);
 
@@ -230,6 +255,17 @@ impl ClientPredictor {
         self.net_queue = None;
         self.rng = None;
         self.respawn_state = None;
+    }
+
+    pub fn get_paddle_y(&self, player_id: u8) -> Option<f32> {
+        if let Some(ref world) = self.world {
+            for (_entity, paddle) in world.query::<&game_core::Paddle>().iter() {
+                if paddle.player_id == player_id {
+                    return Some(paddle.y);
+                }
+            }
+        }
+        None
     }
 }
 

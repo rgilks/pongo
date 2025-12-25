@@ -36,10 +36,21 @@
         box-sizing: border-box;
       }
 
+      html {
+        background: #020617;
+      }
+      
       body {
         margin: 0;
         padding: 20px;
         min-height: 100vh;
+        height: 100vh;
+        overflow: hidden;
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        touch-action: none;
         background: radial-gradient(circle at top center, #1e293b 0%, #020617 100%);
         color: var(--text-main);
         font-family: 'Inter', sans-serif;
@@ -47,7 +58,8 @@
         flex-direction: column;
         align-items: center;
         justify-content: center;
-        overflow-x: hidden;
+        -webkit-user-select: none;
+        user-select: none;
       }
 
       /* Subtle animated grid background */
@@ -371,7 +383,6 @@
         color: #fca5a5;
         font-weight: 600;
         font-size: 11px;
-        cursor: pointer;
         transition: all 0.2s;
         text-transform: uppercase;
       }
@@ -379,6 +390,52 @@
       .btn-leave:hover {
         background: rgba(239, 68, 68, 0.1);
         color: #f87171;
+        border-color: rgba(239, 68, 68, 0.4);
+      }
+      
+      /* Action Buttons (Copy/Share) */
+      .header-btn {
+        background: rgba(255, 255, 255, 0.1);
+        border: 1px solid var(--glass-border);
+        color: white;
+        font-family: 'Outfit', sans-serif;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        font-size: 13px;
+        border-radius: 8px;
+        cursor: pointer;
+        transition: all 0.2s;
+        backdrop-filter: blur(4px);
+      }
+      
+      .header-btn:hover {
+        background: rgba(255, 255, 255, 0.2);
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+      }
+      
+      .header-btn:active {
+        transform: translateY(0);
+      }
+
+      /* Share Input */
+      #shareLinkInput {
+        background: rgba(0, 0, 0, 0.4) !important;
+        border: 1px solid var(--glass-border) !important;
+        color: #e2e8f0 !important;
+        font-family: 'Inter', sans-serif;
+        font-size: 13px !important;
+        padding: 10px 12px !important;
+        border-radius: 8px !important;
+        transition: all 0.2s;
+        box-shadow: inset 0 2px 4px rgba(0,0,0,0.3);
+      }
+      
+      #shareLinkInput:focus {
+        border-color: var(--primary) !important;
+        outline: none;
+        box-shadow: inset 0 2px 4px rgba(0,0,0,0.3), 0 0 0 2px rgba(99, 102, 241, 0.2);
       }
       
       .controls-info {
@@ -400,21 +457,89 @@
         display: none;
       }
 
+      /* Share Container */
+      .share-row {
+        display: flex;
+        gap: 8px;
+        margin: 10px 0;
+        width: 100%;
+        align-items: center;
+      }
+      
+      .share-row input {
+        flex: 1;
+        min-width: 0; /* Allow shrinking */
+      }
+      
+      .share-row button {
+        padding: 0 16px; /* Increased clickable area */
+        height: 38px; /* Fixed height match input */
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+
       /* Mobile Layout */
       @media (max-width: 850px) {
+        /* ... existing body/main styling ... */
+        body {
+          align-items: center; 
+          overflow: hidden; 
+        }
+
         #mainContainer {
           flex-direction: column;
           align-items: center;
-          gap: 20px;
+          justify-content: flex-start;
+          gap: 10px;
+          height: 100dvh;
+          overflow: hidden;
+          padding: 10px 0;
+        }
+
+        .share-row {
+           flex-wrap: wrap;
         }
         
+        .share-row input {
+           flex-basis: 100%;
+           margin-bottom: 4px;
+        }
+        
+        .share-row button {
+           flex: 1; /* Buttons share width */
+        }
+        
+        /* ... rest of mobile styling ... */
         #sidePanel {
-          width: 100%;
+          width: 90%;
+          max-width: 320px;
           order: 2;
+          margin-bottom: 0;
+          flex-shrink: 1; /* Allow shrinking */
+          transform: scale(0.95);
+          transform-origin: top center;
         }
         
+        /* Adjust card padding for mobile */
+        .panel-card {
+            padding: 16px; 
+            gap: 10px;
+        }
+
         #gameContainer {
           order: 1;
+          width: 90%;
+          max-width: 600px;
+          flex-shrink: 1;
+        }
+        
+
+        
+        #canvas {
+           width: 100%;
+           height: auto;
+           aspect-ratio: 4/3;
         }
         
         /* Mobile: spread buttons to edges */
@@ -500,8 +625,15 @@
           <div id="activeMatchControls" style="display: none;">
             <div class="waiting-state">
               <div class="waiting-text" style="font-size: 1.1em;">Waiting for opponent...</div>
-              <div style="font-size: 0.9em; color: var(--accent); margin: 8px 0;">✓ Link copied to clipboard</div>
-              <div style="font-size: 0.85em; opacity: 0.8; margin-bottom: 15px;">Send it to a friend to join!</div>
+              
+              <div class="share-row">
+                <input type="text" id="shareLinkInput" readonly>
+                <button id="copyLinkBtn" class="btn header-btn">Copy</button>
+                <button id="shareLinkBtn" class="btn header-btn" style="display: none;">Share</button>
+              </div>
+
+              <div id="copyFeedback" style="font-size: 0.9em; color: var(--accent); margin-bottom: 8px; min-height: 1.2em;"></div>
+              <div style="font-size: 0.85em; opacity: 0.8; margin-bottom: 15px;">Send link to join!</div>
               <button id="leaveBtn" class="btn-leave">Cancel</button>
             </div>
           </div>
@@ -1258,10 +1390,19 @@
           // Build and copy invite URL
           const url = new URL(window.location);
           url.searchParams.set('code', data.code);
+          const linkStr = url.toString();
+          
+          document.getElementById('shareLinkInput').value = linkStr;
+          const feedback = document.getElementById('copyFeedback');
+          
           try {
-            await navigator.clipboard.writeText(url.toString());
+            await navigator.clipboard.writeText(linkStr);
+            feedback.textContent = '✓ Link copied to clipboard!';
+            feedback.style.color = 'var(--accent)';
           } catch (e) {
             console.warn('Could not copy to clipboard:', e);
+            feedback.textContent = 'Please copy the link manually';
+            feedback.style.color = '#ffaa00';
           }
           
           await FSM.transition('CREATE_MATCH');
@@ -1269,6 +1410,41 @@
           console.error('Create match error:', e);
         }
       };
+      
+      // Manual copy button handler
+      document.getElementById('copyLinkBtn').addEventListener('click', async () => {
+        const input = document.getElementById('shareLinkInput');
+        const feedback = document.getElementById('copyFeedback');
+        try {
+          input.select();
+          input.setSelectionRange(0, 99999); // For mobile devices
+          await navigator.clipboard.writeText(input.value);
+          feedback.textContent = '✓ Link copied manually!';
+          feedback.style.color = 'var(--accent)';
+        } catch (e) {
+             // Fallback
+             document.execCommand('copy');
+             feedback.textContent = '✓ Link copied manually!';
+        }
+      });
+
+      // Native Share API handler
+      if (navigator.share) {
+        document.getElementById('shareLinkBtn').style.display = 'inline-block';
+      }
+      
+      document.getElementById('shareLinkBtn').addEventListener('click', async () => {
+        const link = document.getElementById('shareLinkInput').value;
+        try {
+          await navigator.share({
+            title: 'Lets Play Pong!',
+            text: 'Join me for a match of Pong!',
+            url: link
+          });
+        } catch (err) {
+          console.error('Share failed:', err);
+        }
+      });
 
       window.joinMatch = async function() {
         if (FSM.state !== GameState.IDLE) return;

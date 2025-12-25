@@ -209,21 +209,11 @@ impl GameState {
         }
     }
 
-    pub fn handle_input(&mut self, player_id: u8, paddle_dir: i8) {
+    pub fn handle_input(&mut self, player_id: u8, y: f32) {
         if let Some(client_info) = self.clients.get_mut(&player_id) {
             let now = self.env.now() / 1000;
             client_info.last_activity = now;
-
-            // Only log when input changes (reduces log spam)
-            let last_dir = self.last_input.get(&player_id).copied().unwrap_or(99);
-            if paddle_dir != last_dir {
-                self.env.log(format!(
-                    "DO: Player {player_id} input changed: {last_dir} -> {paddle_dir}"
-                ));
-                self.last_input.insert(player_id, paddle_dir);
-            }
-
-            self.net_queue.push_input(player_id, paddle_dir);
+            self.net_queue.push_input(player_id, y);
         }
     }
 

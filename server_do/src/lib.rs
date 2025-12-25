@@ -273,10 +273,10 @@ impl MatchDO {
                 }
                 C2S::Input {
                     player_id,
-                    paddle_dir,
+                    y,
                     seq: _,
                 } => {
-                    gs.handle_input(player_id, paddle_dir);
+                    gs.handle_input(player_id, y);
                     None
                 }
                 C2S::Restart => {

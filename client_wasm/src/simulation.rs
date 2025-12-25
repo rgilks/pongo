@@ -49,7 +49,7 @@ impl LocalGame {
 
     pub fn step(
         &mut self,
-        my_paddle_dir: i8,
+        my_paddle_y: f32,
     ) -> (
         Option<u8>,
         Option<(glam::Vec2, glam::Vec2)>,
@@ -60,11 +60,28 @@ impl LocalGame {
     ) {
         // AI: Control right paddle (player_id=1)
         let ai_dir = calculate_ai_input(&self.world, &self.config);
+        
+        const SIM_FIXED_DT: f32 = 1.0 / 60.0; // Assume standard step for AI movement
 
-        self.net_queue.push_input(0, my_paddle_dir);
-        self.net_queue.push_input(1, ai_dir);
+        // Update AI paddle position locally
+        let mut ai_y = 12.0;
+        // Find current AI paddle y
+        for (_e, paddle) in self.world.query::<&Paddle>().iter() {
+            if paddle.player_id == 1 {
+                ai_y = paddle.y;
+                break;
+            }
+        }
+        
+        let mut new_ai_y = ai_y + (ai_dir as f32) * self.config.paddle_speed * SIM_FIXED_DT;
+        // Clamp
+        let half_height = self.config.paddle_height / 2.0;
+        new_ai_y = new_ai_y.clamp(half_height, self.config.arena_height - half_height);
 
-        const SIM_FIXED_DT: f32 = 1.0 / 60.0;
+        self.net_queue.push_input(0, my_paddle_y);
+        self.net_queue.push_input(1, new_ai_y);
+
+
         self.time = Time::new(SIM_FIXED_DT, self.time.now + SIM_FIXED_DT);
 
         step(

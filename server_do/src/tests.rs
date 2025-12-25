@@ -117,13 +117,13 @@ fn test_handle_input() {
     gs.add_player(client0);
 
     // Send input for player 0
-    gs.handle_input(0, 1); // Move down
+    gs.handle_input(0, 1.0); // Move down
 
     // Check if input queue has it
     let inputs = gs.net_queue.pop_inputs();
     assert!(!inputs.is_empty());
     assert_eq!(inputs[0].0, 0);
-    assert_eq!(inputs[0].1, 1);
+    assert_eq!(inputs[0].1, 1.0);
 }
 
 #[test]

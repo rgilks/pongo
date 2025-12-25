@@ -115,7 +115,7 @@ impl WasmClient {
                 client.sim_accumulator -= SIM_FIXED_DT;
 
                 let (winner, ball_data, left_y, right_y, score_left, score_right) =
-                    local_game.step(client.paddle_dir);
+                    local_game.step(client.local_paddle_y);
 
                 if let Some(w) = winner {
                     client.game_state.set_winner(w);
@@ -170,6 +170,7 @@ impl WasmClient {
             const PADDLE_HEIGHT: f32 = 4.0;
             let half_height = PADDLE_HEIGHT / 2.0;
 
+            // Simple local integration (client authority)
             client.local_paddle_y += client.paddle_dir as f32 * PADDLE_SPEED * render_dt;
             client.local_paddle_y = client
                 .local_paddle_y
@@ -273,9 +274,7 @@ impl WasmClient {
     #[wasm_bindgen]
     pub fn reset_local_state(&mut self) {
         let client = &mut self.0;
-        client.game_state.winner = None;
-        client.game_state.set_scores(0, 0);
-        // Force rendering to update immediately
+        client.game_state.reset();
     }
 
     #[wasm_bindgen]
@@ -283,24 +282,20 @@ impl WasmClient {
         let client = &mut self.0;
         if client.local_game.is_some() {
             let pid = client.game_state.get_player_id().unwrap_or(0);
-            return network::create_input_message(pid, client.paddle_dir, 0).unwrap_or_default();
+            return network::create_input_message(pid, client.local_paddle_y, 0).unwrap_or_default();
         }
 
+        // For client authority, we just send our current Y position
+        // We can still increment seq for ordering if needed
         let pid = client.game_state.get_player_id().unwrap_or(0);
         let seq = client.predictor.input_seq;
         client.predictor.input_seq = seq.wrapping_add(1);
 
-        if client.predictor.input_history.len() > 120 {
-            client.predictor.input_history.remove(0);
-        }
-        client
-            .predictor
-            .input_history
-            .push((seq, client.paddle_dir));
-
-        client.predictor.process_input(pid, client.paddle_dir);
-
-        network::create_input_message(pid, client.paddle_dir, seq).unwrap_or_default()
+        // We don't need to feed predictor with our input for self-prediction 
+        // because we are authoritative.
+        // But if predictor is used for opponent, we might leave it be.
+        
+        network::create_input_message(pid, client.local_paddle_y, seq).unwrap_or_default()
     }
 
     #[wasm_bindgen]

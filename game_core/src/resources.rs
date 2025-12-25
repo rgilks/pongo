@@ -118,7 +118,7 @@ impl Events {
 /// Network input queue (placeholder for network inputs)
 #[derive(Debug, Clone, Default)]
 pub struct NetQueue {
-    pub inputs: Vec<(u8, i8)>, // (player_id, direction)
+    pub inputs: Vec<(u8, f32)>, // (player_id, y_absolute)
 }
 
 impl NetQueue {
@@ -130,11 +130,11 @@ impl NetQueue {
         self.inputs.clear();
     }
 
-    pub fn push_input(&mut self, player_id: u8, dir: i8) {
-        self.inputs.push((player_id, dir));
+    pub fn push_input(&mut self, player_id: u8, y: f32) {
+        self.inputs.push((player_id, y));
     }
 
-    pub fn pop_inputs(&mut self) -> Vec<(u8, i8)> {
+    pub fn pop_inputs(&mut self) -> Vec<(u8, f32)> {
         let inputs = self.inputs.clone();
         self.inputs.clear();
         inputs
@@ -219,19 +219,19 @@ mod tests {
     #[test]
     fn test_net_queue_push_input() {
         let mut queue = NetQueue::new();
-        queue.push_input(0, -1);
-        queue.push_input(1, 1);
+        queue.push_input(0, 10.0);
+        queue.push_input(1, 14.0);
 
         assert_eq!(queue.inputs.len(), 2);
-        assert_eq!(queue.inputs[0], (0, -1));
-        assert_eq!(queue.inputs[1], (1, 1));
+        assert_eq!(queue.inputs[0], (0, 10.0));
+        assert_eq!(queue.inputs[1], (1, 14.0));
     }
 
     #[test]
     fn test_net_queue_clear() {
         let mut queue = NetQueue::new();
-        queue.push_input(0, -1);
-        queue.push_input(1, 1);
+        queue.push_input(0, 10.0);
+        queue.push_input(1, 14.0);
 
         queue.clear();
         assert_eq!(queue.inputs.len(), 0);

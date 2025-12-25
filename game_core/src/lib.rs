@@ -196,8 +196,8 @@ mod integration_tests {
             }
         }
 
-        // Queue input to move paddle up
-        net_queue.push_input(0, -1);
+        // Queue input to move paddle to 5.0
+        net_queue.push_input(0, 5.0);
 
         // Run step
         step(
