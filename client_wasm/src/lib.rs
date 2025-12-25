@@ -354,6 +354,14 @@ impl WasmClient {
         self.0.sim_accumulator = 0.0;
     }
 
+    #[wasm_bindgen]
+    pub fn stop_local_game(&mut self) {
+        self.0.local_game = None;
+        self.0.game_state.reset();
+        self.0.paddle_dir = 0;
+        self.0.local_paddle_y = 12.0;
+    }
+
     /// Reset client state for a new multiplayer session
     #[wasm_bindgen]
     pub fn reset_for_multiplayer(&mut self) {
