@@ -17,37 +17,14 @@ npm run build && npm run dev  # http://localhost:8787
 | Mode | How |
 |------|-----|
 | **Multiplayer** | CREATE → share code → JOIN |
-| **VS AI** | Click VS AI |
+| **VS AI** | Click **PLAY** |
 
 **Controls:** Arrow keys or W/S · Touch on mobile  
-**Rules:** First to 11. Hit position affects ball trajectory.
+**Rules:** First to 5. Hit position affects ball trajectory.
 
 ## Architecture
 
-```
-┌─────────────────────────────────────────────────────────────┐
-│                    Cloudflare Workers                        │
-│  ┌─────────────┐     ┌─────────────────────────────────┐    │
-│  │lobby_worker │────▶│ server_do (Durable Object)      │    │
-│  │  HTTP API   │     │  60Hz sim, WebSocket broadcast  │    │
-│  └─────────────┘     └─────────────────────────────────┘    │
-│                              │ uses                          │
-│                              ▼                               │
-│                      ┌───────────────┐                       │
-│                      │  game_core    │◀─────────┐            │
-│                      │  ECS + Physics│          │            │
-│                      └───────────────┘          │            │
-│                              ▲                  │            │
-└──────────────────────────────│──────────────────│────────────┘
-                               │ uses             │ uses
-                       ┌───────┴───────┐   ┌──────┴──────┐
-                       │    proto      │   │ client_wasm │
-                       │ C2S/S2C msgs  │   │ WebGPU + UI │
-                       └───────────────┘   └─────────────┘
-                                                  │
-                                                  ▼
-                                              Browser
-```
+See **[ARCHITECTURE.md](ARCHITECTURE.md)** for the system diagram and component deep dive.
 
 **Key design decisions:**
 - **Shared `game_core`** — Same ECS physics on client and server for prediction
