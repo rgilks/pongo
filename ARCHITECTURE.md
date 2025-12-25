@@ -10,20 +10,20 @@ Pongo is a real-time multiplayer game built on a shared-code architecture. The c
 
 ```mermaid
 graph TD
-    Client[Client Browser] <-->|WebSocket Binary| Server[Cloudflare Worker]
+    Client["Client (Browser)"] <-->|WebSocket Binary| Server["Cloudflare Worker"]
     
     subgraph "Server (Durable Object)"
-        ServerLoop[Game Loop (60Hz)]
-        ServerState[Authoritative State]
+        ServerLoop["Game Loop (60Hz)"]
+        ServerState["Authoritative State"]
     end
     
     subgraph "Client (WASM)"
-        Input[Input Handling] --> Predict[Prediction System]
-        Predict --> Render[WebGPU Renderer]
-        ServerState -.->|Snapshot| Reconcile[Reconciliation]
+        Input["Input Handling"] --> Predict["Prediction System"]
+        Predict --> Render["WebGPU Renderer"]
+        ServerState -.->|Snapshot| Reconcile["Reconciliation"]
     end
     
-    ServerLoop -- Broadcast (20Hz) --> Client
+    ServerLoop -- Broadcast 20Hz --> Client
     Client -- Input --> ServerLoop
 ```
 
