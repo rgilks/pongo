@@ -282,7 +282,8 @@ impl WasmClient {
         let client = &mut self.0;
         if client.local_game.is_some() {
             let pid = client.game_state.get_player_id().unwrap_or(0);
-            return network::create_input_message(pid, client.local_paddle_y, 0).unwrap_or_default();
+            return network::create_input_message(pid, client.local_paddle_y, 0)
+                .unwrap_or_default();
         }
 
         // For client authority, we just send our current Y position
@@ -291,10 +292,10 @@ impl WasmClient {
         let seq = client.predictor.input_seq;
         client.predictor.input_seq = seq.wrapping_add(1);
 
-        // We don't need to feed predictor with our input for self-prediction 
+        // We don't need to feed predictor with our input for self-prediction
         // because we are authoritative.
         // But if predictor is used for opponent, we might leave it be.
-        
+
         network::create_input_message(pid, client.local_paddle_y, seq).unwrap_or_default()
     }
 

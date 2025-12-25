@@ -37,7 +37,7 @@ mod tests {
         create_paddle(&mut world, 1, 12.0);
 
         // Queue input for player 0
-        net_queue.push_input(0, 5.0); 
+        net_queue.push_input(0, 5.0);
         net_queue.push_input(1, 18.0);
 
         ingest_inputs(&mut world, &mut net_queue);
@@ -73,7 +73,7 @@ mod tests {
         create_paddle(&mut world, 0, 12.0);
 
         // Queue multiple inputs (last one should win)
-        net_queue.push_input(0, 5.0); 
+        net_queue.push_input(0, 5.0);
         net_queue.push_input(0, 15.0);
         net_queue.push_input(0, 8.0); // Last
 
@@ -93,13 +93,13 @@ mod tests {
         net_queue.push_input(0, -100.0); // Too low
         ingest_inputs(&mut world, &mut net_queue);
         for (_entity, paddle) in world.query::<&Paddle>().iter() {
-             assert_eq!(paddle.y, 2.0, "Should clamp to min");
+            assert_eq!(paddle.y, 2.0, "Should clamp to min");
         }
-        
+
         net_queue.push_input(0, 100.0); // Too high
         ingest_inputs(&mut world, &mut net_queue);
         for (_entity, paddle) in world.query::<&Paddle>().iter() {
-             assert_eq!(paddle.y, 22.0, "Should clamp to max");
+            assert_eq!(paddle.y, 22.0, "Should clamp to max");
         }
     }
 

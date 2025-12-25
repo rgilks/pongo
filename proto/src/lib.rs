@@ -32,11 +32,7 @@ pub enum C2S {
 
     /// Paddle input: absolute Y position
     /// seq: Client-side sequence number
-    Input {
-        player_id: u8,
-        y: f32,
-        seq: u32,
-    },
+    Input { player_id: u8, y: f32, seq: u32 },
 
     /// Ping for latency measurement
     Ping { t_ms: u32 },

@@ -60,7 +60,7 @@ impl LocalGame {
     ) {
         // AI: Control right paddle (player_id=1)
         let ai_dir = calculate_ai_input(&self.world, &self.config);
-        
+
         const SIM_FIXED_DT: f32 = 1.0 / 60.0; // Assume standard step for AI movement
 
         // Update AI paddle position locally
@@ -72,7 +72,7 @@ impl LocalGame {
                 break;
             }
         }
-        
+
         let mut new_ai_y = ai_y + (ai_dir as f32) * self.config.paddle_speed * SIM_FIXED_DT;
         // Clamp
         let half_height = self.config.paddle_height / 2.0;
@@ -80,7 +80,6 @@ impl LocalGame {
 
         self.net_queue.push_input(0, my_paddle_y);
         self.net_queue.push_input(1, new_ai_y);
-
 
         self.time = Time::new(SIM_FIXED_DT, self.time.now + SIM_FIXED_DT);
 

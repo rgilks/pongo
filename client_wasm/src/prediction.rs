@@ -114,7 +114,7 @@ impl ClientPredictor {
             &mut self.rng,
             &mut self.respawn_state,
         ) {
-             // Calculate new position
+            // Calculate new position
             let mut current_y = 12.0;
             for (_e, paddle) in world.query::<&game_core::Paddle>().iter() {
                 if paddle.player_id == player_id {
@@ -127,7 +127,7 @@ impl ClientPredictor {
             new_y = new_y.clamp(half_height, config.arena_height - half_height);
 
             net_queue.push_input(player_id, new_y);
-            
+
             // Update time
             *time = Time::new(SIM_FIXED_DT, time.now + SIM_FIXED_DT);
 
@@ -190,8 +190,8 @@ impl ClientPredictor {
             ) {
                 // Clear queue first
                 net_queue.clear();
-                
-                 // Calculate new position
+
+                // Calculate new position
                 let mut current_y = 12.0;
                 for (_e, paddle) in world.query::<&game_core::Paddle>().iter() {
                     if paddle.player_id == player_id {
@@ -199,7 +199,8 @@ impl ClientPredictor {
                         break;
                     }
                 }
-                let mut new_y = current_y + (current_input as f32) * config.paddle_speed * SIM_FIXED_DT;
+                let mut new_y =
+                    current_y + (current_input as f32) * config.paddle_speed * SIM_FIXED_DT;
                 let half_height = config.paddle_height / 2.0;
                 new_y = new_y.clamp(half_height, config.arena_height - half_height);
 
