@@ -30,6 +30,9 @@ pub struct GameState {
     // Smooth correction state for ball position
     ball_display_x: f32,
     ball_display_y: f32,
+    // Smooth correction state for paddle positions (opponent paddles)
+    paddle_left_display_y: f32,
+    paddle_right_display_y: f32,
     // Latest match event from server
     pub match_event: MatchEvent,
 }
@@ -58,6 +61,8 @@ impl GameState {
             winner: None,
             ball_display_x: 16.0,
             ball_display_y: 12.0,
+            paddle_left_display_y: 12.0,
+            paddle_right_display_y: 12.0,
             match_event: MatchEvent::None,
         }
     }
@@ -83,6 +88,8 @@ impl GameState {
         self.winner = None;
         self.ball_display_x = 16.0;
         self.ball_display_y = 12.0;
+        self.paddle_left_display_y = 12.0;
+        self.paddle_right_display_y = 12.0;
         self.match_event = MatchEvent::None;
     }
 
@@ -103,6 +110,12 @@ impl GameState {
         let smoothing = 0.3;
         self.ball_display_x += (target_x - self.ball_display_x) * smoothing;
         self.ball_display_y += (target_y - self.ball_display_y) * smoothing;
+
+        // Apply same exponential smoothing to paddle positions for smooth opponent movement
+        // Use slightly higher smoothing (0.4) for more responsive paddle tracking
+        let paddle_smoothing = 0.4;
+        self.paddle_left_display_y += (self.current.paddle_left_y - self.paddle_left_display_y) * paddle_smoothing;
+        self.paddle_right_display_y += (self.current.paddle_right_y - self.paddle_right_display_y) * paddle_smoothing;
     }
 
     /// Get interpolated position with basic lerp
@@ -128,11 +141,11 @@ impl GameState {
     }
 
     pub fn get_paddle_left_y(&self) -> f32 {
-        self.interpolate(self.previous.paddle_left_y, self.current.paddle_left_y)
+        self.paddle_left_display_y
     }
 
     pub fn get_paddle_right_y(&self) -> f32 {
-        self.interpolate(self.previous.paddle_right_y, self.current.paddle_right_y)
+        self.paddle_right_display_y
     }
 
     pub fn set_current(&mut self, snapshot: GameStateSnapshot) {
