@@ -5,6 +5,23 @@
 use postcard::{from_bytes, to_allocvec};
 
 // ============================================================================
+// Shared Structures
+// ============================================================================
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct GameStateSnapshot {
+    pub tick: u32,
+    pub ball_x: f32,
+    pub ball_y: f32,
+    pub ball_vx: f32,
+    pub ball_vy: f32,
+    pub paddle_left_y: f32,
+    pub paddle_right_y: f32,
+    pub score_left: u8,
+    pub score_right: u8,
+}
+
+// ============================================================================
 // C2S Messages (Client to Server)
 // ============================================================================
 
@@ -37,17 +54,7 @@ pub enum S2C {
     },
 
     /// Game state snapshot
-    GameState {
-        tick: u32,
-        ball_x: f32,
-        ball_y: f32,
-        ball_vx: f32,
-        ball_vy: f32,
-        paddle_left_y: f32,
-        paddle_right_y: f32,
-        score_left: u8,
-        score_right: u8,
-    },
+    GameState(GameStateSnapshot),
 
     /// Game over message
     GameOver {
@@ -122,7 +129,7 @@ mod tests {
 
     #[test]
     fn test_s2c_serialization() {
-        let msg = S2C::GameState {
+        let msg = S2C::GameState(GameStateSnapshot {
             tick: 100,
             ball_x: 16.0,
             ball_y: 12.0,
@@ -132,13 +139,13 @@ mod tests {
             paddle_right_y: 12.0,
             score_left: 5,
             score_right: 3,
-        };
+        });
         let bytes = msg.to_bytes().expect("Serialization should succeed");
         let decoded = S2C::from_bytes(&bytes).expect("Deserialization should succeed");
         match decoded {
-            S2C::GameState { tick, ball_x, .. } => {
-                assert_eq!(tick, 100);
-                assert_eq!(ball_x, 16.0);
+            S2C::GameState(snapshot) => {
+                assert_eq!(snapshot.tick, 100);
+                assert_eq!(snapshot.ball_x, 16.0);
             }
             _ => panic!("Message type mismatch"),
         }

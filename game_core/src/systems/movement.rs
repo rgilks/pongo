@@ -1,11 +1,11 @@
-use crate::{Ball, Config, GameMap, Paddle, PaddleIntent, Time};
+use crate::{Ball, Config, GameMap, Paddle, PaddleIntent};
 use hecs::World;
 
 /// Apply paddle movement based on intents
-pub fn move_paddles(world: &mut World, time: &Time, map: &GameMap, config: &Config) {
+pub fn move_paddles(world: &mut World, map: &GameMap, config: &Config, dt: f32) {
     for (_entity, (paddle, intent)) in world.query_mut::<(&mut Paddle, &PaddleIntent)>() {
         if intent.dir != 0 {
-            let delta = intent.dir as f32 * config.paddle_speed * time.dt;
+            let delta = intent.dir as f32 * config.paddle_speed * dt;
             paddle.y += delta;
 
             // Clamp to arena bounds
@@ -15,9 +15,9 @@ pub fn move_paddles(world: &mut World, time: &Time, map: &GameMap, config: &Conf
 }
 
 /// Move ball based on velocity
-pub fn move_ball(world: &mut World, time: &Time) {
+pub fn move_ball(world: &mut World, dt: f32) {
     for (_entity, ball) in world.query_mut::<&mut Ball>() {
-        ball.pos += ball.vel * time.dt;
+        ball.pos += ball.vel * dt;
     }
 }
 
@@ -45,7 +45,7 @@ mod tests {
             intent.dir = -1; // Up
         }
 
-        move_paddles(&mut world, &time, &map, &config);
+        move_paddles(&mut world, &map, &config, time.dt);
 
         // Verify paddle moved up
         for (_entity, paddle) in world.query::<&Paddle>().iter() {
@@ -65,7 +65,7 @@ mod tests {
             intent.dir = 1; // Down
         }
 
-        move_paddles(&mut world, &time, &map, &config);
+        move_paddles(&mut world, &map, &config, time.dt);
 
         // Verify paddle moved down
         for (_entity, paddle) in world.query::<&Paddle>().iter() {
@@ -85,7 +85,7 @@ mod tests {
             intent.dir = 0;
         }
 
-        move_paddles(&mut world, &time, &map, &config);
+        move_paddles(&mut world, &map, &config, time.dt);
 
         // Verify paddle didn't move
         for (_entity, paddle) in world.query::<&Paddle>().iter() {
@@ -105,7 +105,7 @@ mod tests {
             intent.dir = -1;
         }
 
-        move_paddles(&mut world, &time, &map, &config);
+        move_paddles(&mut world, &map, &config, time.dt);
 
         // Verify paddle clamped to boundary
         for (_entity, paddle) in world.query::<&Paddle>().iter() {
@@ -128,7 +128,7 @@ mod tests {
             intent.dir = 1;
         }
 
-        move_paddles(&mut world, &time, &map, &config);
+        move_paddles(&mut world, &map, &config, time.dt);
 
         // Verify paddle clamped to boundary
         for (_entity, paddle) in world.query::<&Paddle>().iter() {
@@ -147,7 +147,7 @@ mod tests {
         let velocity = glam::Vec2::new(8.0, 4.0);
         create_ball(&mut world, initial_pos, velocity);
 
-        move_ball(&mut world, &time);
+        move_ball(&mut world, time.dt);
 
         // Verify ball moved
         for (_entity, ball) in world.query::<&Ball>().iter() {
@@ -163,7 +163,7 @@ mod tests {
         let velocity = glam::Vec2::ZERO;
         create_ball(&mut world, initial_pos, velocity);
 
-        move_ball(&mut world, &time);
+        move_ball(&mut world, time.dt);
 
         // Verify ball didn't move
         for (_entity, ball) in world.query::<&Ball>().iter() {
@@ -182,7 +182,7 @@ mod tests {
             intent.dir = if paddle.player_id == 0 { -1 } else { 1 };
         }
 
-        move_paddles(&mut world, &time, &map, &config);
+        move_paddles(&mut world, &map, &config, time.dt);
 
         // Verify paddles moved in opposite directions
         let mut paddle_positions = Vec::new();

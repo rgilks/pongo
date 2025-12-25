@@ -128,6 +128,7 @@ impl ClientPredictor {
                 net_queue,
                 rng,
                 respawn_state,
+                &mut self.accumulator,
             );
 
             self.predicted_tick += 1;
@@ -192,6 +193,8 @@ impl ClientPredictor {
                     net_queue,
                     rng,
                     respawn_state,
+                    // Use a dummy accumulator for step since outer loop handles timing
+                    &mut 0.0,
                 );
 
                 self.predicted_tick += 1;
@@ -252,6 +255,8 @@ mod tests {
             paddle_left_y: 12.0,
             paddle_right_y: 12.0,
             tick: 100,
+            score_left: 0,
+            score_right: 0,
         };
 
         predictor.initialize(&snapshot, 1000.0);
@@ -273,6 +278,8 @@ mod tests {
             paddle_left_y: 12.0,
             paddle_right_y: 12.0,
             tick: 100,
+            score_left: 0,
+            score_right: 0,
         };
 
         predictor.initialize(&snapshot, 1000.0);
@@ -294,6 +301,8 @@ mod tests {
             paddle_left_y: 12.0,
             paddle_right_y: 12.0,
             tick: 100,
+            score_left: 0,
+            score_right: 0,
         };
 
         predictor.initialize(&snapshot, 1000.0);
@@ -320,6 +329,8 @@ mod tests {
             paddle_left_y: 12.0,
             paddle_right_y: 12.0,
             tick: 100,
+            score_left: 0,
+            score_right: 0,
         };
 
         predictor.initialize(&snapshot, 1000.0);
@@ -349,6 +360,8 @@ mod tests {
             paddle_left_y: 12.0,
             paddle_right_y: 12.0,
             tick: 100,
+            score_left: 0,
+            score_right: 0,
         };
 
         predictor.initialize(&snapshot, 1000.0);

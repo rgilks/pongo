@@ -212,6 +212,7 @@ impl GameState {
             &mut self.net_queue,
             &mut self.rng,
             &mut self.respawn_state,
+            &mut self.accumulator,
         );
 
         // Return winner if any
@@ -254,7 +255,7 @@ impl GameState {
             ));
         }
 
-        S2C::GameState {
+        S2C::GameState(GameStateSnapshot {
             tick: self.tick,
             ball_x,
             ball_y,
@@ -264,7 +265,7 @@ impl GameState {
             paddle_right_y,
             score_left: self.score.left,
             score_right: self.score.right,
-        }
+        })
     }
 
     pub fn broadcast_state(&self) {

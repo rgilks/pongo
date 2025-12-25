@@ -14,6 +14,7 @@ pub struct LocalGame {
     pub net_queue: NetQueue,
     pub rng: GameRng,
     pub respawn_state: RespawnState,
+    pub accumulator: f32,
 }
 
 impl LocalGame {
@@ -44,13 +45,24 @@ impl LocalGame {
             net_queue: NetQueue::new(),
             rng,
             respawn_state: RespawnState::new(),
+            accumulator: 0.0,
         }
     }
 
-    pub fn step(&mut self, my_paddle_dir: i8) -> (Option<u8>, Option<(glam::Vec2, glam::Vec2)>, f32, f32, u8, u8) {
+    pub fn step(
+        &mut self,
+        my_paddle_dir: i8,
+    ) -> (
+        Option<u8>,
+        Option<(glam::Vec2, glam::Vec2)>,
+        f32,
+        f32,
+        u8,
+        u8,
+    ) {
         // AI: Control right paddle (player_id=1)
         let ai_dir = calculate_ai_input(&self.world, &self.config);
-        
+
         self.net_queue.push_input(0, my_paddle_dir);
         self.net_queue.push_input(1, ai_dir);
 
@@ -67,17 +79,19 @@ impl LocalGame {
             &mut self.net_queue,
             &mut self.rng,
             &mut self.respawn_state,
+            &mut self.accumulator,
         );
 
         let winner = self.score.has_winner(self.config.win_score);
-        
+
         // Extract data needed for visual updates
-        let ball_data = self.world
+        let ball_data = self
+            .world
             .query::<&Ball>()
             .iter()
             .next()
             .map(|(_e, ball)| (ball.pos, ball.vel));
-            
+
         let mut paddle_left_y = 12.0;
         let mut paddle_right_y = 12.0;
         for (_e, paddle) in self.world.query::<&Paddle>().iter() {
@@ -88,12 +102,19 @@ impl LocalGame {
             }
         }
 
-        (winner, ball_data, paddle_left_y, paddle_right_y, self.score.left, self.score.right)
+        (
+            winner,
+            ball_data,
+            paddle_left_y,
+            paddle_right_y,
+            self.score.left,
+            self.score.right,
+        )
     }
 }
 
 /// Calculate AI input for opponent paddle
-/// 
+///
 /// Strategy:
 /// 1. Simple heuristic: if ball is moving towards us, predict intersection y.
 /// 2. If intersection is significantly different from current y, move there.
@@ -131,7 +152,11 @@ fn calculate_ai_input(world: &World, config: &Config) -> i8 {
             let center_y = 12.0;
             let diff = center_y - paddle_y;
             if diff.abs() > 0.5 {
-                if diff > 0.0 { 1 } else { -1 }
+                if diff > 0.0 {
+                    1
+                } else {
+                    -1
+                }
             } else {
                 0
             }

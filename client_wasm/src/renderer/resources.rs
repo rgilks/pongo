@@ -1,6 +1,6 @@
+use crate::camera::{Camera, CameraUniform};
 use wgpu::util::DeviceExt;
 use wgpu::*;
-use crate::camera::{Camera, CameraUniform};
 
 /// Instance data for rendering (matches shader InstanceInput).
 /// Must use `repr(C)` and `bytemuck` to safely cast to raw bytes for the GPU buffer.

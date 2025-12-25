@@ -1,8 +1,8 @@
-use wgpu::*;
+use super::resources::InstanceData;
+use super::Renderer;
 #[allow(unused_imports)]
 use crate::state::GameState;
-use super::Renderer;
-use super::resources::InstanceData;
+use wgpu::*;
 
 pub fn draw_frame(
     renderer: &mut Renderer,
@@ -10,12 +10,18 @@ pub fn draw_frame(
     local_paddle_y: f32,
     is_local_game: bool,
 ) -> Result<(), String> {
-    let output = renderer.surface.get_current_texture()
+    let output = renderer
+        .surface
+        .get_current_texture()
         .map_err(|e| format!("Failed to get current texture: {:?}", e))?;
-    let view = output.texture.create_view(&TextureViewDescriptor::default());
-    let mut encoder = renderer.device.create_command_encoder(&CommandEncoderDescriptor {
-        label: Some("Render Encoder"),
-    });
+    let view = output
+        .texture
+        .create_view(&TextureViewDescriptor::default());
+    let mut encoder = renderer
+        .device
+        .create_command_encoder(&CommandEncoderDescriptor {
+            label: Some("Render Encoder"),
+        });
 
     update_buffers(renderer, game_state, local_paddle_y, is_local_game);
 
@@ -31,7 +37,12 @@ pub fn draw_frame(
     Ok(())
 }
 
-fn update_buffers(renderer: &mut Renderer, game_state: &GameState, local_paddle_y: f32, is_local_game: bool) {
+fn update_buffers(
+    renderer: &mut Renderer,
+    game_state: &GameState,
+    local_paddle_y: f32,
+    is_local_game: bool,
+) {
     let paddle_left_x = 1.5;
     let paddle_right_x = 30.5;
     let paddle_width = 0.8;
@@ -71,17 +82,32 @@ fn update_buffers(renderer: &mut Renderer, game_state: &GameState, local_paddle_
     };
 
     let current = (left_instance, right_instance, ball_instance);
-    let needs_update = renderer.last_instance_data.map(|last| {
+    let needs_update = renderer
+        .last_instance_data
+        .map(|last| {
             last.0.transform != current.0.transform
-            || last.1.transform != current.1.transform 
-            || last.2.transform != current.2.transform
-    }).unwrap_or(true);
+                || last.1.transform != current.1.transform
+                || last.2.transform != current.2.transform
+        })
+        .unwrap_or(true);
 
     if needs_update {
-            renderer.queue.write_buffer(&renderer.buffers.left_paddle, 0, bytemuck::cast_slice(&[left_instance]));
-            renderer.queue.write_buffer(&renderer.buffers.right_paddle, 0, bytemuck::cast_slice(&[right_instance]));
-            renderer.queue.write_buffer(&renderer.buffers.ball, 0, bytemuck::cast_slice(&[ball_instance]));
-            renderer.last_instance_data = Some(current);
+        renderer.queue.write_buffer(
+            &renderer.buffers.left_paddle,
+            0,
+            bytemuck::cast_slice(&[left_instance]),
+        );
+        renderer.queue.write_buffer(
+            &renderer.buffers.right_paddle,
+            0,
+            bytemuck::cast_slice(&[right_instance]),
+        );
+        renderer.queue.write_buffer(
+            &renderer.buffers.ball,
+            0,
+            bytemuck::cast_slice(&[ball_instance]),
+        );
+        renderer.last_instance_data = Some(current);
     }
 }
 
@@ -94,7 +120,7 @@ fn render_with_trails(renderer: &mut Renderer, encoder: &mut CommandEncoder, vie
     let (write_view, read_group) = if renderer.trail_use_a {
         (&renderer.textures.view_a, &renderer.trail_bind_group_b)
     } else {
-            (&renderer.textures.view_b, &renderer.trail_bind_group_a)
+        (&renderer.textures.view_b, &renderer.trail_bind_group_a)
     };
 
     // 1. Write current game objects (paddles, ball) to the trail texture.
@@ -105,9 +131,14 @@ fn render_with_trails(renderer: &mut Renderer, encoder: &mut CommandEncoder, vie
             color_attachments: &[Some(RenderPassColorAttachment {
                 view: write_view,
                 resolve_target: None,
-                ops: Operations { load: LoadOp::Clear(Color::TRANSPARENT), store: StoreOp::Store },
+                ops: Operations {
+                    load: LoadOp::Clear(Color::TRANSPARENT),
+                    store: StoreOp::Store,
+                },
             })],
-            depth_stencil_attachment: None, timestamp_writes: None, occlusion_query_set: None,
+            depth_stencil_attachment: None,
+            timestamp_writes: None,
+            occlusion_query_set: None,
         });
         draw_objects(renderer, &mut pass);
     }
@@ -116,14 +147,19 @@ fn render_with_trails(renderer: &mut Renderer, encoder: &mut CommandEncoder, vie
     // We draw the *previous* frame's texture onto the current one with high transparency.
     // This effectively "updates" the trail state by slightly dimming old pixels and keeping new ones.
     {
-            let mut pass = encoder.begin_render_pass(&RenderPassDescriptor {
+        let mut pass = encoder.begin_render_pass(&RenderPassDescriptor {
             label: Some("Trail Fade"),
             color_attachments: &[Some(RenderPassColorAttachment {
                 view: write_view,
                 resolve_target: None,
-                ops: Operations { load: LoadOp::Load, store: StoreOp::Store },
+                ops: Operations {
+                    load: LoadOp::Load,
+                    store: StoreOp::Store,
+                },
             })],
-            depth_stencil_attachment: None, timestamp_writes: None, occlusion_query_set: None,
+            depth_stencil_attachment: None,
+            timestamp_writes: None,
+            occlusion_query_set: None,
         });
         pass.set_pipeline(&renderer.trail_pipeline);
         pass.set_bind_group(0, read_group, &[]);
@@ -138,11 +174,16 @@ fn render_with_trails(renderer: &mut Renderer, encoder: &mut CommandEncoder, vie
             color_attachments: &[Some(RenderPassColorAttachment {
                 view,
                 resolve_target: None,
-                ops: Operations { load: LoadOp::Clear(Color::BLACK), store: StoreOp::Store },
+                ops: Operations {
+                    load: LoadOp::Clear(Color::BLACK),
+                    store: StoreOp::Store,
+                },
             })],
-            depth_stencil_attachment: None, timestamp_writes: None, occlusion_query_set: None,
+            depth_stencil_attachment: None,
+            timestamp_writes: None,
+            occlusion_query_set: None,
         });
-        
+
         // Draw the faded trail texture as a background layer.
         // This creates the "motion blur" effect by accumulating past frames.
         pass.set_pipeline(&renderer.trail_pipeline);
@@ -164,9 +205,14 @@ fn render_basic(renderer: &Renderer, encoder: &mut CommandEncoder, view: &Textur
         color_attachments: &[Some(RenderPassColorAttachment {
             view,
             resolve_target: None,
-            ops: Operations { load: LoadOp::Clear(Color::BLACK), store: StoreOp::Store },
+            ops: Operations {
+                load: LoadOp::Clear(Color::BLACK),
+                store: StoreOp::Store,
+            },
         })],
-        depth_stencil_attachment: None, timestamp_writes: None, occlusion_query_set: None,
+        depth_stencil_attachment: None,
+        timestamp_writes: None,
+        occlusion_query_set: None,
     });
     draw_objects(renderer, &mut pass);
 }
@@ -174,11 +220,14 @@ fn render_basic(renderer: &Renderer, encoder: &mut CommandEncoder, view: &Textur
 fn draw_objects<'a>(renderer: &'a Renderer, pass: &mut RenderPass<'a>) {
     pass.set_pipeline(&renderer.main_pipeline);
     pass.set_bind_group(0, &renderer.camera_bind_group, &[]);
-    
+
     // Rects (Paddles)
     pass.set_vertex_buffer(0, renderer.meshes.0.vertex_buffer.slice(..));
-    pass.set_index_buffer(renderer.meshes.0.index_buffer.slice(..), IndexFormat::Uint16);
-    
+    pass.set_index_buffer(
+        renderer.meshes.0.index_buffer.slice(..),
+        IndexFormat::Uint16,
+    );
+
     pass.set_vertex_buffer(1, renderer.buffers.left_paddle.slice(..));
     pass.draw_indexed(0..renderer.meshes.0.index_count, 0, 0..1);
 
@@ -187,7 +236,10 @@ fn draw_objects<'a>(renderer: &'a Renderer, pass: &mut RenderPass<'a>) {
 
     // Circle (Ball)
     pass.set_vertex_buffer(0, renderer.meshes.1.vertex_buffer.slice(..));
-    pass.set_index_buffer(renderer.meshes.1.index_buffer.slice(..), IndexFormat::Uint16);
+    pass.set_index_buffer(
+        renderer.meshes.1.index_buffer.slice(..),
+        IndexFormat::Uint16,
+    );
     pass.set_vertex_buffer(1, renderer.buffers.ball.slice(..));
     pass.draw_indexed(0..renderer.meshes.1.index_count, 0, 0..1);
 }

@@ -11,8 +11,8 @@ impl GameMap {
     /// Create standard Pong arena (32 x 24)
     pub fn new() -> Self {
         Self {
-            width: crate::params::Params::ARENA_WIDTH,
-            height: crate::params::Params::ARENA_HEIGHT,
+            width: crate::config::Params::ARENA_WIDTH,
+            height: crate::config::Params::ARENA_HEIGHT,
         }
     }
 

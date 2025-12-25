@@ -1,13 +1,13 @@
+pub mod draw;
 pub mod init;
 pub mod pipeline;
 pub mod resources;
-pub mod shaders;
-pub mod draw; // Add draw module
+pub mod shaders; // Add draw module
 
 use crate::camera::Camera;
 use crate::mesh::{create_circle, create_rectangle, Mesh};
 use crate::state::GameState;
-use resources::{GameBuffers, TrailTextures, InstanceData};
+use resources::{GameBuffers, InstanceData, TrailTextures};
 use wgpu::*;
 
 #[allow(dead_code)]
@@ -18,11 +18,11 @@ pub struct Renderer {
     pub surface_config: SurfaceConfiguration,
     pub size: (u32, u32),
     pub camera: Camera,
-    
+
     // Pipelines
     pub main_pipeline: RenderPipeline,
     pub trail_pipeline: RenderPipeline,
-    
+
     // Bind Groups
     pub camera_bind_group: BindGroup,
     pub trail_bind_group_a: BindGroup,

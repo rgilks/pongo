@@ -9,28 +9,9 @@ pub fn handle_message(msg: S2C, game_state: &mut GameState) -> Result<(), String
         S2C::Welcome { player_id } => {
             game_state.set_player_id(player_id);
         }
-        S2C::GameState {
-            ball_x,
-            ball_y,
-            paddle_left_y,
-            paddle_right_y,
-            score_left,
-            score_right,
-            ball_vx,
-            ball_vy,
-            tick,
-        } => {
-            use crate::state::GameStateSnapshot;
-            game_state.set_current(GameStateSnapshot {
-                ball_x,
-                ball_y,
-                paddle_left_y,
-                paddle_right_y,
-                ball_vx,
-                ball_vy,
-                tick,
-            });
-            game_state.set_scores(score_left, score_right);
+        S2C::GameState(snapshot) => {
+            game_state.set_scores(snapshot.score_left, snapshot.score_right);
+            game_state.set_current(snapshot);
         }
         S2C::GameOver { winner } => {
             // Game over - winner determined

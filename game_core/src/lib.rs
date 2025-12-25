@@ -1,16 +1,18 @@
 pub mod components;
+pub mod config;
 pub mod map;
-pub mod params;
 pub mod resources;
 pub mod systems;
 
 pub use components::*;
+pub use config::*;
 pub use map::*;
-pub use params::*;
 pub use resources::*;
+pub use systems::*;
 
 use hecs::World;
-use systems::*;
+// The original `use systems::*;` is now redundant due to `pub use systems::*;` above,
+// but keeping it for minimal change as per instruction.
 
 /// Run the deterministic Pong game simulation
 #[allow(clippy::too_many_arguments)]
@@ -24,32 +26,25 @@ pub fn step(
     net_queue: &mut NetQueue,
     rng: &mut GameRng,
     respawn_state: &mut RespawnState,
+    accumulator: &mut f32,
 ) {
     // Clamp dt to prevent large jumps
     let clamped_dt = time.dt.min(Params::MAX_DT);
+    *accumulator += clamped_dt;
+    let mut remaining_dt = *accumulator;
 
-    // Fixed micro-steps for stable physics
-    let mut remaining_dt = clamped_dt;
-    while remaining_dt > 0.0 {
-        let step_dt = remaining_dt.min(Params::FIXED_DT);
-        remaining_dt -= step_dt;
+    // Clear events at start of frame
+    events.clear();
 
-        let step_time = Time {
-            dt: step_dt,
-            now: time.now + (clamped_dt - remaining_dt),
-        };
+    // Ingest inputs (apply to paddle intents)
+    ingest_inputs(world, net_queue);
 
-        // Clear events at start of frame
-        events.clear();
+    while remaining_dt >= Params::FIXED_DT {
+        // Run physics step
+        let step_dt = Params::FIXED_DT; // Use fixed dt for physics steps
 
-        // Update respawn timer
+        // Update timers
         respawn_state.update(step_dt);
-
-        // 1. Ingest inputs (apply to paddle intents)
-        ingest_inputs(world, net_queue);
-
-        // 2. Move paddles based on intents
-        move_paddles(world, &step_time, map, config);
 
         // 3. Handle ball respawn after delay
         if !respawn_state.can_respawn() {
@@ -69,7 +64,9 @@ pub fn step(
             }
 
             // 3. Move ball
-            move_ball(world, &step_time);
+            move_ball(world, step_dt);
+
+            systems::movement::move_paddles(world, map, config, step_dt);
 
             // 4. Check collisions (ball vs paddles, walls)
             check_collisions(world, map, config, events);
@@ -77,7 +74,11 @@ pub fn step(
             // 5. Check scoring (ball exited arena)
             check_scoring(world, map, score, events, rng, config, respawn_state);
         }
+
+        remaining_dt -= step_dt;
     }
+
+    *accumulator = remaining_dt;
 
     // Update time
     time.now += clamped_dt;
@@ -111,7 +112,7 @@ mod integration_tests {
         let mut world = World::new();
         let map = GameMap::new();
         let config = Config::new();
-        let time = Time::new(0.016, 0.0);
+        let time = Time::new(0.020, 0.0);
         let score = Score::new();
         let events = Events::new();
         let net_queue = NetQueue::new();
@@ -152,6 +153,8 @@ mod integration_tests {
             mut respawn_state,
         ) = setup_game();
 
+        let mut accumulator = 0.0;
+
         // Run one step
         step(
             &mut world,
@@ -163,6 +166,7 @@ mod integration_tests {
             &mut net_queue,
             &mut rng,
             &mut respawn_state,
+            &mut accumulator,
         );
 
         // Verify ball moved
@@ -192,6 +196,8 @@ mod integration_tests {
             mut respawn_state,
         ) = setup_game();
 
+        let mut accumulator = 0.0;
+
         // Get initial paddle position
         let mut initial_paddle_y = 0.0;
         for (_entity, paddle) in world.query::<&Paddle>().iter() {
@@ -214,6 +220,7 @@ mod integration_tests {
             &mut net_queue,
             &mut rng,
             &mut respawn_state,
+            &mut accumulator,
         );
 
         // Verify paddle moved
@@ -241,6 +248,8 @@ mod integration_tests {
             mut respawn_state,
         ) = setup_game();
 
+        let mut accumulator = 0.0;
+
         // Position ball near top wall
         for (_entity, ball) in world.query_mut::<&mut Ball>() {
             ball.pos = glam::Vec2::new(16.0, config.ball_radius + 0.1);
@@ -259,6 +268,7 @@ mod integration_tests {
                 &mut net_queue,
                 &mut rng,
                 &mut respawn_state,
+                &mut accumulator,
             );
             if events.ball_hit_wall {
                 break;
@@ -284,6 +294,8 @@ mod integration_tests {
             mut respawn_state,
         ) = setup_game();
 
+        let mut accumulator = 0.0;
+
         // Position ball to exit right edge (must be beyond width after movement)
         for (_entity, ball) in world.query_mut::<&mut Ball>() {
             ball.pos = glam::Vec2::new(map.width - 0.1, 12.0);
@@ -301,6 +313,7 @@ mod integration_tests {
             &mut net_queue,
             &mut rng,
             &mut respawn_state,
+            &mut accumulator,
         );
 
         // Verify scoring occurred
@@ -336,6 +349,8 @@ mod integration_tests {
             mut respawn_state,
         ) = setup_game();
 
+        let mut accumulator = 0.0;
+
         // Set score to one point from winning
         let target = config.win_score - 1;
         for _ in 0..target {
@@ -363,6 +378,7 @@ mod integration_tests {
             &mut net_queue,
             &mut rng,
             &mut respawn_state,
+            &mut accumulator,
         );
 
         // Verify win condition
@@ -392,6 +408,8 @@ mod integration_tests {
             mut respawn_state,
         ) = setup_game();
 
+        let mut accumulator = 0.0;
+
         // Run 100 steps
         for _ in 0..100 {
             step(
@@ -404,6 +422,7 @@ mod integration_tests {
                 &mut net_queue,
                 &mut rng,
                 &mut respawn_state,
+                &mut accumulator,
             );
             events.clear();
 

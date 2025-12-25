@@ -20,7 +20,7 @@ pub fn check_collisions(world: &mut World, map: &GameMap, config: &Config, event
             .collect();
 
         for (player_id, paddle_y, paddle_dir) in paddles {
-             handle_paddle_collision(ball, player_id, paddle_y, paddle_dir, config, events);
+            handle_paddle_collision(ball, player_id, paddle_y, paddle_dir, config, events);
         }
     }
 }
@@ -38,7 +38,7 @@ fn handle_wall_collision(ball: &mut Ball, map: &GameMap, config: &Config, events
         if pos.y + half_height >= map.height {
             pos.y = map.height - half_height;
         }
-        
+
         ball.pos = pos;
         ball.vel = vel;
         events.ball_hit_wall = true;
@@ -51,21 +51,21 @@ fn handle_paddle_collision(
     paddle_y: f32,
     paddle_dir: i8,
     config: &Config,
-    events: &mut Events
+    events: &mut Events,
 ) {
     let paddle_x = config.paddle_x(player_id);
     let paddle_half_width = config.paddle_width / 2.0;
     let paddle_half_height = config.paddle_height / 2.0;
     let ball_radius = config.ball_radius;
-    
+
     let dx = (ball.pos.x - paddle_x).abs();
     let dy = (ball.pos.y - paddle_y).abs();
 
     if dx < paddle_half_width + ball_radius - config.ball_paddle_overlap
         && dy < paddle_half_height + ball_radius
     {
-        let should_bounce = (player_id == 0 && ball.vel.x < 0.0) 
-            || (player_id == 1 && ball.vel.x > 0.0);
+        let should_bounce =
+            (player_id == 0 && ball.vel.x < 0.0) || (player_id == 1 && ball.vel.x > 0.0);
 
         if should_bounce {
             resolve_paddle_collision(ball, player_id, paddle_y, paddle_dir, config);
@@ -79,26 +79,30 @@ fn resolve_paddle_collision(
     player_id: u8,
     paddle_y: f32,
     paddle_dir: i8,
-    config: &Config
+    config: &Config,
 ) {
     let paddle_half_height = config.paddle_height / 2.0;
     let hit_relative_y = ((ball.pos.y - paddle_y) / paddle_half_height).clamp(-1.0, 1.0);
-    
+
     let paddle_velocity = paddle_dir as f32 * config.paddle_speed;
     let base_speed = ball.vel.length();
     let new_speed = (base_speed * config.ball_speed_increase).min(config.ball_speed_max);
 
     // Gameplay Scale Factors:
     // 0.785 rad is approx 45 degrees. Hitting the edge of the paddle deflects the ball by up to 45 deg.
-    let max_deflection_angle = 0.785; 
+    let max_deflection_angle = 0.785;
     let y_deflection = hit_relative_y * max_deflection_angle * new_speed;
-    
+
     // Paddle Influence:
     // Impart some of the paddle's vertical velocity to the ball (friction-like effect).
     // This allows players to "slice" the ball or fight against its vertical momentum.
     let paddle_influence = paddle_velocity * 0.3;
 
-    let new_vx = if player_id == 0 { new_speed.abs() } else { -new_speed.abs() };
+    let new_vx = if player_id == 0 {
+        new_speed.abs()
+    } else {
+        -new_speed.abs()
+    };
     let new_vy = y_deflection + paddle_influence;
 
     let new_vel = glam::Vec2::new(new_vx, new_vy).normalize() * new_speed;
@@ -109,9 +113,9 @@ fn resolve_paddle_collision(
     // This prevents the ball from getting "stuck" inside the paddle on the next frame
     // if it hasn't moved far enough to clear the collision box.
     let paddle_x = config.paddle_x(player_id);
-    let paddle_half_width = config.paddle_width / 2.0; 
+    let paddle_half_width = config.paddle_width / 2.0;
     let overlap = config.ball_paddle_overlap;
-    
+
     if player_id == 0 {
         ball.pos.x = paddle_x + paddle_half_width + config.ball_radius - overlap;
     } else {

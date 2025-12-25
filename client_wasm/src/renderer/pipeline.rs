@@ -1,7 +1,7 @@
-use wgpu::*;
-use crate::mesh::Vertex;
 use super::resources::InstanceData;
 use super::shaders::{PONG_SHADER, TRAIL_SHADER};
+use crate::mesh::Vertex;
+use wgpu::*;
 
 pub struct PipelineState {
     pub main_pipeline: RenderPipeline,

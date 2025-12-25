@@ -14,7 +14,7 @@ mod state;
 use prediction::ClientPredictor;
 use renderer::Renderer;
 use simulation::LocalGame;
-use state::{GameState, GameStateSnapshot};
+use state::GameState;
 use wasm_bindgen::prelude::*;
 use web_sys::{window, HtmlCanvasElement, KeyboardEvent};
 
@@ -55,7 +55,9 @@ impl WasmClient {
     pub async fn new(canvas: HtmlCanvasElement) -> Result<WasmClient, JsValue> {
         console_error_panic_hook::set_once();
 
-        let renderer = Renderer::new(canvas).await.map_err(|e| JsValue::from_str(&e))?;
+        let renderer = Renderer::new(canvas)
+            .await
+            .map_err(|e| JsValue::from_str(&e))?;
 
         Ok(WasmClient(Client {
             renderer,
@@ -112,7 +114,7 @@ impl WasmClient {
             while client.sim_accumulator >= SIM_FIXED_DT {
                 client.sim_accumulator -= SIM_FIXED_DT;
 
-                let (winner, ball_data, left_y, right_y, score_left, score_right) = 
+                let (winner, ball_data, left_y, right_y, score_left, score_right) =
                     local_game.step(client.paddle_dir);
 
                 if let Some(w) = winner {
@@ -120,7 +122,7 @@ impl WasmClient {
                 }
 
                 if let Some((ball_pos, ball_vel)) = ball_data {
-                    client.game_state.set_current(GameStateSnapshot {
+                    client.game_state.set_current(proto::GameStateSnapshot {
                         ball_x: ball_pos.x,
                         ball_y: ball_pos.y,
                         paddle_left_y: left_y,
@@ -128,14 +130,16 @@ impl WasmClient {
                         ball_vx: ball_vel.x,
                         ball_vy: ball_vel.y,
                         tick: 0,
+                        score_left,
+                        score_right,
                     });
                 }
                 client.game_state.set_scores(score_left, score_right);
 
                 // Check for win condition reset
                 if winner.is_some() {
-                     // Reset logic if needed, or game just ends? 
-                     // Original code had logic to reset score in local_score, but here we just rely on set_scores
+                    // Reset logic if needed, or game just ends?
+                    // Original code had logic to reset score in local_score, but here we just rely on set_scores
                 }
             }
         }
@@ -144,13 +148,15 @@ impl WasmClient {
     #[wasm_bindgen]
     pub fn render(&mut self) -> Result<(), JsValue> {
         let client = &mut self.0;
-        
+
         Self::step_simulation(client);
 
         if client.local_game.is_none() && client.predictor.is_active() {
-             let now_ms = Self::performance_now();
-             let player_id = client.game_state.get_player_id().unwrap_or(0);
-             client.predictor.update(now_ms, player_id, client.paddle_dir);
+            let now_ms = Self::performance_now();
+            let player_id = client.game_state.get_player_id().unwrap_or(0);
+            client
+                .predictor
+                .update(now_ms, player_id, client.paddle_dir);
         }
 
         let now_ms = Self::performance_now();
@@ -163,50 +169,55 @@ impl WasmClient {
 
         // Update local paddle for immediate response
         if client.local_game.is_none() {
-             const PADDLE_SPEED: f32 = 18.0;
-             const ARENA_HEIGHT: f32 = 24.0;
-             const PADDLE_HEIGHT: f32 = 4.0;
-             let half_height = PADDLE_HEIGHT / 2.0;
+            const PADDLE_SPEED: f32 = 18.0;
+            const ARENA_HEIGHT: f32 = 24.0;
+            const PADDLE_HEIGHT: f32 = 4.0;
+            let half_height = PADDLE_HEIGHT / 2.0;
 
-             client.local_paddle_y += client.paddle_dir as f32 * PADDLE_SPEED * render_dt;
-             client.local_paddle_y = client.local_paddle_y.clamp(half_height, ARENA_HEIGHT - half_height);
+            client.local_paddle_y += client.paddle_dir as f32 * PADDLE_SPEED * render_dt;
+            client.local_paddle_y = client
+                .local_paddle_y
+                .clamp(half_height, ARENA_HEIGHT - half_height);
         } else {
-             // In local game, local_paddle_y isn't really used by renderer for player 0 in the same way?
-             // Actually original code used local_paddle_y for "own paddle".
-             // For local game, we can update it too, or trust simulation state.
-             // Original: "if !client.is_local_game... local_paddle_y..."
-             // So for local game, we rely on game_state snapshot which comes from simulation.
+            // In local game, local_paddle_y isn't really used by renderer for player 0 in the same way?
+            // Actually original code used local_paddle_y for "own paddle".
+            // For local game, we can update it too, or trust simulation state.
+            // Original: "if !client.is_local_game... local_paddle_y..."
+            // So for local game, we rely on game_state snapshot which comes from simulation.
         }
 
         // FPS calculation
-         client.fps_frame_count += 1;
-         let now_sec = now_ms / 1000.0;
-         if now_sec - (client.fps_last_update / 1000.0) >= 1.0 {
-             let time_diff_sec = (now_ms - client.fps_last_update) / 1000.0;
-             client.fps = client.fps_frame_count as f32 / time_diff_sec as f32;
-             client.fps_frame_count = 0;
-             client.fps_last_update = now_ms;
-         }
+        client.fps_frame_count += 1;
+        let now_sec = now_ms / 1000.0;
+        if now_sec - (client.fps_last_update / 1000.0) >= 1.0 {
+            let time_diff_sec = (now_ms - client.fps_last_update) / 1000.0;
+            client.fps = client.fps_frame_count as f32 / time_diff_sec as f32;
+            client.fps_frame_count = 0;
+            client.fps_last_update = now_ms;
+        }
 
-         if now_ms - client.update_last_display >= 200.0 {
-             client.update_display_ms = client.game_state.time_since_update() * 1000.0;
-             client.update_last_display = now_ms;
-         }
+        if now_ms - client.update_last_display >= 200.0 {
+            client.update_display_ms = client.game_state.time_since_update() * 1000.0;
+            client.update_last_display = now_ms;
+        }
 
-         client.game_state.update_interpolation(render_dt);
+        client.game_state.update_interpolation(render_dt);
 
-         client.renderer.draw(
-             &client.game_state, 
-             client.local_paddle_y, 
-             client.local_game.is_some()
-         ).map_err(|e| JsValue::from_str(&e))?;
+        client
+            .renderer
+            .draw(
+                &client.game_state,
+                client.local_paddle_y,
+                client.local_game.is_some(),
+            )
+            .map_err(|e| JsValue::from_str(&e))?;
 
-         Ok(())
+        Ok(())
     }
 
     #[wasm_bindgen]
     pub fn on_message(&mut self, bytes: Vec<u8>) -> Result<(), JsValue> {
-        // Move huge logic to client_wasm/src/network.rs ? 
+        // Move huge logic to client_wasm/src/network.rs ?
         // Or keep here if small enough.
         // It was 50 lines.
         let client = &mut self.0;
@@ -222,33 +233,35 @@ impl WasmClient {
             return Ok(());
         }
 
-        let is_game_state = matches!(msg, proto::S2C::GameState { .. });
-        let server_tick = if let proto::S2C::GameState { tick, .. } = &msg {
-             Some(*tick)
+        let is_game_state = matches!(msg, proto::S2C::GameState(_));
+        let server_tick = if let proto::S2C::GameState(snapshot) = &msg {
+            Some(snapshot.tick)
         } else {
-             None
+            None
         };
 
         if let Some(tick) = server_tick {
-             client.predictor.reconcile(tick);
+            client.predictor.reconcile(tick);
         }
 
         network::handle_message(msg, &mut client.game_state)
-             .map_err(|e| JsValue::from_str(&format!("Msg error: {}", e)))?;
+            .map_err(|e| JsValue::from_str(&format!("Msg error: {}", e)))?;
 
         if is_game_state && !client.predictor.is_active() && client.local_game.is_none() {
-             if let Some(snapshot) = client.game_state.get_current_snapshot() {
-                 client.predictor.initialize(&snapshot, Self::performance_now());
-                 if !client.local_paddle_initialized {
-                      let pid = client.game_state.get_player_id().unwrap_or(0);
-                      client.local_paddle_y = if pid == 0 {
-                           snapshot.paddle_left_y
-                      } else {
-                           snapshot.paddle_right_y
-                      };
-                      client.local_paddle_initialized = true;
-                 }
-             }
+            if let Some(snapshot) = client.game_state.get_current_snapshot() {
+                client
+                    .predictor
+                    .initialize(&snapshot, Self::performance_now());
+                if !client.local_paddle_initialized {
+                    let pid = client.game_state.get_player_id().unwrap_or(0);
+                    client.local_paddle_y = if pid == 0 {
+                        snapshot.paddle_left_y
+                    } else {
+                        snapshot.paddle_right_y
+                    };
+                    client.local_paddle_initialized = true;
+                }
+            }
         }
 
         Ok(())
@@ -272,35 +285,38 @@ impl WasmClient {
         client.predictor.input_seq = seq.wrapping_add(1);
 
         if client.predictor.input_history.len() > 120 {
-             client.predictor.input_history.remove(0);
+            client.predictor.input_history.remove(0);
         }
-        client.predictor.input_history.push((seq, client.paddle_dir));
+        client
+            .predictor
+            .input_history
+            .push((seq, client.paddle_dir));
 
         client.predictor.process_input(pid, client.paddle_dir);
-        
+
         network::create_input_message(pid, client.paddle_dir, seq).unwrap_or_default()
     }
 
     #[wasm_bindgen]
     pub fn get_score(&self) -> Vec<u8> {
         if let Some(local) = &self.0.local_game {
-             vec![local.score.left, local.score.right]
+            vec![local.score.left, local.score.right]
         } else {
-             let (l, r) = self.0.game_state.get_scores();
-             vec![l, r]
+            let (l, r) = self.0.game_state.get_scores();
+            vec![l, r]
         }
     }
 
     #[wasm_bindgen]
     pub fn get_winner(&self) -> Option<String> {
         if let Some(w) = self.0.game_state.winner {
-             if Some(w) == self.0.game_state.my_player_id {
-                  Some("you".to_string())
-             } else {
-                  Some("opponent".to_string())
-             }
+            if Some(w) == self.0.game_state.my_player_id {
+                Some("you".to_string())
+            } else {
+                Some("opponent".to_string())
+            }
         } else {
-             None
+            None
         }
     }
 
@@ -314,9 +330,9 @@ impl WasmClient {
     #[wasm_bindgen]
     pub fn get_metrics(&self) -> Vec<f32> {
         if self.0.local_game.is_some() {
-             vec![self.0.fps, 0.0, 0.0]
+            vec![self.0.fps, 0.0, 0.0]
         } else {
-             vec![self.0.fps, self.0.ping_ms, self.0.update_display_ms]
+            vec![self.0.fps, self.0.ping_ms, self.0.update_display_ms]
         }
     }
 
@@ -342,9 +358,9 @@ impl WasmClient {
     #[wasm_bindgen]
     pub fn handle_key_string(&mut self, key: String, is_down: bool) {
         if is_down {
-             self.0.paddle_dir = input::handle_key_down(&key, self.0.paddle_dir);
+            self.0.paddle_dir = input::handle_key_down(&key, self.0.paddle_dir);
         } else {
-             self.0.paddle_dir = input::handle_key_up(&key, self.0.paddle_dir);
+            self.0.paddle_dir = input::handle_key_up(&key, self.0.paddle_dir);
         }
     }
 }

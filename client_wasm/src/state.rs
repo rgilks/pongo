@@ -1,16 +1,6 @@
 //! Game state management with interpolation
 
-/// Previous and current game state for interpolation
-#[derive(Clone, Debug)]
-pub struct GameStateSnapshot {
-    pub ball_x: f32,
-    pub ball_y: f32,
-    pub paddle_left_y: f32,
-    pub paddle_right_y: f32,
-    pub ball_vx: f32,
-    pub ball_vy: f32,
-    pub tick: u32,
-}
+pub use proto::GameStateSnapshot;
 
 /// Game state tracking with interpolation
 pub struct GameState {
@@ -42,6 +32,8 @@ impl GameState {
             ball_vx: 0.0,
             ball_vy: 0.0,
             tick: 0,
+            score_left: 0,
+            score_right: 0,
         };
         Self {
             current: initial.clone(),

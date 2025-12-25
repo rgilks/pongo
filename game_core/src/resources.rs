@@ -51,61 +51,6 @@ impl Score {
     }
 }
 
-/// Game configuration
-#[derive(Debug, Clone)]
-pub struct Config {
-    pub arena_width: f32,
-    pub arena_height: f32,
-    pub paddle_width: f32,
-    pub paddle_height: f32,
-    pub paddle_speed: f32,
-    pub ball_radius: f32,
-    pub ball_speed_initial: f32,
-    pub ball_speed_max: f32,
-    pub ball_speed_increase: f32, // Multiplier on paddle hit
-    pub ball_paddle_overlap: f32, // How much the ball can sink into the paddle
-    pub win_score: u8,
-}
-
-impl Default for Config {
-    fn default() -> Self {
-        Self {
-            arena_width: 32.0,
-            arena_height: 24.0,
-            paddle_width: 0.8, // Match params.rs
-            paddle_height: 4.0,
-            paddle_speed: 18.0, // Match params.rs
-            ball_radius: 0.5,
-            ball_speed_initial: 12.0, // Match params.rs
-            ball_speed_max: 24.0,     // Match params.rs
-            ball_speed_increase: 1.05,
-            ball_paddle_overlap: 0.4, // Match params.rs
-            win_score: 5,             // Match params.rs
-        }
-    }
-}
-
-impl Config {
-    pub fn new() -> Self {
-        Self::default()
-    }
-
-    /// Get X position for paddle based on player ID
-    pub fn paddle_x(&self, player_id: u8) -> f32 {
-        if player_id == 0 {
-            1.5 // Left paddle
-        } else {
-            30.5 // Right paddle (arena_width - 1.5)
-        }
-    }
-
-    /// Clamp paddle Y to arena bounds
-    pub fn clamp_paddle_y(&self, y: f32) -> f32 {
-        let half_height = self.paddle_height / 2.0;
-        y.clamp(half_height, self.arena_height - half_height)
-    }
-}
-
 /// Random number generator
 pub struct GameRng(pub rand::rngs::StdRng);
 
@@ -290,31 +235,5 @@ mod tests {
 
         queue.clear();
         assert_eq!(queue.inputs.len(), 0);
-    }
-
-    #[test]
-    fn test_config_paddle_x() {
-        let config = Config::new();
-        assert_eq!(config.paddle_x(0), 1.5, "Left paddle X position");
-        assert_eq!(config.paddle_x(1), 30.5, "Right paddle X position");
-    }
-
-    #[test]
-    fn test_config_clamp_paddle_y() {
-        let config = Config::new();
-        let half_height = config.paddle_height / 2.0;
-
-        // Test clamping below minimum
-        assert_eq!(config.clamp_paddle_y(0.0), half_height);
-
-        // Test clamping above maximum
-        assert_eq!(
-            config.clamp_paddle_y(100.0),
-            config.arena_height - half_height
-        );
-
-        // Test valid value
-        let valid_y = 12.0;
-        assert_eq!(config.clamp_paddle_y(valid_y), valid_y);
     }
 }
