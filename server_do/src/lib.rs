@@ -35,8 +35,8 @@ impl Environment for WasmEnv {
     }
 
     fn log(&self, msg: String) {
-        // console_log! macro comes from worker crate and takes literal fmt string usually, 
-        // but we can pass formatted string if we use "%s". 
+        // console_log! macro comes from worker crate and takes literal fmt string usually,
+        // but we can pass formatted string if we use "%s".
         // Or actually console_log! invokes web_sys::console::log_1.
         console_log!("{}", msg);
     }
@@ -144,17 +144,17 @@ impl GameState {
         self.clients.remove(&player_id);
 
         // Despawn paddle
-        let entity_to_despawn = self
-            .world
-            .query::<(&Paddle,)>()
-            .iter()
-            .find_map(|(entity, (paddle,))| {
-                if paddle.player_id == player_id {
-                    Some(entity)
-                } else {
-                    None
-                }
-            });
+        let entity_to_despawn =
+            self.world
+                .query::<(&Paddle,)>()
+                .iter()
+                .find_map(|(entity, (paddle,))| {
+                    if paddle.player_id == player_id {
+                        Some(entity)
+                    } else {
+                        None
+                    }
+                });
 
         if let Some(entity) = entity_to_despawn {
             let _ = self.world.despawn(entity);
@@ -180,10 +180,7 @@ impl GameState {
             let last_dir = self.last_input.get(&player_id).copied().unwrap_or(99);
             if paddle_dir != last_dir {
                 self.env.log(format!(
-                    "DO: Player {} input changed: {} -> {}",
-                    player_id,
-                    last_dir,
-                    paddle_dir
+                    "DO: Player {player_id} input changed: {last_dir} -> {paddle_dir}"
                 ));
                 self.last_input.insert(player_id, paddle_dir);
             }
@@ -256,10 +253,7 @@ impl GameState {
 
         if self.tick % 60 == 0 {
             self.env.log(format!(
-                "DO: Paddle state - count={}, left_y={:.1}, right_y={:.1}",
-                paddle_count,
-                 paddle_left_y,
-                 paddle_right_y
+                "DO: Paddle state - count={paddle_count}, left_y={paddle_left_y:.1}, right_y={paddle_right_y:.1}"
             ));
         }
 
@@ -410,11 +404,15 @@ impl DurableObject for MatchDO {
         let player_id_to_remove = gs.clients.keys().next().copied();
 
         if let Some(player_id) = player_id_to_remove {
-            gs.env.log(format!("DO: Removing player {} after close event", player_id));
+            gs.env
+                .log(format!("DO: Removing player {player_id} after close event"));
             gs.remove_player(player_id);
         }
 
-        gs.env.log(format!("DO: Remaining clients after cleanup: {}", gs.clients.len()));
+        gs.env.log(format!(
+            "DO: Remaining clients after cleanup: {}",
+            gs.clients.len()
+        ));
         Ok(())
     }
 
@@ -455,7 +453,8 @@ impl DurableObject for MatchDO {
         // Check if we still have clients after cleanup
         let has_clients = !gs.clients.is_empty();
         if !has_clients {
-            gs.env.log("DO: No clients remaining, stopping alarm loop".to_string());
+            gs.env
+                .log("DO: No clients remaining, stopping alarm loop".to_string());
             drop(gs); // Release borrow before return
             return Response::ok("No clients, stopping alarm loop");
         }
@@ -478,7 +477,9 @@ impl DurableObject for MatchDO {
         }
 
         if steps_run > 1 && gs.tick % 60 == 0 {
-            gs.env.log(format!("DO: Catching up, ran {} steps in one alarm", steps_run));
+            gs.env.log(format!(
+                "DO: Catching up, ran {steps_run} steps in one alarm"
+            ));
         }
 
         // Broadcast state if game is running
@@ -506,12 +507,10 @@ impl MatchDO {
             let mut gs = self.game_state.borrow_mut();
             match msg {
                 C2S::Join { code: _, .. } => {
-                     // We need to clone WS here because add_player takes ownership
+                    // We need to clone WS here because add_player takes ownership
                     if let Some((player_id, was_empty)) = gs.add_player(Box::new(ws.clone())) {
                         gs.env.log(format!(
-                            "DO: Player {} joining (clients was empty: {})",
-                            player_id,
-                            was_empty
+                            "DO: Player {player_id} joining (clients was empty: {was_empty})"
                         ));
                         // Send Welcome message
                         let welcome = S2C::Welcome { player_id };
@@ -529,7 +528,8 @@ impl MatchDO {
                         }
                         Some(was_empty)
                     } else {
-                        gs.env.log("DO: Match full, rejecting new player".to_string());
+                        gs.env
+                            .log("DO: Match full, rejecting new player".to_string());
                         None
                     }
                 }

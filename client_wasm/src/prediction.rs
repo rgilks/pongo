@@ -1,9 +1,9 @@
+use crate::state::GameStateSnapshot;
 use game_core::{
-    create_ball, create_paddle, step, Config, Events, GameMap, GameRng, NetQueue,
-    RespawnState, Score, Time,
+    create_ball, create_paddle, step, Config, Events, GameMap, GameRng, NetQueue, RespawnState,
+    Score, Time,
 };
 use hecs::World;
-use crate::state::GameStateSnapshot;
 
 pub struct ClientPredictor {
     // Prediction state
@@ -17,12 +17,12 @@ pub struct ClientPredictor {
     pub net_queue: Option<NetQueue>,
     pub rng: Option<GameRng>,
     pub respawn_state: Option<RespawnState>,
-    
+
     // Reconciliation state
     pub last_reconciled_tick: u32,
     pub predicted_tick: u32,
     pub input_history: Vec<(u32, i8)>, // (seq, paddle_dir)
-    
+
     // Timing
     pub accumulator: f32,
     pub last_update_time: f64, // ms
@@ -179,7 +179,7 @@ impl ClientPredictor {
                 net_queue.clear();
                 // Push current input (continuous)
                 net_queue.push_input(player_id, current_input);
-                
+
                 *time = Time::new(SIM_FIXED_DT, time.now + SIM_FIXED_DT);
 
                 step(
@@ -236,8 +236,8 @@ impl ClientPredictor {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use wasm_bindgen_test::*;
     use crate::state::GameStateSnapshot;
+    use wasm_bindgen_test::*;
 
     // Default configuration (run in whatever environment wasm-pack uses, e.g. node)
 
@@ -276,10 +276,10 @@ mod tests {
         };
 
         predictor.initialize(&snapshot, 1000.0);
-        
+
         // Process input
         predictor.process_input(0, 1);
-        
+
         assert_eq!(predictor.predicted_tick, 101);
     }
 
@@ -297,13 +297,13 @@ mod tests {
         };
 
         predictor.initialize(&snapshot, 1000.0);
-        
+
         // Predict forward
         predictor.process_input(0, 1); // tick 101
-        
+
         // Server confirms tick 101 (sync)
         predictor.reconcile(101);
-        
+
         // Should reset prediction (assume server state will be re-applied in handle_message)
         assert!(!predictor.is_active());
         assert_eq!(predictor.last_reconciled_tick, 101);
@@ -323,16 +323,16 @@ mod tests {
         };
 
         predictor.initialize(&snapshot, 1000.0);
-        
+
         // Predict forward a bit
         for _ in 0..5 {
             predictor.process_input(0, 1);
         }
         // predicted_tick = 105
-        
+
         // Server says it's at tick 103 (lag)
         predictor.reconcile(103);
-        
+
         // Should keep prediction (active)
         assert!(predictor.is_active());
         assert_eq!(predictor.last_reconciled_tick, 103);
@@ -352,16 +352,16 @@ mod tests {
         };
 
         predictor.initialize(&snapshot, 1000.0);
-        
+
         // Predict forward A LOT (latency spike or stall)
         for _ in 0..30 {
             predictor.process_input(0, 1);
         }
         // predicted_tick = 130
-        
+
         // Server says it's at tick 100 (frozen?)
         predictor.reconcile(100);
-        
+
         // Should reset prediction
         assert!(!predictor.is_active());
         assert_eq!(predictor.last_reconciled_tick, 100);

@@ -343,8 +343,7 @@ mod integration_tests {
         }
         assert_eq!(
             score.left, target,
-            "Score should be {} before final point",
-            target
+            "Score should be {target} before final point"
         );
 
         // Position ball to score (must exit right edge)

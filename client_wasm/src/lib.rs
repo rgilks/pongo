@@ -6,8 +6,8 @@ mod camera;
 mod input;
 mod mesh;
 mod network;
-mod state;
 mod prediction;
+mod state;
 
 use camera::{Camera, CameraUniform};
 use game_core::{
@@ -71,9 +71,9 @@ pub struct Client {
     // Input state
     paddle_dir: i8, // -1 = up, 0 = stop, 1 = down
     // Frame timing for interpolation (using performance.now() for better precision)
-    last_frame_time: f64,        // Last render frame time (in milliseconds)
-    last_sim_time: f64,          // Last simulation step time (in milliseconds)
-    sim_accumulator: f32,        // Accumulated time for fixed timestep simulation
+    last_frame_time: f64, // Last render frame time (in milliseconds)
+    last_sim_time: f64,   // Last simulation step time (in milliseconds)
+    sim_accumulator: f32, // Accumulated time for fixed timestep simulation
     // Performance metrics
     fps: f32,
     fps_frame_count: u32,
@@ -737,7 +737,9 @@ impl WasmClient {
         if !client.is_local_game && client.predictor.is_active() {
             let now_ms = Self::performance_now();
             let player_id = client.game_state.get_player_id().unwrap_or(0);
-            client.predictor.update(now_ms, player_id, client.paddle_dir);
+            client
+                .predictor
+                .update(now_ms, player_id, client.paddle_dir);
         }
 
         // Get high-precision timestamp for rendering
@@ -1035,10 +1037,10 @@ impl WasmClient {
                             g: 0.0,
                             b: 0.0,
                             a: 1.0,
-                            }),
-                            store: StoreOp::Store,
-                        },
-                    })],
+                        }),
+                        store: StoreOp::Store,
+                    },
+                })],
                 depth_stencil_attachment: None,
                 timestamp_writes: None,
                 occlusion_query_set: None,
@@ -1155,7 +1157,10 @@ impl WasmClient {
         client.predictor.input_seq = client.predictor.input_seq.wrapping_add(1);
 
         // Store input in history for replay
-        client.predictor.input_history.push((seq, client.paddle_dir));
+        client
+            .predictor
+            .input_history
+            .push((seq, client.paddle_dir));
         // Keep only last 120 inputs (2 seconds at 60 Hz)
         if client.predictor.input_history.len() > 120 {
             client.predictor.input_history.remove(0);
