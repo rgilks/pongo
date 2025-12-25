@@ -341,7 +341,11 @@ mod integration_tests {
         for _ in 0..target {
             score.increment_left();
         }
-        assert_eq!(score.left, target, "Score should be {} before final point", target);
+        assert_eq!(
+            score.left, target,
+            "Score should be {} before final point",
+            target
+        );
 
         // Position ball to score (must exit right edge)
         for (_entity, ball) in world.query_mut::<&mut Ball>() {
@@ -363,7 +367,11 @@ mod integration_tests {
         );
 
         // Verify win condition
-        assert_eq!(score.left, config.win_score, "Score should be {} after final point", config.win_score);
+        assert_eq!(
+            score.left, config.win_score,
+            "Score should be {} after final point",
+            config.win_score
+        );
         assert_eq!(
             score.has_winner(config.win_score),
             Some(0),

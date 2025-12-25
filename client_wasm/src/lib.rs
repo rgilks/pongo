@@ -823,14 +823,16 @@ impl WasmClient {
             const ARENA_HEIGHT: f32 = 24.0;
             const PADDLE_HEIGHT: f32 = 4.0;
             let half_height = PADDLE_HEIGHT / 2.0;
-            
+
             client.local_paddle_y += client.paddle_dir as f32 * PADDLE_SPEED * render_dt;
-            client.local_paddle_y = client.local_paddle_y.clamp(half_height, ARENA_HEIGHT - half_height);
+            client.local_paddle_y = client
+                .local_paddle_y
+                .clamp(half_height, ARENA_HEIGHT - half_height);
         }
 
         // Get paddle positions: use local_paddle_y for own paddle, server state for opponent
         let my_player_id = client.game_state.get_player_id();
-        
+
         let left_paddle_y = if !client.is_local_game && my_player_id == Some(0) {
             // Use local position for own paddle (immediate input response)
             client.local_paddle_y

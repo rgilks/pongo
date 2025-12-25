@@ -215,7 +215,11 @@ impl DurableObject for MatchDO {
             // If game was running and a player remains, declare them winner (Forfeit)
             if gs.game_started {
                 if let Some(&remaining_player) = gs.clients.keys().next() {
-                    console_log!("DO: Player {} left, declaring {} winner", player_id, remaining_player);
+                    console_log!(
+                        "DO: Player {} left, declaring {} winner",
+                        player_id,
+                        remaining_player
+                    );
                     Self::broadcast_game_over(&gs, remaining_player);
                     gs.game_started = false;
                 } else {
@@ -309,7 +313,7 @@ impl DurableObject for MatchDO {
         // Run simulation steps
         let mut steps_run = 0;
         const MAX_STEPS: u32 = 10; // Avoid "death spiral" if simulation is too slow
-        
+
         while gs.accumulator >= tick_interval_ms as f32 && steps_run < MAX_STEPS {
             Self::step_game_simulation(&mut gs);
             gs.accumulator -= tick_interval_ms as f32;

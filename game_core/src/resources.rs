@@ -72,15 +72,15 @@ impl Default for Config {
         Self {
             arena_width: 32.0,
             arena_height: 24.0,
-            paddle_width: 0.8,   // Match params.rs
+            paddle_width: 0.8, // Match params.rs
             paddle_height: 4.0,
-            paddle_speed: 18.0,  // Match params.rs
+            paddle_speed: 18.0, // Match params.rs
             ball_radius: 0.5,
             ball_speed_initial: 12.0, // Match params.rs
             ball_speed_max: 24.0,     // Match params.rs
             ball_speed_increase: 1.05,
             ball_paddle_overlap: 0.4, // Match params.rs
-            win_score: 5,            // Match params.rs
+            win_score: 5,             // Match params.rs
         }
     }
 }
