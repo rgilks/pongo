@@ -163,25 +163,17 @@ impl WasmClient {
         };
         client.last_frame_time = now_ms;
 
-        // Update local paddle for immediate response
-        if client.local_game.is_none() {
-            const PADDLE_SPEED: f32 = 18.0;
-            const ARENA_HEIGHT: f32 = 24.0;
-            const PADDLE_HEIGHT: f32 = 4.0;
-            let half_height = PADDLE_HEIGHT / 2.0;
+        // Update local paddle for immediate response (works for both local and multiplayer)
+        const PADDLE_SPEED: f32 = 18.0;
+        const ARENA_HEIGHT: f32 = 24.0;
+        const PADDLE_HEIGHT: f32 = 4.0;
+        let half_height = PADDLE_HEIGHT / 2.0;
 
-            // Simple local integration (client authority)
-            client.local_paddle_y += client.paddle_dir as f32 * PADDLE_SPEED * render_dt;
-            client.local_paddle_y = client
-                .local_paddle_y
-                .clamp(half_height, ARENA_HEIGHT - half_height);
-        } else {
-            // In local game, local_paddle_y isn't really used by renderer for player 0 in the same way?
-            // Actually original code used local_paddle_y for "own paddle".
-            // For local game, we can update it too, or trust simulation state.
-            // Original: "if !client.is_local_game... local_paddle_y..."
-            // So for local game, we rely on game_state snapshot which comes from simulation.
-        }
+        // Simple local integration (client authority)
+        client.local_paddle_y += client.paddle_dir as f32 * PADDLE_SPEED * render_dt;
+        client.local_paddle_y = client
+            .local_paddle_y
+            .clamp(half_height, ARENA_HEIGHT - half_height);
 
         // FPS calculation
         client.fps_frame_count += 1;

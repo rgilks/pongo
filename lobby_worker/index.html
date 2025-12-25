@@ -529,17 +529,28 @@
 
         #gameContainer {
           order: 1;
-          width: 90%;
-          max-width: 600px;
-          flex-shrink: 1;
+          width: calc(100% - 6px);
+          max-width: none;
+          flex-shrink: 0;
+          flex-grow: 1;
+          padding: 3px;
+          margin: 3px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          /* Keep border but minimal */
+          border: 1px solid var(--glass-border);
+          border-radius: 8px;
+          box-shadow: var(--shadow-lg);
+          background: linear-gradient(145deg, rgba(255,255,255,0.03), rgba(255,255,255,0.01));
         }
-        
-
         
         #canvas {
            width: 100%;
+           max-height: 75vh;
            height: auto;
            aspect-ratio: 4/3;
+           border-radius: 6px;
         }
         
         /* Mobile: spread buttons to edges */
@@ -1129,6 +1140,7 @@
           case GameState.PLAYING_MULTI:
             playBtn.textContent = 'In Match';
             playBtn.classList.add('playing');
+            lobbyControls.style.display = 'none';
             activeMatchControls.style.display = 'none';
             break;
 
@@ -1315,16 +1327,21 @@
         const setupTouch = (info) => {
           const btn = info.btn;
           const key = info.key;
-          if (!btn) return;
+          if (!btn) {
+            console.log('Mobile button not found:', key);
+            return;
+          }
+          console.log('Setting up mobile button:', key, btn);
           const handle = (e, isDown) => {
+            console.log('Mobile button event:', key, isDown, 'client:', !!client);
             if (e.type !== 'click') e.preventDefault();
             if (client) {
               client.handle_key_string(key, isDown);
               sendInput();
             }
           };
-          btn.addEventListener('touchstart', (e) => handle(e, true));
-          btn.addEventListener('touchend', (e) => handle(e, false));
+          btn.addEventListener('touchstart', (e) => handle(e, true), { passive: false });
+          btn.addEventListener('touchend', (e) => handle(e, false), { passive: false });
           btn.addEventListener('mousedown', (e) => handle(e, true));
           btn.addEventListener('mouseup', (e) => handle(e, false));
           btn.addEventListener('mouseleave', (e) => handle(e, false));
