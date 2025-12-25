@@ -55,7 +55,7 @@ The simulation is deterministic and frame-independent. It uses a fixed timestep 
 Each game match runs in a Cloudflare **Durable Object** (DO). The DO maintains the authoritative state and runs the `step` function 60 times a second.
 
 - **Tick Loop:** The server calls [`GameState::step`](server_do/src/game_state.rs#L189) which delegates to `game_core::step`.
-- **Broadcasting:** Every 3rd frame (20Hz), it sends a snapshot to all clients via [`broadcast_state`](server_do/src/game_state.rs#L271).
+- **Broadcasting:** Every 3rd tick (20Hz), it sends a snapshot to all clients via [`broadcast_state`](server_do/src/game_state.rs#L271).
 
 ### 3. The Client (`client_wasm`)
 
@@ -85,6 +85,6 @@ We use [postcard](https://github.com/jamesmunns/postcard) for efficient binary s
 5. Server includes new paddle position in next broadcast.
 
 ### Rendering Frame
-1. `requestAnimationFrame` calls [`render`](client_wasm/src/lib.rs#L149).
+1. `requestAnimationFrame` calls [`render`](client_wasm/src/lib.rs).
 2. Prediction system updates local game state.
 3. [`Renderer::draw`](client_wasm/src/renderer/mod.rs) submits draw commands to GPU.
