@@ -1,3 +1,5 @@
+#![allow(unknown_lints)]
+#![allow(clippy::manual_is_multiple_of)]
 use game_core::*;
 use hecs::World;
 use js_sys::Date;
