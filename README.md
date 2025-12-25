@@ -83,7 +83,7 @@ npm run deploy       # Deploy to Cloudflare
 | Port in use | Kill process or edit `wrangler.toml` |
 | Reset state | Delete `.wrangler/state/` |
 
-See **[SPEC.md](SPEC.md)** for technical details.
+See **[SPEC.md](SPEC.md)** for technical details and **[ARCHITECTURE.md](ARCHITECTURE.md)** for a deep dive into how it works.
 
 ## License
 
