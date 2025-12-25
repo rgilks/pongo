@@ -112,8 +112,8 @@ impl GameState {
         self.ball_display_y += (target_y - self.ball_display_y) * smoothing;
 
         // Apply same exponential smoothing to paddle positions for smooth opponent movement
-        // Use slightly higher smoothing (0.4) for more responsive paddle tracking
-        let paddle_smoothing = 0.4;
+        // Lower smoothing (0.25) = smoother motion, slightly more latency
+        let paddle_smoothing = 0.25;
         self.paddle_left_display_y +=
             (self.current.paddle_left_y - self.paddle_left_display_y) * paddle_smoothing;
         self.paddle_right_display_y +=
