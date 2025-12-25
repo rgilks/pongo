@@ -1,0 +1,291 @@
+#![allow(unknown_lints)]
+#![allow(clippy::manual_is_multiple_of)]
+use game_core::*;
+use hecs::World;
+use js_sys::Date;
+use proto::*;
+use std::collections::HashMap;
+use worker::*;
+
+// Abstract connection for testing
+pub trait GameClient {
+    fn send_bytes(&self, bytes: &[u8]) -> Result<()>;
+}
+
+impl GameClient for WebSocket {
+    fn send_bytes(&self, bytes: &[u8]) -> Result<()> {
+        self.send_with_bytes(bytes)
+    }
+}
+
+// Abstract environment (Time, Logging)
+pub trait Environment {
+    fn now(&self) -> u64; // ms
+    fn log(&self, msg: String);
+}
+
+pub struct WasmEnv;
+
+impl Environment for WasmEnv {
+    fn now(&self) -> u64 {
+        Date::now() as u64
+    }
+
+    fn log(&self, msg: String) {
+        // console_log! macro comes from worker crate and takes literal fmt string usually,
+        // but we can pass formatted string if we use "%s".
+        // Or actually console_log! invokes web_sys::console::log_1.
+        console_log!("{}", msg);
+    }
+}
+
+// Track client activity
+pub struct ClientInfo {
+    pub client: Box<dyn GameClient>,
+    pub last_activity: u64, // Unix timestamp in seconds
+}
+
+// Game state wrapper for interior mutability
+pub struct GameState {
+    pub env: Box<dyn Environment>,
+    pub world: World,
+    pub time: Time,
+    pub map: GameMap,
+    pub config: Config,
+    pub score: Score,
+    pub events: Events,
+    pub net_queue: NetQueue,
+    pub rng: GameRng,
+    pub respawn_state: RespawnState,
+    pub clients: HashMap<u8, ClientInfo>, // player_id (0=left, 1=right) -> ClientInfo
+    pub next_player_id: u8,
+    pub game_started: bool,
+    pub tick: u32,
+    pub last_input: HashMap<u8, i8>, // Track last input per player to reduce logging
+    pub last_tick_time: u64,         // Unix timestamp in ms
+    pub accumulator: f32,            // Accumulated time for catch-up steps
+}
+
+impl GameState {
+    pub fn new(env: Box<dyn Environment>) -> Self {
+        let mut world = World::new();
+        let map = GameMap::new();
+        let config = Config::new();
+        let time = Time::default();
+        let score = Score::new();
+        let events = Events::new();
+        let net_queue = NetQueue::new();
+        let rng = GameRng::default();
+
+        // Create ball at center
+        let ball_pos = map.ball_spawn();
+        let ball_vel = glam::Vec2::new(config.ball_speed_initial, 0.0);
+        create_ball(&mut world, ball_pos, ball_vel);
+
+        let now = env.now();
+
+        Self {
+            env,
+            world,
+            time,
+            map,
+            config,
+            score,
+            events,
+            net_queue,
+            rng,
+            respawn_state: RespawnState::new(),
+            clients: HashMap::new(),
+            next_player_id: 0,
+            game_started: false,
+            tick: 0,
+            last_input: HashMap::new(),
+            last_tick_time: now,
+            accumulator: 0.0,
+        }
+    }
+
+    /// Try to add a player. Returns (player_id, was_empty) if successful.
+    pub fn add_player(&mut self, client: Box<dyn GameClient>) -> Option<(u8, bool)> {
+        if self.clients.len() >= 2 {
+            return None;
+        }
+
+        let player_id = self.next_player_id;
+        self.next_player_id = (self.next_player_id + 1) % 2;
+
+        let was_empty = self.clients.is_empty();
+        let now = self.env.now() / 1000;
+
+        self.clients.insert(
+            player_id,
+            ClientInfo {
+                client,
+                last_activity: now,
+            },
+        );
+
+        // Spawn paddle
+        let paddle_y = self.map.paddle_spawn(player_id).y;
+        create_paddle(&mut self.world, player_id, paddle_y);
+
+        // Start game if 2 players
+        if self.clients.len() == 2 {
+            self.game_started = true;
+        }
+
+        Some((player_id, was_empty))
+    }
+
+    pub fn remove_player(&mut self, player_id: u8) {
+        self.clients.remove(&player_id);
+
+        // Despawn paddle
+        let entity_to_despawn =
+            self.world
+                .query::<(&Paddle,)>()
+                .iter()
+                .find_map(|(entity, (paddle,))| {
+                    if paddle.player_id == player_id {
+                        Some(entity)
+                    } else {
+                        None
+                    }
+                });
+
+        if let Some(entity) = entity_to_despawn {
+            let _ = self.world.despawn(entity);
+        }
+
+        // Forfeit logic
+        if self.game_started {
+            if let Some(&remaining_player) = self.clients.keys().next() {
+                self.broadcast_game_over(remaining_player);
+            }
+            self.game_started = false;
+        } else if self.clients.len() < 2 {
+            self.game_started = false;
+        }
+    }
+
+    pub fn handle_input(&mut self, player_id: u8, paddle_dir: i8) {
+        if let Some(client_info) = self.clients.get_mut(&player_id) {
+            let now = self.env.now() / 1000;
+            client_info.last_activity = now;
+
+            // Only log when input changes (reduces log spam)
+            let last_dir = self.last_input.get(&player_id).copied().unwrap_or(99);
+            if paddle_dir != last_dir {
+                self.env.log(format!(
+                    "DO: Player {player_id} input changed: {last_dir} -> {paddle_dir}"
+                ));
+                self.last_input.insert(player_id, paddle_dir);
+            }
+
+            self.net_queue.push_input(player_id, paddle_dir);
+        }
+    }
+
+    pub fn step(&mut self) -> Option<u8> {
+        if !self.game_started {
+            return None;
+        }
+
+        self.time.dt = 0.016; // ~60 Hz
+        self.tick += 1;
+
+        if self.tick % 60 == 0 {
+            self.env.log(format!(
+                "DO: Game running, tick={}, clients={}",
+                self.tick,
+                self.clients.len()
+            ));
+        }
+
+        game_core::step(
+            &mut self.world,
+            &mut self.time,
+            &self.map,
+            &self.config,
+            &mut self.score,
+            &mut self.events,
+            &mut self.net_queue,
+            &mut self.rng,
+            &mut self.respawn_state,
+        );
+
+        // Return winner if any
+        if let Some(winner) = self.score.has_winner(self.config.win_score) {
+            self.broadcast_game_over(winner);
+            self.game_started = false;
+            return Some(winner);
+        }
+
+        None
+    }
+
+    pub fn generate_state_message(&self) -> S2C {
+        // Get ball position and velocity
+        let (ball_x, ball_y, ball_vx, ball_vy) = self
+            .world
+            .query::<&Ball>()
+            .iter()
+            .next()
+            .map(|(_e, ball)| (ball.pos.x, ball.pos.y, ball.vel.x, ball.vel.y))
+            .unwrap_or((16.0, 12.0, 0.0, 0.0));
+
+        // Get paddle positions
+        let mut paddle_left_y = 12.0;
+        let mut paddle_right_y = 12.0;
+        let mut paddle_count = 0;
+
+        for (_e, paddle) in self.world.query::<&Paddle>().iter() {
+            paddle_count += 1;
+            if paddle.player_id == 0 {
+                paddle_left_y = paddle.y;
+            } else if paddle.player_id == 1 {
+                paddle_right_y = paddle.y;
+            }
+        }
+
+        if self.tick % 60 == 0 {
+            self.env.log(format!(
+                "DO: Paddle state - count={paddle_count}, left_y={paddle_left_y:.1}, right_y={paddle_right_y:.1}"
+            ));
+        }
+
+        S2C::GameState {
+            tick: self.tick,
+            ball_x,
+            ball_y,
+            ball_vx,
+            ball_vy,
+            paddle_left_y,
+            paddle_right_y,
+            score_left: self.score.left,
+            score_right: self.score.right,
+        }
+    }
+
+    pub fn broadcast_state(&self) {
+        if self.clients.is_empty() {
+            return;
+        }
+
+        let state_msg = self.generate_state_message();
+        if let Ok(bytes) = state_msg.to_bytes() {
+            for client_info in self.clients.values() {
+                let _ = client_info.client.send_bytes(&bytes);
+            }
+        }
+    }
+
+    pub fn broadcast_game_over(&self, winner: u8) {
+        let msg = S2C::GameOver { winner };
+        if let Ok(bytes) = msg.to_bytes() {
+            for client_info in self.clients.values() {
+                let _ = client_info.client.send_bytes(&bytes);
+            }
+        }
+    }
+}

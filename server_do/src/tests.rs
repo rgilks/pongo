@@ -1,6 +1,7 @@
-use crate::*;
+use crate::game_state::{Environment, GameClient, GameState};
 use proto::S2C;
 use std::cell::RefCell;
+use worker::*;
 
 struct MockGameClient {
     pub sent_messages: RefCell<Vec<Vec<u8>>>,
