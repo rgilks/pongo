@@ -6,9 +6,10 @@
     "fmt": "cargo fmt",
     "clippy": "cargo clippy --workspace -- -D warnings",
     "test": "cargo test --workspace",
-    "test:all": "cargo fmt --check && cargo check --workspace && cargo clippy --workspace -- -D warnings && cargo test --workspace",
+    "test:all": "prettier --check . && cargo fmt --check && cargo check --workspace && cargo clippy --workspace -- -D warnings && cargo test --workspace",
+    "format": "prettier --write .",
     "build:client": "cd client_wasm && wasm-pack build --target web --out-dir ../worker/pkg/client_wasm",
-    "build:server": "cd lobby_worker && wasm-pack build --target web --out-dir ../worker/pkg && cp index.html ../worker/pkg/index.html",
+    "build:server": "cd lobby_worker && wasm-pack build --target web --out-dir ../worker/pkg && cp index.html style.css script.js ../worker/pkg/",
     "build": "npm run build:server && npm run build:client",
     "dev": "npx wrangler dev --assets worker/pkg",
     "deploy": "npx wrangler deploy",
@@ -19,6 +20,12 @@
     "node": ">=20.0.0"
   },
   "devDependencies": {
-    "husky": "^9.1.7"
+    "husky": "^9.1.7",
+    "lint-staged": "^16.2.7",
+    "prettier": "^3.7.4"
+  },
+  "lint-staged": {
+    "*.rs": "rustfmt",
+    "**/*": "prettier --write"
   }
 }

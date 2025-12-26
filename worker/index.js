@@ -25,11 +25,21 @@ class MatchDOWrapper {
   constructor(state, env) {
     this._inner = ensureInit().then(() => new WasmMatchDO(state, env));
   }
-  async fetch(req) { return (await this._inner).fetch(req); }
-  async alarm() { return (await this._inner).alarm(); }
-  async webSocketMessage(ws, msg) { return (await this._inner).webSocketMessage(ws, msg); }
-  async webSocketClose(ws, code, reason, wasClean) { return (await this._inner).webSocketClose(ws, code, reason, wasClean); }
-  async webSocketError(ws, error) { return (await this._inner).webSocketError(ws, error); }
+  async fetch(req) {
+    return (await this._inner).fetch(req);
+  }
+  async alarm() {
+    return (await this._inner).alarm();
+  }
+  async webSocketMessage(ws, msg) {
+    return (await this._inner).webSocketMessage(ws, msg);
+  }
+  async webSocketClose(ws, code, reason, wasClean) {
+    return (await this._inner).webSocketClose(ws, code, reason, wasClean);
+  }
+  async webSocketError(ws, error) {
+    return (await this._inner).webSocketError(ws, error);
+  }
 }
 
 export { MatchDOWrapper as MatchDO };

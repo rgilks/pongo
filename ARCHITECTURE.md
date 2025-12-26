@@ -11,18 +11,18 @@ Pongo is a real-time multiplayer game built on a shared-code architecture. The c
 ```mermaid
 graph TD
     Client["Client (Browser)"] <-->|WebSocket Binary| Server["Cloudflare Worker"]
-    
+
     subgraph "Server (Durable Object)"
         ServerLoop["Game Loop (60Hz)"]
         ServerState["Authoritative State"]
     end
-    
+
     subgraph "Client (WASM)"
         Input["Input Handling"] --> Predict["Prediction System"]
         Predict --> Render["WebGPU Renderer"]
         ServerState -.->|Snapshot| Reconcile["Reconciliation"]
     end
-    
+
     ServerLoop -- Broadcast 20Hz --> Client
     Client -- Input --> ServerLoop
 ```
@@ -31,12 +31,12 @@ graph TD
 
 The project is structured as a Cargo workspace with shared crates.
 
-| Crate | Path | Description | Key Files |
-|-------|------|-------------|-----------|
-| **game_core** | [`game_core/`](game_core/) | **The Heart.** Shared ECS logic, physics, and config. | [`lib.rs`](game_core/src/lib.rs) (step function)<br>[`config.rs`](game_core/src/config.rs) (constants) |
-| **client_wasm** | [`client_wasm/`](client_wasm/) | **The Frontend.** Prediction, interpolation, and rendering. | [`lib.rs`](client_wasm/src/lib.rs) (entry)<br>[`renderer/`](client_wasm/src/renderer) (WebGPU) |
-| **server_do** | [`server_do/`](server_do/) | **The Backend.** Durable Object implementation. | [`game_state.rs`](server_do/src/game_state.rs) (server logic) |
-| **proto** | [`proto/`](proto/) | **The Glue.** Network messages and serialization. | [`lib.rs`](proto/src/lib.rs) (structs) |
+| Crate           | Path                           | Description                                                 | Key Files                                                                                              |
+| --------------- | ------------------------------ | ----------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| **game_core**   | [`game_core/`](game_core/)     | **The Heart.** Shared ECS logic, physics, and config.       | [`lib.rs`](game_core/src/lib.rs) (step function)<br>[`config.rs`](game_core/src/config.rs) (constants) |
+| **client_wasm** | [`client_wasm/`](client_wasm/) | **The Frontend.** Prediction, interpolation, and rendering. | [`lib.rs`](client_wasm/src/lib.rs) (entry)<br>[`renderer/`](client_wasm/src/renderer) (WebGPU)         |
+| **server_do**   | [`server_do/`](server_do/)     | **The Backend.** Durable Object implementation.             | [`game_state.rs`](server_do/src/game_state.rs) (server logic)                                          |
+| **proto**       | [`proto/`](proto/)             | **The Glue.** Network messages and serialization.           | [`lib.rs`](proto/src/lib.rs) (structs)                                                                 |
 
 ---
 
@@ -122,6 +122,7 @@ graph TD
 ## Key Data Flows
 
 ### Input Handling
+
 1. Browser captures key press in [`on_key_down`](client_wasm/src/lib.rs).
 2. Client updates local paddle immediately.
 3. Client sends `C2S::Input` to server.
@@ -129,6 +130,7 @@ graph TD
 5. Server includes new paddle position in next broadcast.
 
 ### Rendering Frame
+
 1. `requestAnimationFrame` calls [`render`](client_wasm/src/lib.rs).
 2. Prediction system updates local game state.
 3. [`Renderer::draw`](client_wasm/src/renderer/mod.rs) submits draw commands to GPU.
@@ -139,21 +141,22 @@ graph TD
 
 ### Game Constants
 
-| Constant | Value | Unit |
-|----------|-------|------|
-| Arena | 32 × 24 | units |
-| Paddle | 0.8 × 4.0 | units |
-| Paddle speed | 18 | units/sec |
-| Ball radius | 0.5 | units |
-| Ball speed | 12 → 24 | units/sec |
-| Speed multiplier | 1.05× | per hit |
-| Win score | 5 | points |
+| Constant         | Value     | Unit      |
+| ---------------- | --------- | --------- |
+| Arena            | 32 × 24   | units     |
+| Paddle           | 0.8 × 4.0 | units     |
+| Paddle speed     | 18        | units/sec |
+| Ball radius      | 0.5       | units     |
+| Ball speed       | 12 → 24   | units/sec |
+| Speed multiplier | 1.05×     | per hit   |
+| Win score        | 5         | points    |
 
-*Constants defined in [`game_core/src/config.rs`](game_core/src/config.rs)*
+_Constants defined in [`game_core/src/config.rs`](game_core/src/config.rs)_
 
 ### Network Protocol
 
 **Client → Server:**
+
 ```rust
 enum C2S {
     Join { code: [u8; 5] },
@@ -163,6 +166,7 @@ enum C2S {
 ```
 
 **Server → Client:**
+
 ```rust
 enum S2C {
     Welcome { player_id: u8 },

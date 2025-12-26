@@ -20,10 +20,10 @@ npm run build && npm run dev  # http://localhost:8787
 
 ## How to Play
 
-| Mode | How |
-|------|-----|
+| Mode            | How                                     |
+| --------------- | --------------------------------------- |
 | **Multiplayer** | Click **CHALLENGE** → share link → JOIN |
-| **VS AI** | Click **PLAY** |
+| **VS AI**       | Click **PLAY**                          |
 
 **Controls:** Arrow keys or W/S · Touch on mobile  
 **Rules:** First to 5. Hit position affects ball trajectory.
@@ -33,6 +33,7 @@ npm run build && npm run dev  # http://localhost:8787
 See **[ARCHITECTURE.md](ARCHITECTURE.md)** for the system diagram and component deep dive.
 
 **Key design decisions:**
+
 - **Shared `game_core`** — Same ECS physics on client and server for prediction
 - **Binary protocol** — Minimal `postcard` serialization over WebSocket
 - **Durable Objects** — Each match is a stateful instance with 60Hz game loop
@@ -54,17 +55,17 @@ pongo/
 ```bash
 npm run build        # Build WASM
 npm run dev          # Local server
-npm run test         # Run tests  
+npm run test         # Run tests
 npm run deploy       # Deploy to Cloudflare
 ```
 
 ## Troubleshooting
 
-| Issue | Fix |
-|-------|-----|
-| Build fails | `cargo install wasm-pack` |
+| Issue       | Fix                                  |
+| ----------- | ------------------------------------ |
+| Build fails | `cargo install wasm-pack`            |
 | Port in use | Kill process or edit `wrangler.toml` |
-| Reset state | Delete `.wrangler/state/` |
+| Reset state | Delete `.wrangler/state/`            |
 
 See **[ARCHITECTURE.md](ARCHITECTURE.md)** for technical details and game constants.
 

@@ -1,6 +1,6 @@
 # How I Built a Real-Time Multiplayer Game on the Edge with Rust and WebAssembly
 
-> *Real-time multiplayer games are mostly about trade-offs: latency vs authority, simplicity vs correctness, and cost vs control. This article walks through an approach that worked well for me — using Rust compiled to WebAssembly to share deterministic game logic between the browser and Cloudflare’s edge.*
+> _Real-time multiplayer games are mostly about trade-offs: latency vs authority, simplicity vs correctness, and cost vs control. This article walks through an approach that worked well for me — using Rust compiled to WebAssembly to share deterministic game logic between the browser and Cloudflare’s edge._
 
 **[Play the live demo →](https://pongo.tre.systems/)** | **[View source on GitHub →](https://github.com/rgilks/pongo)**
 
@@ -8,11 +8,12 @@
 
 ## Why Pong?
 
-In 1972, Atari released *Pong*, effectively kicking off the video game industry. More than fifty years later, it turns out to be a great test case for multiplayer networking.
+In 1972, Atari released _Pong_, effectively kicking off the video game industry. More than fifty years later, it turns out to be a great test case for multiplayer networking.
 
 In many modern games, latency can be masked with animation, camera tricks, or generous hitboxes. Pong gives you none of that. The physics are simple, the ball is fast, and if your paddle isn’t exactly where you expect it to be, you feel it immediately.
 
 It demands:
+
 1. **Precise movement** — high-frequency input sampling.
 2. **Instant feedback** — minimal perceived latency.
 3. **State validation** — preventing the client and server from drifting apart.
@@ -29,7 +30,7 @@ When building **Pongo**, my goal wasn’t just to recreate a classic — it was 
 
 The solution I landed on was a kind of “universal app” architecture, built with **Rust**, **WebAssembly (WASM)**, and **Cloudflare Durable Objects**.
 
-Most multiplayer games try to share logic between client and server, but language boundaries usually get in the way. By writing the core game logic in Rust, I can compile it to WebAssembly and run the *same code* in two very different environments:
+Most multiplayer games try to share logic between client and server, but language boundaries usually get in the way. By writing the core game logic in Rust, I can compile it to WebAssembly and run the _same code_ in two very different environments:
 
 1. **The Browser** — rendering at 120Hz+ with WebGPU.
 2. **The Edge** — running inside a Cloudflare Durable Object at a fixed 60Hz.
@@ -51,7 +52,7 @@ graph TD
         Input["Player Input"]
         Predict["Client Predictor\n(Prediction)"]
         Render["WebGPU Renderer"]
-        
+
         Input --> Predict
         Predict -->|"Step (Frame Rate)"| Logic
         Predict --> Render
@@ -108,7 +109,7 @@ Each match runs inside a **Cloudflare Durable Object**. A Durable Object is a si
 This is the key difference from typical stateless serverless functions: a Durable Object can host a proper **game loop**.
 
 ```mermaid
-flowchart 
+flowchart
     Inputs["Client Inputs"] -->|"WebSocket"| DO["Durable Object"]
     DO -->|"60Hz"| Step["game_core::step()"]
     Step -->|"20Hz"| Broadcast["State Snapshots"]
@@ -142,14 +143,14 @@ sequenceDiagram
     Note over Client: Frame 100: User presses UP
     Client->>Client: Apply Input (Predict)
     Client->>Server: Send Input
-    
+
     Note over Server: ...Network Delay...
-    
+
     Server->>Server: Process Input
     Server->>Client: Send Snapshot (Tick 100)
-    
+
     Note over Client: ...Network Delay...
-    
+
     Note over Client: Client receives snapshot
     Client->>Client: Compare prediction vs server
     alt Prediction matches

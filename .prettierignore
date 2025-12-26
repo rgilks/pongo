@@ -1,0 +1,5 @@
+worker/pkg/
+target/
+dist/
+node_modules/
+.wrangler/
