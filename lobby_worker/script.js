@@ -238,8 +238,10 @@ async function enterCountdownLocal() {
   if (!client) {
     client = await new WasmClient(canvas);
   }
-  await showCountdown();
-  FSM.transition("COUNTDOWN_DONE");
+  // Do NOT await here, so the transition lock releases.
+  showCountdown().then(() => {
+    FSM.transition("COUNTDOWN_DONE");
+  });
 }
 
 function enterPlayingLocal() {
@@ -617,6 +619,32 @@ function sendInput() {
       }
     } catch (e) {}
   }
+}
+
+// ========================================
+// Auto-detect Touch Support
+// ========================================
+if (navigator.maxTouchPoints > 0 || "ontouchstart" in window) {
+  document.body.classList.add("touch-enabled");
+}
+
+// ========================================
+// Pop Out Button Logic
+// ========================================
+const popOutBtn = document.getElementById("popOutBtn");
+if (popOutBtn) {
+  // Hide if we are already in a popup (check window size or opener)
+  if (window.opener && window.innerWidth < 600) {
+    popOutBtn.style.display = "none";
+  }
+
+  popOutBtn.addEventListener("click", () => {
+    window.open(
+      "/",
+      "GamePopout",
+      "width=480,height=800,menubar=no,toolbar=no,location=no,status=no,resizable=yes,scrollbars=no"
+    );
+  });
 }
 
 let inputSetup = false;

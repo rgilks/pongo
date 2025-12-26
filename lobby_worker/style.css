@@ -823,169 +823,216 @@ body::before {
   transform: scale(0.95);
 }
 
-/* Show touch controls on mobile */
-@media (max-width: 850px) {
-  #sidePanel {
-    flex-direction: row !important;
-    align-items: stretch;
-  }
+/* 
+   ========================================
+   Global Mobile-First Vertical Layout
+   ========================================
+*/
 
-  .touch-controls {
-    display: flex !important;
-  }
-
-  .panel-card {
-    flex: 1;
-  }
-
-  .controls-info {
-    display: none;
-  }
+body {
+  align-items: center;
+  overflow: hidden;
 }
 
-/* Mobile Layout */
-@media (max-width: 850px) {
-  body {
-    align-items: center;
-    overflow: hidden;
-  }
+/* Smaller title globally */
+.game-title {
+  font-size: 24px;
+  letter-spacing: 3px;
+  margin-bottom: 5px;
+  text-shadow: 0 0 15px rgba(99, 102, 241, 0.3);
+}
 
-  /* Smaller title on mobile */
-  .game-title {
-    font-size: 24px;
-    letter-spacing: 3px;
-    margin-bottom: 5px;
-    text-shadow: 0 0 15px rgba(99, 102, 241, 0.3);
-  }
+#mainContainer {
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 8px;
+  height: 100dvh;
+  max-height: 100dvh;
+  overflow: hidden;
+  padding: 5px 0;
+}
 
-  #mainContainer {
-    flex-direction: column;
-    align-items: center;
-    justify-content: flex-start;
-    gap: 8px;
-    height: 100dvh;
-    max-height: 100dvh;
-    overflow: hidden;
-    padding: 5px 0;
-  }
+.share-row {
+  flex-wrap: wrap;
+}
 
-  .share-row {
-    flex-wrap: wrap;
-  }
+.share-row input {
+  flex-basis: 100%;
+  margin-bottom: 4px;
+}
 
-  .share-row input {
-    flex-basis: 100%;
-    margin-bottom: 4px;
-  }
+.share-row button {
+  flex: 1;
+}
 
-  .share-row button {
-    flex: 1;
-  }
+#sidePanel {
+  width: 95%;
+  max-width: 360px;
+  order: 2;
+  margin-bottom: 5px;
+  flex-shrink: 1;
+  min-height: 0;
+  overflow: hidden;
+  /* Use row layout for touch controls by default if visible */
+  flex-direction: row;
+  align-items: stretch;
+}
 
-  #sidePanel {
-    width: 95%;
-    max-width: 360px;
-    order: 2;
-    margin-bottom: 5px;
-    flex-shrink: 1;
-    min-height: 0;
-    overflow: hidden;
-  }
+/* Compact Card */
+.panel-card {
+  padding: 10px;
+  gap: 6px;
+  background: rgba(30, 41, 59, 0.85);
+  backdrop-filter: blur(10px);
+  flex: 1;
+}
 
-  /* Compact Card for Mobile */
-  .panel-card {
-    padding: 10px;
-    gap: 6px;
-    background: rgba(30, 41, 59, 0.85);
-    backdrop-filter: blur(10px);
-  }
+/* Compact Score */
+#score {
+  font-size: 32px;
+}
 
-  /* Compact Score */
-  #score {
-    font-size: 32px;
-  }
+#scoreContainer {
+  margin-bottom: 0;
+}
 
-  #scoreContainer {
-    margin-bottom: 0;
-  }
+#winCondition {
+  font-size: 9px;
+  margin-bottom: 4px;
+  margin-top: 2px;
+}
 
-  #winCondition {
-    font-size: 9px;
-    margin-bottom: 4px;
-    margin-top: 2px;
-  }
+/* Hide metrics and controls info globally to save space */
+#metrics,
+.controls-info {
+  display: none;
+}
 
-  /* Hide metrics and controls on mobile to save space */
-  #metrics,
-  .controls-info {
-    display: none;
-  }
+/* Compact buttons */
+#playBtn {
+  font-size: 14px;
+  padding: 10px;
+}
 
-  /* Compact buttons */
-  #playBtn {
-    font-size: 14px;
-    padding: 10px;
-  }
+.btn-challenge {
+  font-size: 11px;
+  padding: 8px 14px;
+}
 
-  .btn-challenge {
-    font-size: 11px;
-    padding: 8px 14px;
-  }
+.btn-quit,
+.btn-leave {
+  padding: 8px;
+  font-size: 11px;
+}
 
-  .btn-quit,
-  .btn-leave {
-    padding: 8px;
-    font-size: 11px;
-  }
+#gameContainer {
+  order: 1;
+  width: calc(100% - 10px);
+  max-width: none;
+  flex-shrink: 0;
+  flex-grow: 0;
+  min-height: 0;
+  padding: 0;
+  margin: 5px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--glass-border);
+  border-radius: 12px;
+  box-shadow: var(--shadow-lg);
+  background: linear-gradient(145deg, rgba(255, 255, 255, 0.03), rgba(255, 255, 255, 0.01));
+  overflow: visible;
+  aspect-ratio: 4 / 3;
+  max-height: 60vh;
+}
 
-  #gameContainer {
-    order: 1;
-    width: calc(100% - 10px);
-    max-width: none;
-    flex-shrink: 0;
-    flex-grow: 0;
-    /* Don't grow - keep fixed size */
-    min-height: 0;
-    padding: 0;
-    margin: 5px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    border: 1px solid var(--glass-border);
-    border-radius: 12px;
-    box-shadow: var(--shadow-lg);
-    background: linear-gradient(145deg, rgba(255, 255, 255, 0.03), rgba(255, 255, 255, 0.01));
-    overflow: visible;
-    /* Use 4:3 aspect ratio to match canvas */
-    aspect-ratio: 4 / 3;
-    max-height: 60vh;
-    /* Increase height to utilize more space */
-  }
+#canvas {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  border-radius: 0;
+}
 
-  #canvas {
-    width: 100%;
-    height: 100%;
-    object-fit: contain;
-    border-radius: 0;
-  }
+/* Mobile-specific join code styling */
+.join-code-container {
+  margin-top: 8px;
+  padding-top: 8px;
+}
 
-  /* Mobile-specific join code styling */
-  .join-code-container {
-    margin-top: 8px;
-    padding-top: 8px;
-  }
+.join-code-input {
+  font-size: 16px;
+  padding: 10px;
+}
 
-  .join-code-input {
-    font-size: 16px;
-    padding: 10px;
-  }
+.game-code-value {
+  font-size: 24px;
+}
 
-  .game-code-value {
-    font-size: 24px;
-  }
+/* Hide old buttons if present */
+.mobile-btn {
+  display: none !important;
+}
 
-  /* Hide old buttons if present */
-  .mobile-btn {
+/* 
+   ========================================
+   Conditional Visibility
+   ========================================
+*/
+
+/* Touch Controls: HIDE by default */
+.touch-controls {
+  display: none !important;
+}
+
+/* Show Touch Controls ONLY if enabled */
+body.touch-enabled .touch-controls {
+  display: flex !important;
+}
+
+/* Pop Out Button: Desktop style */
+.popout-btn {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  background: rgba(30, 41, 59, 0.6);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 10px;
+  color: rgba(255, 255, 255, 0.8);
+  font-family: "Outfit", sans-serif;
+  font-weight: 600;
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+}
+
+.popout-btn:hover {
+  background: rgba(4, 182, 212, 0.2);
+  border-color: rgba(6, 182, 212, 0.4);
+  color: #fff;
+  transform: translateY(-1px);
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.2);
+}
+
+.popout-btn:active {
+  transform: translateY(0);
+}
+
+/* Hide Popout on Touch Devices */
+body.touch-enabled .popout-btn {
+  display: none !important;
+}
+
+/* Hide Popout if window is small (likely already popped out) */
+@media (max-width: 600px) {
+  .popout-btn {
     display: none !important;
   }
 }
