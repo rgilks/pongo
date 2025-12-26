@@ -87,6 +87,7 @@ impl ClientPredictor {
     }
 
     /// Process local input immediately (prediction step)
+    #[allow(dead_code)]
     pub fn process_input(&mut self, player_id: u8, paddle_dir: i8) {
         if self.world.is_none() {
             return;
@@ -259,6 +260,7 @@ impl ClientPredictor {
         self.respawn_state = None;
     }
 
+    #[allow(dead_code)]
     pub fn get_paddle_y(&self, player_id: u8) -> Option<f32> {
         if let Some(ref world) = self.world {
             for (_entity, paddle) in world.query::<&game_core::Paddle>().iter() {

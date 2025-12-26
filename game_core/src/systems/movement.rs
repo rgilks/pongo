@@ -33,7 +33,7 @@ pub fn move_ball(world: &mut World, dt: f32) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{create_paddle, Ball, Config, GameMap, Paddle, PaddleIntent, Time};
+    use crate::{create_paddle, Config, GameMap, Paddle, PaddleIntent, Time};
 
     fn setup_world() -> (World, Config, GameMap, Time) {
         let world = World::new();
