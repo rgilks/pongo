@@ -1,6 +1,6 @@
-# How I Built a Low-Latency Multiplayer Game with Rust, WebAssembly, and Cloudflare Durable Objects
+# How I Built a Real-Time Multiplayer Game on the Edge with Rust and WebAssembly
 
-> *Building a real-time multiplayer game involves trade-offs between infrastructure complexity, cost, and latency. This article explores one approach: using Rust compiled to WebAssembly to share game logic between the browser and Cloudflare's edge network.*
+> *Real-time multiplayer games are mostly about trade-offs: latency vs authority, simplicity vs correctness, and cost vs control. This article walks through an approach that worked well for me — using Rust compiled to WebAssembly to share deterministic game logic between the browser and Cloudflare’s edge.*
 
 **[Play the live demo →](https://pongo.tre.systems/)** | **[View source on GitHub →](https://github.com/rgilks/pongo)**
 
@@ -8,28 +8,31 @@
 
 ## Why Pong?
 
-In 1972, Atari released *Pong*, effectively launching the video game industry. Today, it serves as an excellent case study for multiplayer networking.
+In 1972, Atari released *Pong*, effectively kicking off the video game industry. More than fifty years later, it turns out to be a great test case for multiplayer networking.
 
-Why? Because it demands precision.
+In many modern games, latency can be masked with animation, camera tricks, or generous hitboxes. Pong gives you none of that. The physics are simple, the ball is fast, and if your paddle isn’t exactly where you expect it to be, you feel it immediately.
 
-In many modern games, small amounts of latency can be masked by animation or game design. But in Pong, the physics are simple and transparent. The ball moves quickly, and if your paddle isn't exactly where you expect it to be, the experience suffers immediately.
+It demands:
+1. **Precise movement** — high-frequency input sampling.
+2. **Instant feedback** — minimal perceived latency.
+3. **State validation** — preventing the client and server from drifting apart.
 
-It requires:
-1.  **Precise movement**: High-frequency input sampling.
-2.  **Instant feedback**: Minimal perceived latency.
-3.  **State validation**: Preventing state divergence between client and server.
+If I can make this work for a browser-based Pong running entirely on serverless infrastructure, the same patterns apply to much more complex games.
 
-If I can solve these problems for a browser-based Pong using serverless infrastructure, the same patterns apply to more complex games.
+---
 
 ## The Architecture: One Codebase, Two Worlds
 
-When building **Pongo**, a recreation of this classic, the goal was to explore a specific technical challenge: **How can we deliver a smooth, 60FPS experience while maintaining a secure, authoritative server?**
+When building **Pongo**, my goal wasn’t just to recreate a classic — it was to explore a very specific question:
 
-The answer lay in a "Universal App" architecture powered by **[Rust](https://www.rust-lang.org/)**, **[WebAssembly (WASM)](https://webassembly.org/)**, and **[Cloudflare Durable Objects](https://developers.cloudflare.com/durable-objects/)**.
+**How do you deliver a smooth 60FPS experience while still keeping a secure, authoritative server?**
 
-Most multiplayer games strive to share code between client and server, but language barriers often get in the way. By writing the core logic in Rust, I can compile it to WebAssembly to run in two very different places:
-1.  **The Browser**: Rendering at 120Hz+ with WebGPU.
-2.  **The Edge**: Running in a Cloudflare Durable Object at 60Hz.
+The solution I landed on was a kind of “universal app” architecture, built with **Rust**, **WebAssembly (WASM)**, and **Cloudflare Durable Objects**.
+
+Most multiplayer games try to share logic between client and server, but language boundaries usually get in the way. By writing the core game logic in Rust, I can compile it to WebAssembly and run the *same code* in two very different environments:
+
+1. **The Browser** — rendering at 120Hz+ with WebGPU.
+2. **The Edge** — running inside a Cloudflare Durable Object at a fixed 60Hz.
 
 ```mermaid
 graph TD
@@ -57,11 +60,15 @@ graph TD
     Network <-->|WebSockets| Predict
 ```
 
+---
+
 ## 1. The Shared Core (`game_core`)
 
-A key component is the `game_core` crate. It uses [`hecs`](https://docs.rs/hecs), a lightweight Entity Component System (ECS), to manage game entities like paddles and the ball. The physics simulation runs in a deterministic `step` function — because it uses predictable logic (via [`glam`](https://docs.rs/glam) for math and fixed timesteps), it produces consistent results on both the client (WASM) and the server.
+At the heart of the project is the `game_core` crate. It uses [`hecs`](https://docs.rs/hecs), a lightweight Entity Component System (ECS), to manage entities like paddles and the ball.
 
-Here is the actual step function that runs on both sides:
+The physics simulation lives in a deterministic `step` function. It uses fixed timesteps and predictable math (via [`glam`](https://docs.rs/glam)) so that, given the same inputs, it produces the same results on both the client (WASM) and the server.
+
+Here’s the actual `step` function that runs in both environments:
 
 ```rust
 // game_core/src/lib.rs
@@ -89,38 +96,41 @@ pub fn step(
 }
 ```
 
-This functions strictly as a pure simulation: Input State + World State = New World State.
+This is deliberately boring code.  
+Input state + world state goes in, a new world state comes out.
+
+---
 
 ## 2. Server: Authority at the Edge
 
-The server uses **[Cloudflare Durable Objects](https://developers.cloudflare.com/durable-objects/)** to host individual matches. A Durable Object (DO) is a unique, single-threaded instance that can hold state in memory and run a loop.
+Each match runs inside a **Cloudflare Durable Object**. A Durable Object is a single-threaded instance that can hold in-memory state and, crucially, run a continuous loop.
 
-This is critical. Unlike stateless serverless functions, a DO can run a **Game Loop**.
+This is the key difference from typical stateless serverless functions: a Durable Object can host a proper **game loop**.
 
 ```mermaid
-flowchart LR
-    subgraph "Durable Object (60Hz Loop)"
-        A["Receive Inputs"] --> B["game_core::step()"]
-        B --> C{"Tick % 3 == 0?"}
-        C -->|Yes| D["Broadcast Snapshot"]
-        C -->|No| E["Continue"]
-        D --> E
-    end
+flowchart 
+    Inputs["Client Inputs"] -->|"WebSocket"| DO["Durable Object"]
+    DO -->|"60Hz"| Step["game_core::step()"]
+    Step -->|"20Hz"| Broadcast["State Snapshots"]
+    Broadcast -->|"WebSocket"| Clients["All Clients"]
 ```
 
-The server calls `game_core::step()` on every tick (~60Hz), but only broadcasts state snapshots every 3rd frame (~20Hz) to conserve bandwidth.
+The server advances the simulation at ~60Hz but only broadcasts authoritative snapshots every third tick (~20Hz) to keep bandwidth and costs under control.
 
-The server is the "Authority". If the client thinks the ball is at `x=100` but the server says `x=102`, the server wins. But waiting for the server takes time (RTT).
+The server is the authority.  
+If the client thinks the ball is at `x = 100` but the server says `x = 102`, the server wins. Always.
+
+---
 
 ## 3. Client: Prediction and Reconciliation
 
-To mitigate the effects of latency, the client implements **Client-Side Prediction**.
+To hide round-trip latency, the client uses **client-side prediction**.
 
-When you press "UP", the client applies the input *immediately* and renders the frame. It doesn't wait for round-trip confirmation from the server. This makes the game feel responsive.
+When you press “UP”, the client applies that input immediately and renders the next frame. It doesn’t wait for confirmation from the server. This is what makes the game feel responsive.
 
 ### The Reconciliation Loop
 
-However, the client is just guessing. When the authoritative snapshot arrives from the server (usually ~50ms old), the client must check if its guess was correct.
+The client is still guessing, though. When an authoritative snapshot arrives from the server (usually ~50ms old), the client checks whether its prediction was correct.
 
 ```mermaid
 sequenceDiagram
@@ -128,70 +138,66 @@ sequenceDiagram
     participant Server
 
     Note over Client: Frame 100: User presses UP
-    Client->>Client: A. Apply Input (Predict)
-    Client->>Server: Send Input (Seq 100)
+    Client->>Client: Apply Input (Predict)
+    Client->>Server: Send Input
     
     Note over Server: ...Network Delay...
     
-    Server->>Server: Frame 100: Process Input
+    Server->>Server: Process Input
     Server->>Client: Send Snapshot (Tick 100)
     
     Note over Client: ...Network Delay...
     
-    Note over Client: Client is now at Frame 105
-    Client->>Client: Receive Snapshot (Tick 100)
-    Client->>Client: B. Rewind to Tick 100
-    Client->>Client: C. Replay Inputs 101-105
-    Client->>Client: D. Render Frame 105
+    Note over Client: Client receives snapshot
+    Client->>Client: Compare prediction vs server
+    alt Prediction matches
+        Client->>Client: Continue smoothly
+    else Divergence detected
+        Client->>Client: Reset to server state
+    end
 ```
 
-If the prediction matches the server (which is typical given shared deterministic logic), the user sees smooth movement. If there is a divergence (e.g. due to packet loss), the client resets to the authoritative server state.
+---
 
 ## 4. Rendering with WebGPU
 
-The client uses [`wgpu`](https://wgpu.rs/), the Rust implementation of the WebGPU standard, for rendering. WebGPU is the successor to WebGL, offering better performance and a more modern API.
+Rendering is handled with [`wgpu`](https://wgpu.rs/), Rust’s implementation of the WebGPU standard. The simulation runs at 60Hz, but displays often refresh at 120Hz or higher, so the renderer interpolates entity positions between physics ticks to keep visuals smooth.
 
-Because the game logic runs at 60Hz but displays can refresh at 120Hz or higher, the renderer interpolates entity positions between physics ticks to ensure smooth visuals.
+---
 
 ## 5. Efficient Serialization with `postcard`
 
-Network bandwidth matters. The project uses [`postcard`](https://docs.rs/postcard), a `#![no_std]`-compatible binary serialization format, for all WebSocket messages. It produces significantly smaller payloads than JSON, reducing both latency and cost.
+All WebSocket messages are serialized using [`postcard`](https://docs.rs/postcard), a compact binary format that produces far smaller payloads than JSON. This reduces latency and keeps request counts (and costs) under control.
 
-## Economics & Limitations: Is it actually free?
+---
 
-The "serverless" promise is pay-per-use, but real-time games are chatty. Let's crunch the numbers for 2024.
+## Economics & Limitations: Is this actually free?
 
-### The Cost of Real-Time
-Cloudflare charges for **Requests** and **Duration** (GB-s).
--   **Requests**: Every WebSocket message sent counts as a request (on the standard Workers plan, though specific DO pricing treats active WebSocket connections differently).
--   **Duration**: You are billed for the time the Durable Object is "active" (processing code).
+“Serverless” sounds cheap until you start sending messages 60 times a second.
 
-**Free Tier vs. Paid ($5/mo):**
--   **Free Tier**: 100k requests/day. At 60Hz input (approx. 3,600 req/min/player), this only supports ~30 minutes of total gameplay per day. Perfect for development, but not production.
--   **Paid Tier ($5/mo)**: Checks in at **10 million requests/month**. This lifts the ceiling dramatically, allowing for roughly **50 hours of active gameplay per month** included in the base price, with cheap overage.
+Cloudflare bills Durable Objects based on **requests** and **execution time (GB-s)**.
 
-**Optimization is still Key**: Even with the paid plan, naive networking burns money. I optimized by sending inputs only when they change and broadcasting server snapshots at a reduced rate (20Hz).
+- **Free tier**: ~30 minutes of total gameplay per day.
+- **Paid plan ($5/month)**: ~50 hours of active gameplay per month before overages.
 
-### The Problem with scaling
-Durable Objects are single-region. If a match is hosted in London, a player in Tokyo effectively faces a 200ms+ RTT.
--   **Solution**: Matchmaking. You should group players by region and spawn the Durable Object in the data center closest to them.
--   **Limit**: You cannot move a running Durable Object to another region.
+Durable Objects are also single-region, which means global latency must be handled explicitly with region-aware matchmaking.
+
+---
 
 ## Conclusion
 
-By leveraging Rust's ability to target Wasm, Pongo achieves a "best of both worlds" result:
-1.  **Low Latency**: The client predicts frame-perfect input.
-2.  **High Security**: The server has final authority, preventing cheating.
-3.  **Low Cost**: Running game loops on the Edge (Durable Objects) allows for scalable infrastructure without managing fleet servers.
+By leaning on Rust’s ability to target WebAssembly, Pongo ends up with a clean and pragmatic architecture:
 
-This architecture proves that you don't need a massive dedicated server fleet to build a responsive multiplayer game in 2024.
+1. **Low latency** through client-side prediction.
+2. **Strong authority** via deterministic server simulation.
+3. **Low operational overhead** by running game loops at the edge.
+
+You don’t need a traditional fleet of dedicated servers to build a responsive multiplayer game in 2024 — but you do need to be deliberate about determinism, networking, and cost.
+
+---
 
 ## A Note on AI-Assisted Development
 
-This project was built using [Google Antigravity](https://antigravity.google/) with multiple AI models:
+This project was built with heavy AI assistance — but not in a “one prompt and done” way.
 
--   **Claude Opus 4 (Thinking)**: Used for complex architectural decisions and debugging subtle issues like MCTS AI logic and prediction/reconciliation edge cases.
--   **Gemini 2.5 Pro**: Used for substantial refactoring, implementing new features, and detailed code reviews.
--   **Gemini 2.5 Flash**: Used for quick iterations, formatting, linting fixes, and routine changes.
-
-The combination proved effective: slower "thinking" models for problems requiring deep reasoning, faster models for high-volume changes.
+I used Google Antigravity with multiple models, picking slower, reasoning-heavy models for hard problems and faster models for iteration, refactoring, and routine cleanup. That division of labour turned out to be a very effective workflow.
