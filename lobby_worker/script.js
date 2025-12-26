@@ -642,7 +642,7 @@ if (popOutBtn) {
     window.open(
       "/",
       "GamePopout",
-      "width=480,height=800,menubar=no,toolbar=no,location=no,status=no,resizable=yes,scrollbars=no"
+      "width=380,height=800,menubar=no,toolbar=no,location=no,status=no,resizable=yes,scrollbars=no"
     );
   });
 }
