@@ -120,6 +120,8 @@ The server advances the simulation at ~60Hz but only broadcasts authoritative sn
 The server is the authority.  
 If the client thinks the ball is at `x = 100` but the server says `x = 102`, the server wins. Always.
 
+For paddles, the server uses **Target-Based Validation**. It accepts the client's desired position but moves the authoritative paddle towards that target at the maximum allowed speed. This prevents teleportation cheats while maintaining responsiveness.
+
 ---
 
 ## 3. Client: Prediction and Reconciliation

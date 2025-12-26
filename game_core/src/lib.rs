@@ -81,7 +81,7 @@ pub fn step(
 
 /// Helper to create a paddle entity
 pub fn create_paddle(world: &mut World, player_id: u8, y: f32) -> hecs::Entity {
-    world.spawn((Paddle::new(player_id, y), PaddleIntent::new()))
+    world.spawn((Paddle::new(player_id, y), PaddleIntent::with_target(y)))
 }
 
 /// Helper to create the ball entity
@@ -212,13 +212,16 @@ mod integration_tests {
             &mut respawn_state,
         );
 
-        // Verify paddle moved
+        // Verify paddle moved towards target
         for (_entity, paddle) in world.query::<&Paddle>().iter() {
             if paddle.player_id == 0 {
+                // Should have moved UP (smaller Y) towards 5.0
                 assert!(
                     paddle.y < initial_paddle_y,
                     "Paddle should move up after input"
                 );
+                // Should not overshoot target if speed allows
+                // (Depends on speed/dt, but 12.0 -> 5.0 is far, so it should just be closer)
             }
         }
     }

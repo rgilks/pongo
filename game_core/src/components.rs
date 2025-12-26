@@ -43,14 +43,31 @@ impl Ball {
 }
 
 /// Movement intent for paddle
-#[derive(Debug, Clone, Copy, Default)]
+#[derive(Debug, Clone, Copy)]
 pub struct PaddleIntent {
-    pub dir: i8, // -1 = up, 0 = stop, 1 = down
+    pub dir: i8, // Deprecated: Only used for legacy/client prediction hints if needed
+    pub target_y: f32, // Desired Y position
+}
+
+impl Default for PaddleIntent {
+    fn default() -> Self {
+        Self {
+            dir: 0,
+            target_y: 12.0, // Center default
+        }
+    }
 }
 
 impl PaddleIntent {
     pub fn new() -> Self {
         Self::default()
+    }
+
+    pub fn with_target(y: f32) -> Self {
+        Self {
+            dir: 0,
+            target_y: y,
+        }
     }
 }
 

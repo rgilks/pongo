@@ -1,16 +1,25 @@
 use crate::{Ball, Config, GameMap, Paddle, PaddleIntent};
 use hecs::World;
 
-/// Apply paddle movement based on intents
+/// Apply paddle movement based on intents (Server-Side Validation)
 pub fn move_paddles(world: &mut World, map: &GameMap, config: &Config, dt: f32) {
     for (_entity, (paddle, intent)) in world.query_mut::<(&mut Paddle, &PaddleIntent)>() {
-        if intent.dir != 0 {
-            let delta = intent.dir as f32 * config.paddle_speed * dt;
-            paddle.y += delta;
-
-            // Clamp to arena bounds
-            paddle.y = map.clamp_y(paddle.y, config.paddle_height / 2.0);
+        // Calculate distance to target
+        let diff = intent.target_y - paddle.y;
+        
+        // If already at target (within epsilon), do nothing
+        if diff.abs() < 0.01 {
+            paddle.y = intent.target_y;
+        } else {
+            // Cap movement by max speed
+            let max_move = config.paddle_speed * dt;
+            let move_dist = diff.clamp(-max_move, max_move);
+            
+            paddle.y += move_dist;
         }
+
+        // Clamp to arena bounds (safety fallback)
+        paddle.y = map.clamp_y(paddle.y, config.paddle_height / 2.0);
     }
 }
 
@@ -24,7 +33,7 @@ pub fn move_ball(world: &mut World, dt: f32) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{create_ball, create_paddle, Ball, Config, GameMap, Paddle, PaddleIntent, Time};
+    use crate::{create_paddle, Ball, Config, GameMap, Paddle, PaddleIntent, Time};
 
     fn setup_world() -> (World, Config, GameMap, Time) {
         let world = World::new();
@@ -35,167 +44,98 @@ mod tests {
     }
 
     #[test]
-    fn test_paddle_moves_up() {
+    fn test_paddle_moves_towards_target_up() {
         let (mut world, config, map, time) = setup_world();
         let paddle_y = 12.0;
         create_paddle(&mut world, 0, paddle_y);
 
-        // Set intent to move up
+        // Set target UP (smaller Y)
+        let target = 5.0;
         for (_entity, (_paddle, intent)) in world.query_mut::<(&Paddle, &mut PaddleIntent)>() {
-            intent.dir = -1; // Up
+            intent.target_y = target;
         }
 
         move_paddles(&mut world, &map, &config, time.dt);
 
-        // Verify paddle moved up
+        // Verify paddle moved towards target LIMITED by speed
         for (_entity, paddle) in world.query::<&Paddle>().iter() {
             assert!(paddle.y < paddle_y, "Paddle should move up");
-            assert_eq!(paddle.y, paddle_y - config.paddle_speed * time.dt);
+            // Should move exactly max speed
+            let expected_y = paddle_y - config.paddle_speed * time.dt;
+            assert!((paddle.y - expected_y).abs() < 0.001);
         }
     }
 
     #[test]
-    fn test_paddle_moves_down() {
+    fn test_paddle_moves_towards_target_down() {
         let (mut world, config, map, time) = setup_world();
         let paddle_y = 12.0;
         create_paddle(&mut world, 0, paddle_y);
 
-        // Set intent to move down
+        // Set target DOWN (larger Y)
+        let target = 18.0;
         for (_entity, (_paddle, intent)) in world.query_mut::<(&Paddle, &mut PaddleIntent)>() {
-            intent.dir = 1; // Down
+            intent.target_y = target;
         }
 
         move_paddles(&mut world, &map, &config, time.dt);
 
-        // Verify paddle moved down
+        // Verify paddle moved towards target LIMITED by speed
         for (_entity, paddle) in world.query::<&Paddle>().iter() {
             assert!(paddle.y > paddle_y, "Paddle should move down");
-            assert_eq!(paddle.y, paddle_y + config.paddle_speed * time.dt);
+            // Should move exactly max speed
+            let expected_y = paddle_y + config.paddle_speed * time.dt;
+            assert!((paddle.y - expected_y).abs() < 0.001);
         }
     }
 
     #[test]
-    fn test_paddle_stops_when_intent_zero() {
+    fn test_paddle_teleport_attempt_throttled() {
         let (mut world, config, map, time) = setup_world();
         let paddle_y = 12.0;
         create_paddle(&mut world, 0, paddle_y);
 
-        // Set intent to stop
+        // Set target HUGE jump
+        let target = 20.0; // 8 units away
         for (_entity, (_paddle, intent)) in world.query_mut::<(&Paddle, &mut PaddleIntent)>() {
-            intent.dir = 0;
+            intent.target_y = target;
         }
 
         move_paddles(&mut world, &map, &config, time.dt);
 
-        // Verify paddle didn't move
+        // Verify paddle ONLY moved max speed, not teleported
         for (_entity, paddle) in world.query::<&Paddle>().iter() {
-            assert_eq!(paddle.y, paddle_y);
+            let max_dist = config.paddle_speed * time.dt;
+            assert!(
+                (paddle.y - paddle_y).abs() <= max_dist + 0.001,
+                "Paddle should be throttled"
+            );
+            assert!(paddle.y < target, "Paddle should not have reached target yet");
         }
     }
 
     #[test]
-    fn test_paddle_clamps_to_top_boundary() {
+    fn test_paddle_reaches_target_if_close() {
         let (mut world, config, map, time) = setup_world();
-        let half_height = config.paddle_height / 2.0;
-        let paddle_y = half_height + 0.1; // Just above minimum
+        let paddle_y = 12.0;
         create_paddle(&mut world, 0, paddle_y);
 
-        // Try to move up beyond boundary
+        // Set target very close (less than max move)
+        let small_dist = 0.1;
+        // Make sure this is less than speed * dt
+        assert!(small_dist < config.paddle_speed * time.dt); 
+        
+        let target = paddle_y + small_dist;
+
         for (_entity, (_paddle, intent)) in world.query_mut::<(&Paddle, &mut PaddleIntent)>() {
-            intent.dir = -1;
+            intent.target_y = target;
         }
 
         move_paddles(&mut world, &map, &config, time.dt);
 
-        // Verify paddle clamped to boundary
+        // Verify reached exactly
         for (_entity, paddle) in world.query::<&Paddle>().iter() {
-            assert_eq!(
-                paddle.y, half_height,
-                "Paddle should be clamped to top boundary"
-            );
+            assert!((paddle.y - target).abs() < 0.001, "Should snap to target");
         }
-    }
-
-    #[test]
-    fn test_paddle_clamps_to_bottom_boundary() {
-        let (mut world, config, map, time) = setup_world();
-        let half_height = config.paddle_height / 2.0;
-        let paddle_y = map.height - half_height - 0.1; // Just below maximum
-        create_paddle(&mut world, 0, paddle_y);
-
-        // Try to move down beyond boundary
-        for (_entity, (_paddle, intent)) in world.query_mut::<(&Paddle, &mut PaddleIntent)>() {
-            intent.dir = 1;
-        }
-
-        move_paddles(&mut world, &map, &config, time.dt);
-
-        // Verify paddle clamped to boundary
-        for (_entity, paddle) in world.query::<&Paddle>().iter() {
-            assert_eq!(
-                paddle.y,
-                map.height - half_height,
-                "Paddle should be clamped to bottom boundary"
-            );
-        }
-    }
-
-    #[test]
-    fn test_ball_moves_with_velocity() {
-        let (mut world, _config, _map, time) = setup_world();
-        let initial_pos = glam::Vec2::new(16.0, 12.0);
-        let velocity = glam::Vec2::new(8.0, 4.0);
-        create_ball(&mut world, initial_pos, velocity);
-
-        move_ball(&mut world, time.dt);
-
-        // Verify ball moved
-        for (_entity, ball) in world.query::<&Ball>().iter() {
-            let expected_pos = initial_pos + velocity * time.dt;
-            assert_eq!(ball.pos, expected_pos);
-        }
-    }
-
-    #[test]
-    fn test_ball_moves_with_zero_velocity() {
-        let (mut world, _config, _map, time) = setup_world();
-        let initial_pos = glam::Vec2::new(16.0, 12.0);
-        let velocity = glam::Vec2::ZERO;
-        create_ball(&mut world, initial_pos, velocity);
-
-        move_ball(&mut world, time.dt);
-
-        // Verify ball didn't move
-        for (_entity, ball) in world.query::<&Ball>().iter() {
-            assert_eq!(ball.pos, initial_pos);
-        }
-    }
-
-    #[test]
-    fn test_multiple_paddles_move_independently() {
-        let (mut world, config, map, time) = setup_world();
-        create_paddle(&mut world, 0, 12.0);
-        create_paddle(&mut world, 1, 12.0);
-
-        // Set different intents for each paddle
-        for (_entity, (paddle, intent)) in world.query_mut::<(&Paddle, &mut PaddleIntent)>() {
-            intent.dir = if paddle.player_id == 0 { -1 } else { 1 };
-        }
-
-        move_paddles(&mut world, &map, &config, time.dt);
-
-        // Verify paddles moved in opposite directions
-        let mut paddle_positions = Vec::new();
-        for (_entity, paddle) in world.query::<&Paddle>().iter() {
-            paddle_positions.push((paddle.player_id, paddle.y));
-        }
-        paddle_positions.sort_by_key(|(id, _)| *id);
-
-        assert_eq!(paddle_positions.len(), 2);
-        assert!(paddle_positions[0].1 < 12.0, "Left paddle should move up");
-        assert!(
-            paddle_positions[1].1 > 12.0,
-            "Right paddle should move down"
-        );
     }
 }

@@ -1,21 +1,17 @@
-use crate::{NetQueue, Paddle};
+use crate::{NetQueue, Paddle, PaddleIntent};
 use hecs::World;
 
-/// Ingest network inputs and apply to paddle positions
+/// Ingest network inputs and apply by updating paddle targets
 pub fn ingest_inputs(world: &mut World, net_queue: &mut NetQueue) {
     // Process all queued inputs
     for (player_id, y_pos) in net_queue.inputs.drain(..) {
-        // Find paddle with matching player_id
-        for (_entity, paddle) in world.query_mut::<&mut Paddle>() {
+        // Find paddle and intent with matching player_id
+        for (_entity, (paddle, intent)) in world.query_mut::<(&Paddle, &mut PaddleIntent)>() {
             if paddle.player_id == player_id {
-                // Apply absolute position (clamped to arena)
+                // Update target, clamped to valid arena range for the center of the paddle
                 // Arena height is 24.0, paddle height 4.0.
-                // Valid range: 2.0 to 22.0 (center pos)
-                // Wait, previous code used Clamp(2.0, 22.0)?
-                // Let's check previous CLAMP values used in client:
-                // client.local_paddle_y.clamp(half_height, ARENA_HEIGHT - half_height);
-                // half_height = 2.0. Arena = 24.0. So 2.0 to 22.0 is center position range.
-                paddle.y = y_pos.clamp(2.0, 22.0);
+                // Valid center range: 2.0 to 22.0
+                intent.target_y = y_pos.clamp(2.0, 22.0);
             }
         }
     }
@@ -42,16 +38,16 @@ mod tests {
 
         ingest_inputs(&mut world, &mut net_queue);
 
-        // Verify positions were applied correctly
-        let mut paddle_y = Vec::new();
-        for (_entity, paddle) in world.query::<&Paddle>().iter() {
-            paddle_y.push((paddle.player_id, paddle.y));
+        // Verify targets were updated correctly
+        let mut paddle_targets = Vec::new();
+        for (_entity, (paddle, intent)) in world.query::<(&Paddle, &PaddleIntent)>().iter() {
+            paddle_targets.push((paddle.player_id, intent.target_y));
         }
-        paddle_y.sort_by_key(|(id, _)| *id);
+        paddle_targets.sort_by_key(|(id, _)| *id);
 
-        assert_eq!(paddle_y.len(), 2);
-        assert_eq!(paddle_y[0], (0, 5.0));
-        assert_eq!(paddle_y[1], (1, 18.0));
+        assert_eq!(paddle_targets.len(), 2);
+        assert_eq!(paddle_targets[0], (0, 5.0));
+        assert_eq!(paddle_targets[1], (1, 18.0));
     }
 
     #[test]
@@ -79,9 +75,11 @@ mod tests {
 
         ingest_inputs(&mut world, &mut net_queue);
 
-        // Last input should be applied
-        for (_entity, paddle) in world.query::<&Paddle>().iter() {
-            assert_eq!(paddle.y, 8.0, "Last input should be applied");
+        // Last input target should be applied
+        for (_entity, (paddle, intent)) in world.query::<(&Paddle, &PaddleIntent)>().iter() {
+            if paddle.player_id == 0 {
+                assert_eq!(intent.target_y, 8.0, "Last input target should be applied");
+            }
         }
     }
 
@@ -92,14 +90,18 @@ mod tests {
 
         net_queue.push_input(0, -100.0); // Too low
         ingest_inputs(&mut world, &mut net_queue);
-        for (_entity, paddle) in world.query::<&Paddle>().iter() {
-            assert_eq!(paddle.y, 2.0, "Should clamp to min");
+        for (_entity, (paddle, intent)) in world.query::<(&Paddle, &PaddleIntent)>().iter() {
+            if paddle.player_id == 0 {
+                assert_eq!(intent.target_y, 2.0, "Should clamp target to min");
+            }
         }
 
         net_queue.push_input(0, 100.0); // Too high
         ingest_inputs(&mut world, &mut net_queue);
-        for (_entity, paddle) in world.query::<&Paddle>().iter() {
-            assert_eq!(paddle.y, 22.0, "Should clamp to max");
+        for (_entity, (paddle, intent)) in world.query::<(&Paddle, &PaddleIntent)>().iter() {
+            if paddle.player_id == 0 {
+                assert_eq!(intent.target_y, 22.0, "Should clamp target to max");
+            }
         }
     }
 

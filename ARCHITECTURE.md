@@ -57,6 +57,9 @@ Each game match runs in a Cloudflare **Durable Object** (DO). The DO maintains t
 - **Tick Loop:** The server calls `GameState::step` which delegates to `game_core::step`.
 - **Broadcasting:** Every 3rd tick (20Hz), it sends a snapshot to all clients via `broadcast_state`.
 
+> [!NOTE]
+> **Edge Latency Nuance:** While Durable Objects run "at the edge," each specific match runs in a **single location**. Frame updates still suffer light-speed latency for players far from that specific data center. Global latency is mitigated by region-aware matchmaking, ensuring players match in a DO close to both of them.
+
 ### 3. The Client (`client_wasm`)
 
 The client needs to be smooth (120Hz+) even though headers only arrive at 20Hz.
@@ -122,7 +125,7 @@ graph TD
 1. Browser captures key press in [`on_key_down`](client_wasm/src/lib.rs).
 2. Client updates local paddle immediately.
 3. Client sends `C2S::Input` to server.
-4. Server applies input in its next tick.
+4. Server validates input (enforcing speed limits) and updates entity intent.
 5. Server includes new paddle position in next broadcast.
 
 ### Rendering Frame
@@ -154,7 +157,7 @@ graph TD
 ```rust
 enum C2S {
     Join { code: [u8; 5] },
-    Input { player_id: u8, paddle_dir: i8, seq: u32 },
+    Input { player_id: u8, y: f32, seq: u32 },
     Ping { t_ms: u32 },
 }
 ```
