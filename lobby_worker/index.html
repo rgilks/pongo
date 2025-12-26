@@ -44,8 +44,13 @@
         margin: 0;
         padding: 20px;
         min-height: 100vh;
-        overflow-x: hidden;
-        overflow-y: auto;
+        height: 100vh;
+        overflow: hidden;
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        touch-action: none;
         background: radial-gradient(circle at top center, #1e293b 0%, #020617 100%);
         color: var(--text-main);
         font-family: 'Inter', sans-serif;
@@ -53,10 +58,8 @@
         flex-direction: column;
         align-items: center;
         justify-content: center;
-        gap: 40px;
         -webkit-user-select: none;
         user-select: none;
-        touch-action: none;
       }
 
       /* Subtle animated grid background */
@@ -712,14 +715,14 @@
             CONTROLS<br>
             W / S or ↑ / ↓ to Move
           </div>
+          
+          <!-- Ko-fi Support Button -->
+          <div style="margin-top: 10px; display: flex; justify-content: center;">
+            <a href="https://ko-fi.com/N4N31DPNUS" target="_blank" rel="noopener noreferrer">
+              <img height="34" style="border:0px;height:34px;" src="https://storage.ko-fi.com/cdn/kofi2.png?v=6" alt="Buy Me a Coffee at ko-fi.com" />
+            </a>
+          </div>
         </div>
-      </div>
-      
-      <!-- Ko-fi Support Button -->
-      <div style="margin-top: 20px; z-index: 1000; display: flex; justify-content: center; width: 100%;">
-        <a href="https://ko-fi.com/N4N31DPNUS" target="_blank" rel="noopener noreferrer">
-          <img height="36" style="border:0px;height:36px;" src="https://storage.ko-fi.com/cdn/kofi2.png?v=6" alt="Buy Me a Coffee at ko-fi.com" />
-        </a>
       </div>
     </div>
 
