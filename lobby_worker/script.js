@@ -663,14 +663,31 @@ function setupInputIfNeeded() {
     { capture: true, passive: false }
   );
 
-  // --- Touch Button Controls ---
+  // --- Touch & Mouse Slide Controls ---
   let currentTouchDir = 0;
+  let isPointerDown = false;
 
-  const handleTouchBtnPress = (dir) => {
-    if (!client) return;
+  const handlePointerUpdate = (x, y) => {
+    const target = document.elementFromPoint(x, y);
 
-    const newDir = dir === "up" ? -1 : 1;
+    let newDir = 0;
+    if (target && target.classList.contains("touch-btn")) {
+      newDir = target.dataset.dir === "up" ? -1 : 1;
+    }
+
+    // Update visual state of all buttons
+    document.querySelectorAll(".touch-btn").forEach((btn) => {
+      if (newDir !== 0 && btn.dataset.dir === (newDir === -1 ? "up" : "down")) {
+        btn.classList.add("pressed");
+      } else {
+        btn.classList.remove("pressed");
+      }
+    });
+
+    // Update game input
     if (newDir !== currentTouchDir) {
+      if (!client) return;
+
       // Release old direction
       if (currentTouchDir === -1) client.handle_key_string("ArrowUp", false);
       if (currentTouchDir === 1) client.handle_key_string("ArrowDown", false);
@@ -684,68 +701,83 @@ function setupInputIfNeeded() {
     }
   };
 
-  const handleTouchBtnRelease = () => {
-    if (!client) return;
+  const handlePointerEnd = () => {
+    isPointerDown = false;
 
-    if (currentTouchDir === -1) client.handle_key_string("ArrowUp", false);
-    if (currentTouchDir === 1) client.handle_key_string("ArrowDown", false);
-    currentTouchDir = 0;
-    sendInput();
+    // Clear visuals
+    document.querySelectorAll(".touch-btn").forEach((btn) => {
+      btn.classList.remove("pressed");
+    });
+
+    // Release input
+    if (currentTouchDir !== 0 && client) {
+      if (currentTouchDir === -1) client.handle_key_string("ArrowUp", false);
+      if (currentTouchDir === 1) client.handle_key_string("ArrowDown", false);
+      currentTouchDir = 0;
+      sendInput();
+    }
   };
 
-  // Set up touch button event listeners
-  document.querySelectorAll(".touch-btn").forEach((btn) => {
-    const dir = btn.dataset.dir;
-
-    btn.addEventListener(
-      "touchstart",
-      (e) => {
+  // --- Touch Event Listeners ---
+  document.addEventListener(
+    "touchstart",
+    (e) => {
+      if (e.target.classList.contains("touch-btn")) {
         e.preventDefault();
-        btn.classList.add("pressed");
-        handleTouchBtnPress(dir);
-      },
-      { passive: false }
-    );
-
-    btn.addEventListener(
-      "touchend",
-      (e) => {
-        e.preventDefault();
-        btn.classList.remove("pressed");
-        handleTouchBtnRelease();
-      },
-      { passive: false }
-    );
-
-    btn.addEventListener(
-      "touchcancel",
-      (e) => {
-        e.preventDefault();
-        btn.classList.remove("pressed");
-        handleTouchBtnRelease();
-      },
-      { passive: false }
-    );
-
-    // Also support mouse for testing on desktop
-    btn.addEventListener("mousedown", (e) => {
-      e.preventDefault();
-      btn.classList.add("pressed");
-      handleTouchBtnPress(dir);
-    });
-
-    btn.addEventListener("mouseup", (e) => {
-      e.preventDefault();
-      btn.classList.remove("pressed");
-      handleTouchBtnRelease();
-    });
-
-    btn.addEventListener("mouseleave", () => {
-      if (btn.classList.contains("pressed")) {
-        btn.classList.remove("pressed");
-        handleTouchBtnRelease();
+        isPointerDown = true; // reusing checking flag for consistency
+        if (e.touches.length > 0) {
+          handlePointerUpdate(e.touches[0].clientX, e.touches[0].clientY);
+        }
       }
-    });
+    },
+    { passive: false }
+  );
+
+  document.addEventListener(
+    "touchmove",
+    (e) => {
+      // Allow sliding if we're "active" or simply if moving over buttons
+      if (isPointerDown || e.target.classList.contains("touch-btn")) {
+        e.preventDefault();
+        if (e.touches.length > 0) {
+          handlePointerUpdate(e.touches[0].clientX, e.touches[0].clientY);
+        }
+      }
+    },
+    { passive: false }
+  );
+
+  document.addEventListener("touchend", (e) => {
+    if (isPointerDown) {
+      handlePointerEnd();
+    }
+  });
+
+  document.addEventListener("touchcancel", (e) => {
+    if (isPointerDown) {
+      handlePointerEnd();
+    }
+  });
+
+  // --- Mouse Event Listeners (Desktop Testing) ---
+  document.addEventListener("mousedown", (e) => {
+    if (e.target.classList.contains("touch-btn")) {
+      isPointerDown = true;
+      handlePointerUpdate(e.clientX, e.clientY);
+    }
+  });
+
+  document.addEventListener("mousemove", (e) => {
+    if (isPointerDown) {
+      e.preventDefault(); // Prevent text selection while dragging
+      handlePointerUpdate(e.clientX, e.clientY);
+    }
+  });
+
+  document.addEventListener("mouseup", (e) => {
+    if (isPointerDown) {
+      handlePointerEnd();
+    }
   });
 }
 
