@@ -2,7 +2,7 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
     <title>Pong</title>
     <!-- Google Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -58,6 +58,7 @@
         justify-content: center;
         -webkit-user-select: none;
         user-select: none;
+        -webkit-touch-callout: none;
       }
 
       /* Subtle animated grid background */
@@ -504,6 +505,158 @@
       #matchCode {
         display: none;
       }
+      
+      /* Game Code Display */
+      .game-code-display {
+        text-align: center;
+        margin-bottom: 12px;
+      }
+      
+      .game-code-label {
+        font-size: 11px;
+        color: var(--text-muted);
+        text-transform: uppercase;
+        letter-spacing: 1px;
+        margin-bottom: 4px;
+      }
+      
+      .game-code-value {
+        font-family: 'Outfit', monospace;
+        font-size: 28px;
+        font-weight: 700;
+        color: var(--accent);
+        letter-spacing: 4px;
+      }
+      
+      /* Join with Code */
+      .join-code-container {
+        margin-top: 12px;
+        padding-top: 12px;
+        border-top: 1px solid var(--glass-border);
+      }
+      
+      .join-code-toggle {
+        width: 100%;
+        padding: 10px;
+        background: transparent;
+        border: 1px dashed var(--glass-border);
+        border-radius: 8px;
+        color: var(--text-muted);
+        font-family: 'Inter', sans-serif;
+        font-size: 12px;
+        cursor: pointer;
+        transition: all 0.2s;
+      }
+      
+      .join-code-toggle:hover {
+        border-color: var(--primary);
+        color: var(--text-main);
+      }
+      
+      .join-code-form {
+        display: none;
+        flex-direction: column;
+        gap: 8px;
+      }
+      
+      .join-code-form.show {
+        display: flex;
+      }
+      
+      .join-code-input {
+        width: 100%;
+        padding: 12px;
+        background: rgba(0, 0, 0, 0.4);
+        border: 1px solid var(--glass-border);
+        border-radius: 8px;
+        color: var(--text-main);
+        font-family: 'Outfit', monospace;
+        font-size: 20px;
+        text-align: center;
+        text-transform: uppercase;
+        letter-spacing: 4px;
+      }
+      
+      .join-code-input:focus {
+        outline: none;
+        border-color: var(--primary);
+        box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.2);
+      }
+      
+      .join-code-input::placeholder {
+        color: var(--text-muted);
+        opacity: 0.5;
+        letter-spacing: 2px;
+        font-size: 14px;
+      }
+      
+      .btn-join {
+        width: 100%;
+        padding: 12px;
+        background: var(--success);
+        border: none;
+        border-radius: 8px;
+        color: white;
+        font-family: 'Outfit', sans-serif;
+        font-size: 14px;
+        font-weight: 700;
+        letter-spacing: 1px;
+        text-transform: uppercase;
+        cursor: pointer;
+        transition: all 0.2s;
+      }
+      
+      .btn-join:hover {
+        background: #0d9669;
+        transform: translateY(-1px);
+      }
+      
+      .btn-join:disabled {
+        background: #334155;
+        cursor: not-allowed;
+        transform: none;
+      }
+      
+      /* Game code row with inline buttons */
+      .game-code-row {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 12px;
+      }
+      
+      /* Icon buttons */
+      .btn-icon {
+        width: 40px;
+        height: 40px;
+        border-radius: 10px;
+        border: 1px solid var(--glass-border);
+        background: rgba(255, 255, 255, 0.1);
+        color: var(--text-main);
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: all 0.2s;
+      }
+      
+      .btn-icon:hover {
+        background: rgba(255, 255, 255, 0.2);
+        transform: translateY(-1px);
+      }
+      
+      .btn-icon:active {
+        transform: translateY(0);
+      }
+      
+      .btn-icon-primary {
+        background: var(--primary);
+        border-color: var(--primary);
+      }
+      
+      .btn-icon-primary:hover {
+        background: var(--primary-hover);
+      }
 
         /* Ko-fi Button */
       .share-container {
@@ -650,9 +803,34 @@
             text-transform: uppercase;
         }
 
+      /* Touch zones - visible on all touch devices including iPad */
+      .touch-zone {
+        position: absolute;
+        top: 0;
+        bottom: 0;
+        width: 50%;
+        z-index: 50;
+        touch-action: none;
+        -webkit-touch-callout: none;
+        -webkit-user-select: none;
+        user-select: none;
+      }
+      
+      #touchZoneLeft { left: 0; }
+      #touchZoneRight { right: 0; }
+      
+      /* Show touch zones on any touch device (includes iPad) */
+      @media (pointer: coarse) {
+        .touch-hint {
+          display: block;
+        }
+        .controls-info {
+          display: none;
+        }
+      }
+      
       /* Mobile Layout */
       @media (max-width: 850px) {
-        /* ... existing body/main styling ... */
         body {
           align-items: center; 
           overflow: hidden; 
@@ -660,7 +838,7 @@
         
         /* Smaller title on mobile */
         .game-title {
-            font-size: 24px; /* Reduced from 32px */
+            font-size: 24px;
             letter-spacing: 3px;
             margin-bottom: 5px;
             text-shadow: 0 0 15px rgba(99, 102, 241, 0.3);
@@ -670,17 +848,13 @@
           flex-direction: column;
           align-items: center;
           justify-content: flex-start;
-          gap: 10px;
+          gap: 8px;
           height: 100dvh;
+          max-height: 100dvh;
           overflow: hidden;
-          padding: 10px 0;
+          padding: 5px 0;
         }
         
-        /* Show touch hint on mobile */
-        .touch-hint {
-            display: block;
-        }
-
         .share-row {
            flex-wrap: wrap;
         }
@@ -691,45 +865,61 @@
         }
         
         .share-row button {
-           flex: 1; /* Buttons share width */
+           flex: 1;
         }
         
-        /* ... rest of mobile styling ... */
         #sidePanel {
-          width: 95%; /* Wider on mobile */
+          width: 95%;
           max-width: 360px;
           order: 2;
-          margin-bottom: 0;
-          flex-shrink: 1; 
-          transform: none; /* Remove scaling hack, use proper sizing */
+          margin-bottom: 5px;
+          flex-shrink: 1;
+          min-height: 0;
+          overflow: hidden;
         }
         
         /* Compact Card for Mobile */
         .panel-card {
-            padding: 16px; 
-            gap: 12px;
-            background: rgba(30, 41, 59, 0.85); /* Slightly more opaque */
+            padding: 10px; 
+            gap: 6px;
+            background: rgba(30, 41, 59, 0.85);
             backdrop-filter: blur(10px);
         }
 
         /* Compact Score */
         #score {
-            font-size: 42px; /* Smaller than desktop 56px */
+            font-size: 32px;
         }
         
         #scoreContainer {
-            margin-bottom: -5px; /* Tighten up */
+            margin-bottom: 0;
         }
         
         #winCondition {
-            font-size: 10px;
-            margin-bottom: 5px;
+            font-size: 9px;
+            margin-bottom: 4px;
+            margin-top: 2px;
+        }
+        
+        /* Hide metrics and controls on mobile to save space */
+        #metrics, .controls-info {
+            display: none;
         }
 
-        /* Side-by-side main buttons */
+        /* Compact buttons */
         #playBtn {
-             font-size: 18px;
-             padding: 16px;
+             font-size: 14px;
+             padding: 10px;
+        }
+        
+        .btn-challenge {
+          font-size: 11px;
+          padding: 8px 14px;
+        }
+        
+        .btn-quit, .btn-leave {
+          padding: 8px;
+          font-size: 11px;
         }
 
         #gameContainer {
@@ -738,6 +928,7 @@
           max-width: none;
           flex-shrink: 0;
           flex-grow: 1;
+          min-height: 0;
           padding: 0;
           margin: 5px;
           display: flex;
@@ -747,37 +938,34 @@
           border-radius: 12px;
           box-shadow: var(--shadow-lg);
           background: linear-gradient(145deg, rgba(255,255,255,0.03), rgba(255,255,255,0.01));
-          overflow: hidden; /* Clean cornres */
+          overflow: hidden;
         }
         
         #canvas {
            width: 100%;
            height: 100%;
-           object-fit: contain; /* Ensure Aspect Ratio */
+           object-fit: contain;
            border-radius: 0;
         }
         
-        /* Mobile Touch Buttons */
-        .touch-zone {
-            position: absolute;
-            top: 0;
-            bottom: 0;
-            width: 50%;
-            z-index: 50; /* Above canvas but below UI overlays */
-            touch-action: none;
+        /* Mobile-specific join code styling */
+        .join-code-container {
+          margin-top: 8px;
+          padding-top: 8px;
         }
-
-        #touchZoneLeft { left: 0; }
-        #touchZoneRight { right: 0; }
+        
+        .join-code-input {
+          font-size: 16px;
+          padding: 10px;
+        }
+        
+        .game-code-value {
+          font-size: 24px;
+        }
 
         /* Hide old buttons if present */
         .mobile-btn {
            display: none !important;
-        }
-        
-        /* Hide keyboard controls text on mobile */
-        .controls-info {
-          display: none;
         }
       }
     </style>
@@ -839,6 +1027,15 @@
           <!-- Multiplayer: Create match button -->
           <div id="lobbyControls">
             <button id="createBtn" class="btn-challenge">Challenge a Friend</button>
+            
+            <!-- Join with Code -->
+            <div class="join-code-container">
+              <button id="joinCodeToggle" class="join-code-toggle">Have a game code? Join here</button>
+              <div id="joinCodeForm" class="join-code-form">
+                <input type="text" id="joinCodeInput" class="join-code-input" placeholder="XXXXX" maxlength="5" autocomplete="off" autocapitalize="characters" />
+                <button id="joinCodeBtn" class="btn-join" disabled>Join Game</button>
+              </div>
+            </div>
           </div>
           
           <!-- Quit button for local games -->
@@ -846,21 +1043,35 @@
           <!-- Waiting for opponent -->
           <div id="activeMatchControls" style="display: none;">
             <div class="waiting-state">
-              <div class="waiting-text" style="font-size: 14px; color: var(--text-muted); margin-bottom: 4px;">Share this link to play</div>
-              
-              <div class="share-container">
-                  <!-- Link explicitly on its own line -->
-                  <input type="text" id="shareLinkInput" readonly>
-                  
-                  <div class="share-row">
-                    <button id="copyLinkBtn" class="btn-copy">COPY LINK</button>
-                    <button id="shareLinkBtn" class="btn-share" style="display: none;">SHARE</button>
-                  </div>
+              <!-- Game Code Display with inline buttons -->
+              <div class="game-code-display">
+                <div class="game-code-label">Game Code</div>
+                <div class="game-code-row">
+                  <div id="gameCodeDisplay" class="game-code-value">-----</div>
+                  <button id="copyCodeBtn" class="btn-icon" title="Copy Code">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                      <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                    </svg>
+                  </button>
+                  <button id="shareLinkBtn" class="btn-icon btn-icon-primary" title="Share" style="display: none;">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      <circle cx="18" cy="5" r="3"></circle>
+                      <circle cx="6" cy="12" r="3"></circle>
+                      <circle cx="18" cy="19" r="3"></circle>
+                      <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"></line>
+                      <line x1="15.41" y1="6.51" x2="8.59" y2="10.49"></line>
+                    </svg>
+                  </button>
+                </div>
               </div>
-
-              <div id="copyFeedback" style="font-size: 13px; font-weight: 600; min-height: 20px; display: flex; align-items: center; justify-content: center;"></div>
               
-              <button id="leaveBtn" class="btn-leave">Cancel Request</button>
+              <!-- Hidden input to store share link -->
+              <input type="text" id="shareLinkInput" readonly style="display: none;">
+
+              <div id="copyFeedback" style="font-size: 12px; font-weight: 600; min-height: 18px; display: flex; align-items: center; justify-content: center; color: var(--accent);"></div>
+              
+              <button id="leaveBtn" class="btn-leave">Cancel</button>
             </div>
           </div>
           
@@ -1551,72 +1762,119 @@
           }
         }, { capture: true, passive: false });
 
-        // --- Touch Zone Logic ---
+        // --- Touch Zone Logic (Direct Paddle Tracking) ---
+        const canvas = document.getElementById('canvas');
+        const gameContainer = document.getElementById('gameContainer');
+        let currentTouchDir = 0;
+        let lastTouchY = null;
+        
+        // Calculate paddle target based on touch Y position
+        const handleTouchForPaddle = (touchY) => {
+          if (!canvas || !client) return;
+          
+          const canvasRect = canvas.getBoundingClientRect();
+          const relativeY = touchY - canvasRect.top;
+          const normalizedY = relativeY / canvasRect.height;
+          
+          // Canvas logical height is 480, paddle moves in roughly middle 80%
+          // Map touch position to up/down movement
+          const centerY = 0.5;
+          const deadZone = 0.1; // 10% dead zone in center
+          
+          let newDir = 0;
+          if (normalizedY < centerY - deadZone) {
+            newDir = -1; // Up
+          } else if (normalizedY > centerY + deadZone) {
+            newDir = 1; // Down
+          }
+          
+          if (newDir !== currentTouchDir) {
+            // Release old direction
+            if (currentTouchDir === -1) client.handle_key_string('ArrowUp', false);
+            if (currentTouchDir === 1) client.handle_key_string('ArrowDown', false);
+            
+            // Press new direction
+            if (newDir === -1) client.handle_key_string('ArrowUp', true);
+            if (newDir === 1) client.handle_key_string('ArrowDown', true);
+            
+            currentTouchDir = newDir;
+            sendInput();
+          }
+          
+          lastTouchY = touchY;
+        };
+        
+        const handleTouchEnd = () => {
+          if (currentTouchDir === -1) client && client.handle_key_string('ArrowUp', false);
+          if (currentTouchDir === 1) client && client.handle_key_string('ArrowDown', false);
+          currentTouchDir = 0;
+          lastTouchY = null;
+          sendInput();
+        };
+        
         const setupTouchZone = (elementId) => {
           const zone = document.getElementById(elementId);
           if (!zone) return;
 
-          let startY = 0;
-          let currentDir = 0; // -1 (up), 0 (neutral), 1 (down)
-          const THRESHOLD = 20;
-
-          const handleMove = (y) => {
-             const delta = y - startY;
-             let newDir = 0;
-             if (delta < -THRESHOLD) newDir = -1;
-             else if (delta > THRESHOLD) newDir = 1;
-
-             if (newDir !== currentDir) {
-                // If we changed direction, release old key and press new one
-                if (currentDir === -1) client && client.handle_key_string('ArrowUp', false);
-                if (currentDir === 1) client && client.handle_key_string('ArrowDown', false);
-
-                if (newDir === -1) client && client.handle_key_string('ArrowUp', true);
-                if (newDir === 1) client && client.handle_key_string('ArrowDown', true);
-
-                currentDir = newDir;
-                sendInput();
-             }
-          };
-
-          const handleEnd = () => {
-             if (currentDir === -1) client && client.handle_key_string('ArrowUp', false);
-             if (currentDir === 1) client && client.handle_key_string('ArrowDown', false);
-             currentDir = 0;
-             sendInput();
-          };
-
           zone.addEventListener('touchstart', (e) => {
              e.preventDefault();
-             // Just take the first touch in this zone
-             startY = e.changedTouches[0].clientY;
+             const touchY = e.changedTouches[0].clientY;
+             handleTouchForPaddle(touchY);
              
              // Hide hint on first interaction
              const hint = document.getElementById('touchHint');
              if (hint) {
                  hint.classList.add('fade-out');
-                 setTimeout(() => hint.remove(), 1000); // Remove from DOM after fade
+                 setTimeout(() => hint.remove(), 1000);
              }
           }, { passive: false });
 
           zone.addEventListener('touchmove', (e) => {
              e.preventDefault();
-             handleMove(e.changedTouches[0].clientY);
+             handleTouchForPaddle(e.changedTouches[0].clientY);
           }, { passive: false });
 
           zone.addEventListener('touchend', (e) => {
              e.preventDefault();
-             handleEnd();
+             handleTouchEnd();
           }, { passive: false });
 
           zone.addEventListener('touchcancel', (e) => {
              e.preventDefault();
-             handleEnd();
+             handleTouchEnd();
           }, { passive: false });
         };
 
         setupTouchZone('touchZoneLeft');
         setupTouchZone('touchZoneRight');
+        
+        // Also handle touch directly on canvas for iPad compatibility
+        if (canvas) {
+          canvas.addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            handleTouchForPaddle(e.changedTouches[0].clientY);
+            const hint = document.getElementById('touchHint');
+            if (hint) {
+              hint.classList.add('fade-out');
+              setTimeout(() => hint.remove(), 1000);
+            }
+          }, { passive: false });
+          
+          canvas.addEventListener('touchmove', (e) => {
+            e.preventDefault();
+            handleTouchForPaddle(e.changedTouches[0].clientY);
+          }, { passive: false });
+          
+          canvas.addEventListener('touchend', (e) => {
+            e.preventDefault();
+            handleTouchEnd();
+          }, { passive: false });
+          
+          canvas.addEventListener('touchcancel', (e) => {
+            e.preventDefault();
+            handleTouchEnd();
+          }, { passive: false });
+        }
       }
 
       // ========================================
@@ -1679,6 +1937,12 @@
           document.getElementById('matchCode').value = data.code;
           currentMatchCode = data.code;
           
+          // Display game code prominently
+          const codeDisplay = document.getElementById('gameCodeDisplay');
+          if (codeDisplay) {
+            codeDisplay.textContent = data.code;
+          }
+          
           // Build and copy invite URL
           const url = new URL(window.location);
           url.searchParams.set('code', data.code);
@@ -1689,12 +1953,12 @@
           
           try {
             await navigator.clipboard.writeText(linkStr);
-            feedback.textContent = 'COPIED TO CLIPBOARD';
+            feedback.textContent = 'LINK COPIED TO CLIPBOARD';
             feedback.style.color = 'var(--accent)';
           } catch (e) {
             console.warn('Could not copy to clipboard:', e);
-            feedback.textContent = 'Please copy manually';
-            feedback.style.color = '#ffaa00';
+            feedback.textContent = 'Share the code above';
+            feedback.style.color = 'var(--text-muted)';
           }
           
           await FSM.transition('CREATE_MATCH');
@@ -1703,26 +1967,26 @@
         }
       };
       
-      // Manual copy button handler
-      document.getElementById('copyLinkBtn').addEventListener('click', async () => {
-        const input = document.getElementById('shareLinkInput');
+      // Copy code button handler
+      document.getElementById('copyCodeBtn').addEventListener('click', async () => {
+        const code = document.getElementById('gameCodeDisplay').textContent;
         const feedback = document.getElementById('copyFeedback');
         try {
-          input.select();
-          input.setSelectionRange(0, 99999); // For mobile devices
-          await navigator.clipboard.writeText(input.value);
-          feedback.textContent = '✓ Link copied manually!';
-          feedback.style.color = 'var(--accent)';
+          await navigator.clipboard.writeText(code);
+          feedback.textContent = '✓ Code copied!';
         } catch (e) {
-             // Fallback
-             document.execCommand('copy');
-             feedback.textContent = '✓ Link copied manually!';
+          // Fallback - copy the full link instead
+          const link = document.getElementById('shareLinkInput').value;
+          await navigator.clipboard.writeText(link);
+          feedback.textContent = '✓ Link copied!';
         }
+        // Clear feedback after 2 seconds
+        setTimeout(() => { feedback.textContent = ''; }, 2000);
       });
 
       // Native Share API handler
       if (navigator.share) {
-        document.getElementById('shareLinkBtn').style.display = 'inline-block';
+        document.getElementById('shareLinkBtn').style.display = 'flex';
       }
       
       document.getElementById('shareLinkBtn').addEventListener('click', async () => {
@@ -1735,6 +1999,49 @@
           });
         } catch (err) {
           console.error('Share failed:', err);
+        }
+      });
+
+      // Join with Code handlers
+      document.getElementById('joinCodeToggle').addEventListener('click', () => {
+        const toggle = document.getElementById('joinCodeToggle');
+        const form = document.getElementById('joinCodeForm');
+        
+        if (form.classList.contains('show')) {
+          form.classList.remove('show');
+          toggle.textContent = 'Have a game code? Join here';
+        } else {
+          form.classList.add('show');
+          toggle.textContent = 'Cancel';
+          document.getElementById('joinCodeInput').focus();
+        }
+      });
+      
+      document.getElementById('joinCodeInput').addEventListener('input', (e) => {
+        const value = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '');
+        e.target.value = value;
+        document.getElementById('joinCodeBtn').disabled = value.length !== 5;
+      });
+      
+      document.getElementById('joinCodeBtn').addEventListener('click', () => {
+        const code = document.getElementById('joinCodeInput').value.trim().toUpperCase();
+        if (code.length === 5) {
+          // Navigate to the URL with the code parameter
+          const url = new URL(window.location);
+          url.searchParams.set('code', code);
+          window.location.href = url.toString();
+        }
+      });
+      
+      // Allow Enter key to submit the code
+      document.getElementById('joinCodeInput').addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+          const code = e.target.value.trim().toUpperCase();
+          if (code.length === 5) {
+            const url = new URL(window.location);
+            url.searchParams.set('code', code);
+            window.location.href = url.toString();
+          }
         }
       });
 
