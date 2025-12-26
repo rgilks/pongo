@@ -6,7 +6,7 @@ pub fn move_paddles(world: &mut World, map: &GameMap, config: &Config, dt: f32) 
     for (_entity, (paddle, intent)) in world.query_mut::<(&mut Paddle, &PaddleIntent)>() {
         // Calculate distance to target
         let diff = intent.target_y - paddle.y;
-        
+
         // If already at target (within epsilon), do nothing
         if diff.abs() < 0.01 {
             paddle.y = intent.target_y;
@@ -14,7 +14,7 @@ pub fn move_paddles(world: &mut World, map: &GameMap, config: &Config, dt: f32) 
             // Cap movement by max speed
             let max_move = config.paddle_speed * dt;
             let move_dist = diff.clamp(-max_move, max_move);
-            
+
             paddle.y += move_dist;
         }
 
@@ -110,7 +110,10 @@ mod tests {
                 (paddle.y - paddle_y).abs() <= max_dist + 0.001,
                 "Paddle should be throttled"
             );
-            assert!(paddle.y < target, "Paddle should not have reached target yet");
+            assert!(
+                paddle.y < target,
+                "Paddle should not have reached target yet"
+            );
         }
     }
 
@@ -123,8 +126,8 @@ mod tests {
         // Set target very close (less than max move)
         let small_dist = 0.1;
         // Make sure this is less than speed * dt
-        assert!(small_dist < config.paddle_speed * time.dt); 
-        
+        assert!(small_dist < config.paddle_speed * time.dt);
+
         let target = paddle_y + small_dist;
 
         for (_entity, (_paddle, intent)) in world.query_mut::<(&Paddle, &mut PaddleIntent)>() {

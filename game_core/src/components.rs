@@ -45,7 +45,7 @@ impl Ball {
 /// Movement intent for paddle
 #[derive(Debug, Clone, Copy)]
 pub struct PaddleIntent {
-    pub dir: i8, // Deprecated: Only used for legacy/client prediction hints if needed
+    pub dir: i8,       // Deprecated: Only used for legacy/client prediction hints if needed
     pub target_y: f32, // Desired Y position
 }
 

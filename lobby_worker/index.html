@@ -42,13 +42,11 @@
       
       body {
         margin: 0;
-        padding: 20px;
+        padding: 0;
         min-height: 100vh;
         height: 100vh;
         overflow: hidden;
         position: fixed;
-        top: 0;
-        left: 0;
         width: 100%;
         touch-action: none;
         background: radial-gradient(circle at top center, #1e293b 0%, #020617 100%);
@@ -81,9 +79,9 @@
       #mainContainer {
         display: flex;
         flex-direction: row;
-        align-items: flex-start;
+        align-items: center; /* Center align items vertically */
         justify-content: center;
-        gap: 40px;
+        gap: 24px;
         width: 100%;
         max-width: 1100px;
         position: relative;
@@ -95,18 +93,20 @@
         flex-direction: column;
         align-items: center;
         position: relative;
-        border-radius: 20px;
-        padding: 6px;
-        background: linear-gradient(145deg, rgba(255,255,255,0.05), rgba(255,255,255,0.01));
-        box-shadow: var(--shadow-lg), var(--glow-primary);
-        border: 1px solid var(--glass-border);
+        border-radius: 16px;
+        padding: 0; /* Remove padding for cleaner look */
+        background: black;
+        box-shadow: 
+           0 0 0 1px var(--glass-border),
+           0 20px 50px -10px rgba(0, 0, 0, 0.5),
+           0 0 30px rgba(99, 102, 241, 0.15); /* Slight glow */
+        overflow: hidden;
+        flex-shrink: 0;
       }
 
       #canvas {
         display: block;
-        max-width: 100%;
         background: #000;
-        border-radius: 14px;
         touch-action: none;
       }
 
@@ -505,31 +505,150 @@
         display: none;
       }
 
-      .mobile-btn {
-        display: none;
+        /* Ko-fi Button */
+      .share-container {
+          background: rgba(0, 0, 0, 0.2);
+          border-radius: 12px;
+          padding: 16px;
+          margin: 10px 0;
+          border: 1px solid var(--glass-border);
+          display: flex;
+          flex-direction: column;
+          gap: 12px;
       }
 
-      /* Share Container */
       .share-row {
         display: flex;
-        gap: 8px;
-        margin: 10px 0;
+        gap: 10px;
         width: 100%;
-        align-items: center;
+        justify-content: center;
       }
       
-      .share-row input {
+      /* Style input to look like a text label */
+      #shareLinkInput {
+        width: 100%;
+        background: transparent !important;
+        border: none !important;
+        color: var(--text-muted) !important;
+        font-family: 'Outfit', sans-serif !important;
+        font-size: 11px !important;
+        text-align: center;
+        padding: 0 !important;
+        height: auto !important;
+        margin: 0 !important;
+        outline: none !important;
+        box-shadow: none !important;
+        opacity: 0.7;
+        pointer-events: none; /* Make it feel like static text */
+      }
+      
+      .btn-copy, .btn-share {
         flex: 1;
-        min-width: 0; /* Allow shrinking */
-      }
-      
-      .share-row button {
-        padding: 0 16px; /* Increased clickable area */
-        height: 38px; /* Fixed height match input */
+        padding: 0 20px;
+        height: 48px; /* Taller, easier to hit */
+        border-radius: 10px;
+        font-family: 'Outfit', sans-serif;
+        font-weight: 800;
+        font-size: 14px;
+        text-transform: uppercase;
+        border: none;
+        cursor: pointer;
+        transition: all 0.2s;
         display: flex;
         align-items: center;
         justify-content: center;
+        color: white;
+        letter-spacing: 0.5px;
       }
+
+      .btn-copy {
+          background: var(--glass-border);
+          border: 1px solid rgba(255,255,255,0.1);
+      }
+      
+      .btn-copy:hover {
+          background: rgba(255,255,255,0.15);
+      }
+
+      .btn-share {
+          background: var(--primary);
+          box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3);
+      }
+      
+      .btn-share:hover {
+          background: var(--primary-hover);
+          transform: translateY(-1px);
+      }
+
+      /* Cancel Button Polish */
+      .btn-leave {
+        width: 100%;
+        padding: 12px;
+        background: rgba(239, 68, 68, 0.1);
+        border: 1px solid rgba(239, 68, 68, 0.3);
+        border-radius: 10px;
+        color: #fca5a5;
+        font-family: 'Outfit', sans-serif;
+        font-weight: 700;
+        font-size: 12px;
+        letter-spacing: 1px;
+        transition: all 0.2s;
+        text-transform: uppercase;
+        margin-top: 8px;
+      }
+      
+      .btn-leave:hover {
+        background: rgba(239, 68, 68, 0.2);
+        border-color: rgba(239, 68, 68, 0.5);
+        color: white;
+      }
+
+        /* Touch Hint Overlay */
+        .touch-hint {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: rgba(255, 255, 255, 0.5);
+            font-family: 'Outfit', sans-serif;
+            font-size: 24px;
+            font-weight: 700;
+            text-transform: uppercase;
+            pointer-events: none;
+            z-index: 40;
+            text-align: center;
+            width: 100%;
+            display: none; /* Hidden by default, shown on mobile */
+            animation: pulse-hint 2s infinite;
+        }
+
+        @keyframes pulse-hint {
+            0%, 100% { opacity: 0.3; transform: translate(-50%, -50%) scale(0.95); }
+            50% { opacity: 0.6; transform: translate(-50%, -50%) scale(1.05); }
+        }
+
+        .touch-hint.fade-out {
+            opacity: 0;
+            transition: opacity 0.5s;
+        }
+
+        /* Game Title */
+        .game-title {
+            font-family: 'Outfit', sans-serif;
+            font-weight: 900;
+            font-size: 56px; /* Reduced from 80px */
+            letter-spacing: 8px;
+            background: linear-gradient(to bottom, #fff 40%, #94a3b8 100%);
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+            text-shadow: 0 0 30px rgba(99, 102, 241, 0.4);
+            margin-bottom: 5px;
+            z-index: 10;
+            position: relative;
+            pointer-events: none;
+            text-transform: uppercase;
+        }
 
       /* Mobile Layout */
       @media (max-width: 850px) {
@@ -537,6 +656,14 @@
         body {
           align-items: center; 
           overflow: hidden; 
+        }
+        
+        /* Smaller title on mobile */
+        .game-title {
+            font-size: 24px; /* Reduced from 32px */
+            letter-spacing: 3px;
+            margin-bottom: 5px;
+            text-shadow: 0 0 15px rgba(99, 102, 241, 0.3);
         }
 
         #mainContainer {
@@ -547,6 +674,11 @@
           height: 100dvh;
           overflow: hidden;
           padding: 10px 0;
+        }
+        
+        /* Show touch hint on mobile */
+        .touch-hint {
+            display: block;
         }
 
         .share-row {
@@ -564,75 +696,83 @@
         
         /* ... rest of mobile styling ... */
         #sidePanel {
-          width: 90%;
-          max-width: 320px;
+          width: 95%; /* Wider on mobile */
+          max-width: 360px;
           order: 2;
           margin-bottom: 0;
-          flex-shrink: 1; /* Allow shrinking */
-          transform: scale(0.95);
-          transform-origin: top center;
+          flex-shrink: 1; 
+          transform: none; /* Remove scaling hack, use proper sizing */
         }
         
-        /* Adjust card padding for mobile */
+        /* Compact Card for Mobile */
         .panel-card {
             padding: 16px; 
-            gap: 10px;
+            gap: 12px;
+            background: rgba(30, 41, 59, 0.85); /* Slightly more opaque */
+            backdrop-filter: blur(10px);
+        }
+
+        /* Compact Score */
+        #score {
+            font-size: 42px; /* Smaller than desktop 56px */
+        }
+        
+        #scoreContainer {
+            margin-bottom: -5px; /* Tighten up */
+        }
+        
+        #winCondition {
+            font-size: 10px;
+            margin-bottom: 5px;
+        }
+
+        /* Side-by-side main buttons */
+        #playBtn {
+             font-size: 18px;
+             padding: 16px;
         }
 
         #gameContainer {
           order: 1;
-          width: calc(100% - 6px);
+          width: calc(100% - 10px);
           max-width: none;
           flex-shrink: 0;
           flex-grow: 1;
-          padding: 3px;
-          margin: 3px;
+          padding: 0;
+          margin: 5px;
           display: flex;
           align-items: center;
           justify-content: center;
-          /* Keep border but minimal */
           border: 1px solid var(--glass-border);
-          border-radius: 8px;
+          border-radius: 12px;
           box-shadow: var(--shadow-lg);
           background: linear-gradient(145deg, rgba(255,255,255,0.03), rgba(255,255,255,0.01));
+          overflow: hidden; /* Clean cornres */
         }
         
         #canvas {
            width: 100%;
-           max-height: 75vh;
-           height: auto;
-           aspect-ratio: 4/3;
-           border-radius: 6px;
-        }
-        
-        /* Mobile: spread buttons to edges */
-        #scoreContainer {
-          width: 100%;
-          justify-content: space-between;
-          padding: 0 8px;
+           height: 100%;
+           object-fit: contain; /* Ensure Aspect Ratio */
+           border-radius: 0;
         }
         
         /* Mobile Touch Buttons */
-        .mobile-btn {
-           display: flex;
-           align-items: center;
-           justify-content: center;
-           background: rgba(255,255,255,0.08);
-           border: 1px solid var(--glass-border);
-           color: var(--text-main);
-           font-size: 24px;
-           width: 60px;
-           height: 60px;
-           border-radius: 12px;
-           cursor: pointer;
-           touch-action: manipulation;
-           user-select: none;
-           -webkit-user-select: none;
+        .touch-zone {
+            position: absolute;
+            top: 0;
+            bottom: 0;
+            width: 50%;
+            z-index: 50; /* Above canvas but below UI overlays */
+            touch-action: none;
         }
-        
-        .mobile-btn:active {
-          background: rgba(255,255,255,0.2);
-          transform: scale(0.95);
+
+        #touchZoneLeft { left: 0; }
+        #touchZoneRight { right: 0; }
+
+        /* Hide old buttons if present */
+        .mobile-btn {
+           display: none !important;
         }
         
         /* Hide keyboard controls text on mobile */
@@ -643,10 +783,21 @@
     </style>
   </head>
   <body>
+    <h1 class="game-title">PONGO</h1>
     <div id="mainContainer">
       <!-- Game Area -->
       <div id="gameContainer">
         <canvas id="canvas" width="640" height="480"></canvas>
+        <!-- Invisible Touch Zones -->
+        <div id="touchZoneLeft" class="touch-zone"></div>
+        <div id="touchZoneRight" class="touch-zone"></div>
+        
+        <!-- Visual Hint for Controls -->
+        <div id="touchHint" class="touch-hint">
+            <span style="font-size: 32px; display: block; margin-bottom: 5px;">↕</span>
+            Slide Vertical to Move
+        </div>
+
         <div id="countdown"></div>
         <div id="victoryOverlay">
           <div id="victoryText">VICTORY</div>
@@ -663,9 +814,7 @@
         <div class="panel-card">
           <div id="scoreRow">
             <div id="scoreContainer">
-              <button id="mobileUp" class="mobile-btn">▲</button>
               <div id="score">0 : 0</div>
-              <button id="mobileDown" class="mobile-btn">▼</button>
             </div>
             <div id="winCondition">First to 5 Wins</div>
           </div>
@@ -697,17 +846,21 @@
           <!-- Waiting for opponent -->
           <div id="activeMatchControls" style="display: none;">
             <div class="waiting-state">
-              <div class="waiting-text" style="font-size: 1.1em;">Waiting for opponent...</div>
+              <div class="waiting-text" style="font-size: 14px; color: var(--text-muted); margin-bottom: 4px;">Share this link to play</div>
               
-              <div class="share-row">
-                <input type="text" id="shareLinkInput" readonly>
-                <button id="copyLinkBtn" class="btn header-btn">Copy</button>
-                <button id="shareLinkBtn" class="btn header-btn" style="display: none;">Share</button>
+              <div class="share-container">
+                  <!-- Link explicitly on its own line -->
+                  <input type="text" id="shareLinkInput" readonly>
+                  
+                  <div class="share-row">
+                    <button id="copyLinkBtn" class="btn-copy">COPY LINK</button>
+                    <button id="shareLinkBtn" class="btn-share" style="display: none;">SHARE</button>
+                  </div>
               </div>
 
-              <div id="copyFeedback" style="font-size: 0.9em; color: var(--accent); margin-bottom: 8px; min-height: 1.2em;"></div>
-              <div style="font-size: 0.85em; opacity: 0.8; margin-bottom: 15px;">Send link to join!</div>
-              <button id="leaveBtn" class="btn-leave">Cancel</button>
+              <div id="copyFeedback" style="font-size: 13px; font-weight: 600; min-height: 20px; display: flex; align-items: center; justify-content: center;"></div>
+              
+              <button id="leaveBtn" class="btn-leave">Cancel Request</button>
             </div>
           </div>
           
@@ -1398,29 +1551,72 @@
           }
         }, { capture: true, passive: false });
 
-        const mobileUp = document.getElementById('mobileUp');
-        const mobileDown = document.getElementById('mobileDown');
+        // --- Touch Zone Logic ---
+        const setupTouchZone = (elementId) => {
+          const zone = document.getElementById(elementId);
+          if (!zone) return;
 
-        const setupTouch = (info) => {
-          const btn = info.btn;
-          const key = info.key;
-          if (!btn) return;
-          const handle = (e, isDown) => {
-            if (e.type !== 'click') e.preventDefault();
-            if (client) {
-              client.handle_key_string(key, isDown);
-              sendInput();
-            }
+          let startY = 0;
+          let currentDir = 0; // -1 (up), 0 (neutral), 1 (down)
+          const THRESHOLD = 20;
+
+          const handleMove = (y) => {
+             const delta = y - startY;
+             let newDir = 0;
+             if (delta < -THRESHOLD) newDir = -1;
+             else if (delta > THRESHOLD) newDir = 1;
+
+             if (newDir !== currentDir) {
+                // If we changed direction, release old key and press new one
+                if (currentDir === -1) client && client.handle_key_string('ArrowUp', false);
+                if (currentDir === 1) client && client.handle_key_string('ArrowDown', false);
+
+                if (newDir === -1) client && client.handle_key_string('ArrowUp', true);
+                if (newDir === 1) client && client.handle_key_string('ArrowDown', true);
+
+                currentDir = newDir;
+                sendInput();
+             }
           };
-          btn.addEventListener('touchstart', (e) => handle(e, true), { passive: false });
-          btn.addEventListener('touchend', (e) => handle(e, false), { passive: false });
-          btn.addEventListener('mousedown', (e) => handle(e, true));
-          btn.addEventListener('mouseup', (e) => handle(e, false));
-          btn.addEventListener('mouseleave', (e) => handle(e, false));
+
+          const handleEnd = () => {
+             if (currentDir === -1) client && client.handle_key_string('ArrowUp', false);
+             if (currentDir === 1) client && client.handle_key_string('ArrowDown', false);
+             currentDir = 0;
+             sendInput();
+          };
+
+          zone.addEventListener('touchstart', (e) => {
+             e.preventDefault();
+             // Just take the first touch in this zone
+             startY = e.changedTouches[0].clientY;
+             
+             // Hide hint on first interaction
+             const hint = document.getElementById('touchHint');
+             if (hint) {
+                 hint.classList.add('fade-out');
+                 setTimeout(() => hint.remove(), 1000); // Remove from DOM after fade
+             }
+          }, { passive: false });
+
+          zone.addEventListener('touchmove', (e) => {
+             e.preventDefault();
+             handleMove(e.changedTouches[0].clientY);
+          }, { passive: false });
+
+          zone.addEventListener('touchend', (e) => {
+             e.preventDefault();
+             handleEnd();
+          }, { passive: false });
+
+          zone.addEventListener('touchcancel', (e) => {
+             e.preventDefault();
+             handleEnd();
+          }, { passive: false });
         };
-        setupTouch({ btn: mobileUp, key: 'ArrowUp' });
-        setupTouch({ btn: mobileDown, key: 'ArrowDown' });
-        // Note: inputIntervalId is now started in enterPlayingMulti() to ensure it restarts on rematch
+
+        setupTouchZone('touchZoneLeft');
+        setupTouchZone('touchZoneRight');
       }
 
       // ========================================
@@ -1493,11 +1689,11 @@
           
           try {
             await navigator.clipboard.writeText(linkStr);
-            feedback.textContent = '✓ Link copied to clipboard!';
+            feedback.textContent = 'COPIED TO CLIPBOARD';
             feedback.style.color = 'var(--accent)';
           } catch (e) {
             console.warn('Could not copy to clipboard:', e);
-            feedback.textContent = 'Please copy the link manually';
+            feedback.textContent = 'Please copy manually';
             feedback.style.color = '#ffaa00';
           }
           
