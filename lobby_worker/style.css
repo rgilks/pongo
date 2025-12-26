@@ -68,7 +68,8 @@ body::before {
 #mainContainer {
   display: flex;
   flex-direction: row;
-  align-items: center; /* Center align items vertically */
+  align-items: center;
+  /* Center align items vertically */
   justify-content: center;
   gap: 24px;
   width: 100%;
@@ -83,12 +84,14 @@ body::before {
   align-items: center;
   position: relative;
   border-radius: 16px;
-  padding: 0; /* Remove padding for cleaner look */
+  padding: 0;
+  /* Remove padding for cleaner look */
   background: black;
   box-shadow:
     0 0 0 1px var(--glass-border),
     0 20px 50px -10px rgba(0, 0, 0, 0.5),
-    0 0 30px rgba(99, 102, 241, 0.15); /* Slight glow */
+    0 0 30px rgba(99, 102, 241, 0.15);
+  /* Slight glow */
   overflow: hidden;
   flex-shrink: 0;
 }
@@ -306,6 +309,7 @@ body::before {
 .metric-label {
   margin-right: 6px;
 }
+
 .metric-value {
   font-weight: 600;
   color: var(--text-main);
@@ -693,14 +697,16 @@ body::before {
   outline: none !important;
   box-shadow: none !important;
   opacity: 0.7;
-  pointer-events: none; /* Make it feel like static text */
+  pointer-events: none;
+  /* Make it feel like static text */
 }
 
 .btn-copy,
 .btn-share {
   flex: 1;
   padding: 0 20px;
-  height: 48px; /* Taller, easier to hit */
+  height: 48px;
+  /* Taller, easier to hit */
   border-radius: 10px;
   font-family: "Outfit", sans-serif;
   font-weight: 800;
@@ -762,7 +768,8 @@ body::before {
 .game-title {
   font-family: "Outfit", sans-serif;
   font-weight: 900;
-  font-size: 56px; /* Reduced from 80px */
+  font-size: 56px;
+  /* Reduced from 80px */
   letter-spacing: 8px;
   background: linear-gradient(to bottom, #fff 40%, #94a3b8 100%);
   -webkit-background-clip: text;
@@ -778,7 +785,8 @@ body::before {
 
 /* Mobile touch buttons - subtle design for side panel */
 .touch-controls {
-  display: none; /* Hidden by default, shown on mobile */
+  display: none;
+  /* Hidden by default, shown on mobile */
   flex-direction: column;
   gap: 8px;
   padding: 5px;
@@ -788,7 +796,8 @@ body::before {
 
 .touch-btn {
   width: 40px;
-  height: 80px; /* Taller for easier pressing */
+  height: 80px;
+  /* Taller for easier pressing */
   border: 1px solid rgba(255, 255, 255, 0.3);
   border-radius: 8px;
   background: rgba(99, 102, 241, 0.2);
@@ -934,7 +943,8 @@ body::before {
     width: calc(100% - 10px);
     max-width: none;
     flex-shrink: 0;
-    flex-grow: 0; /* Don't grow - keep fixed size */
+    flex-grow: 0;
+    /* Don't grow - keep fixed size */
     min-height: 0;
     padding: 0;
     margin: 5px;
@@ -946,9 +956,10 @@ body::before {
     box-shadow: var(--shadow-lg);
     background: linear-gradient(145deg, rgba(255, 255, 255, 0.03), rgba(255, 255, 255, 0.01));
     overflow: visible;
-    /* Use 16:10 aspect ratio to reduce dead space */
-    aspect-ratio: 16 / 10;
-    max-height: 50vh; /* Limit height to leave room for controls */
+    /* Use 4:3 aspect ratio to match canvas */
+    aspect-ratio: 4 / 3;
+    max-height: 60vh;
+    /* Increase height to utilize more space */
   }
 
   #canvas {
