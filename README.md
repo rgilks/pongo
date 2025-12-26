@@ -22,7 +22,7 @@ npm run build && npm run dev  # http://localhost:8787
 
 | Mode | How |
 |------|-----|
-| **Multiplayer** | CREATE → share code → JOIN |
+| **Multiplayer** | Click **CHALLENGE** → share link → JOIN |
 | **VS AI** | Click **PLAY** |
 
 **Controls:** Arrow keys or W/S · Touch on mobile  
