@@ -2,7 +2,13 @@
 
 A multiplayer Pong game built with **Rust + WebGPU** (client) and **Cloudflare Durable Objects** (server).
 
-**[Play now →](https://pongo.rob-gilks.workers.dev)**
+**[Play now →](https://pongo.tre.systems)**
+
+![Pongo gameplay](screenshot.png)
+
+<div align="center">
+  <a href='https://ko-fi.com/N4N31DPNUS' target='_blank'><img height='36' style='border:0px;height:36px;' src='https://storage.ko-fi.com/cdn/kofi2.png?v=6' border='0' alt='Buy Me a Coffee at ko-fi.com' /></a>
+</div>
 
 ## Quick Start
 
@@ -60,7 +66,7 @@ npm run deploy       # Deploy to Cloudflare
 | Port in use | Kill process or edit `wrangler.toml` |
 | Reset state | Delete `.wrangler/state/` |
 
-See **[SPEC.md](SPEC.md)** for technical details and **[ARCHITECTURE.md](ARCHITECTURE.md)** for a deep dive into how it works.
+See **[ARCHITECTURE.md](ARCHITECTURE.md)** for technical details and game constants.
 
 ## License
 

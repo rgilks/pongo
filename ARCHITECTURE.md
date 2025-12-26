@@ -54,15 +54,15 @@ The simulation is deterministic and frame-independent. It uses a fixed timestep 
 
 Each game match runs in a Cloudflare **Durable Object** (DO). The DO maintains the authoritative state and runs the `step` function 60 times a second.
 
-- **Tick Loop:** The server calls [`GameState::step`](server_do/src/game_state.rs#L189) which delegates to `game_core::step`.
-- **Broadcasting:** Every 3rd tick (20Hz), it sends a snapshot to all clients via [`broadcast_state`](server_do/src/game_state.rs#L271).
+- **Tick Loop:** The server calls `GameState::step` which delegates to `game_core::step`.
+- **Broadcasting:** Every 3rd tick (20Hz), it sends a snapshot to all clients via `broadcast_state`.
 
 ### 3. The Client (`client_wasm`)
 
 The client needs to be smooth (120Hz+) even though headers only arrive at 20Hz.
 
 - **Prediction:** The [`ClientPredictor`](client_wasm/src/prediction.rs) applies local inputs immediately so the player feels zero latency.
-- **Reconciliation:** When a server snapshot arrives, if it disagrees with the local prediction, we rollback and replay inputs.
+- **Reconciliation:** When a server snapshot arrives, if it disagrees with the local prediction significantly, the client resets to the authoritative server state.
 - **Rendering:** [`Renderer`](client_wasm/src/renderer/mod.rs) uses WebGPU to draw the state. It interpolates remote entities (opponent paddle, ball) for smoothness.
 
 ### 4. Networking (`proto`)
@@ -72,6 +72,47 @@ We use [postcard](https://github.com/jamesmunns/postcard) for efficient binary s
 - **C2S (Client to Server):** Input, Join, Ping.
 - **S2C (Server to Client):** GameState, Welcome, GameOver.
 - **Definitions:** See [`proto/src/lib.rs`](proto/src/lib.rs).
+
+### 5. Game States (Client FSM)
+
+The client uses a Finite State Machine to manage the flow between menus, matchmaking, and gameplay.
+
+```mermaid
+graph TD
+    IDLE -->|START_LOCAL| COUNTDOWN_LOCAL
+    IDLE -->|CREATE/JOIN| CONNECTING
+
+    COUNTDOWN_LOCAL -->|DONE| PLAYING_LOCAL
+    COUNTDOWN_LOCAL -->|QUIT| IDLE
+
+    PLAYING_LOCAL -->|GAME_OVER| GAME_OVER_LOCAL
+    PLAYING_LOCAL -->|QUIT| IDLE
+
+    GAME_OVER_LOCAL -->|PLAY_AGAIN| COUNTDOWN_LOCAL
+    GAME_OVER_LOCAL -->|LEAVE| IDLE
+
+    CONNECTING -->|CONNECTED| WAITING
+    CONNECTING -->|FAILED| IDLE
+
+    WAITING -->|JOINED| COUNTDOWN_MULTI
+    WAITING -->|DISCONNECT/LEAVE| IDLE
+
+    COUNTDOWN_MULTI -->|DONE| PLAYING_MULTI
+    COUNTDOWN_MULTI -->|DISCONNECT| DISCONNECTED
+
+    PLAYING_MULTI -->|GAME_OVER| GAME_OVER_MULTI
+    PLAYING_MULTI -->|DISCONNECT| DISCONNECTED
+
+    GAME_OVER_MULTI -->|REMATCH| COUNTDOWN_MULTI
+    GAME_OVER_MULTI -->|LEAVE| IDLE
+    GAME_OVER_MULTI -->|DISCONNECT| DISCONNECTED
+
+    DISCONNECTED -->|LEAVE| IDLE
+
+    style IDLE fill:#f9f,stroke:#333
+    style CONNECTING fill:#bbf,stroke:#333
+    style DISCONNECTED fill:#ff9999,stroke:#333
+```
 
 ---
 
@@ -88,3 +129,54 @@ We use [postcard](https://github.com/jamesmunns/postcard) for efficient binary s
 1. `requestAnimationFrame` calls [`render`](client_wasm/src/lib.rs).
 2. Prediction system updates local game state.
 3. [`Renderer::draw`](client_wasm/src/renderer/mod.rs) submits draw commands to GPU.
+
+---
+
+## Technical Reference
+
+### Game Constants
+
+| Constant | Value | Unit |
+|----------|-------|------|
+| Arena | 32 × 24 | units |
+| Paddle | 0.8 × 4.0 | units |
+| Paddle speed | 18 | units/sec |
+| Ball radius | 0.5 | units |
+| Ball speed | 12 → 24 | units/sec |
+| Speed multiplier | 1.05× | per hit |
+| Win score | 5 | points |
+
+*Constants defined in [`game_core/src/config.rs`](game_core/src/config.rs)*
+
+### Network Protocol
+
+**Client → Server:**
+```rust
+enum C2S {
+    Join { code: [u8; 5] },
+    Input { player_id: u8, paddle_dir: i8, seq: u32 },
+    Ping { t_ms: u32 },
+}
+```
+
+**Server → Client:**
+```rust
+enum S2C {
+    Welcome { player_id: u8 },
+    GameState { tick, ball, paddles, score },
+    GameOver { winner: u8 },
+    Pong { t_ms: u32 },
+}
+```
+
+### ECS Components & Systems
+
+**Components:** `Paddle { player_id, y }` · `Ball { pos, vel }` · `PaddleIntent { dir }`
+
+**Systems:** IngestInputs → MoveBall → MovePaddles → CheckCollisions → CheckScoring
+
+### Physics
+
+- **Walls:** Reflect Y velocity
+- **Paddles:** Reflect X velocity + spin based on hit position
+- **Speed:** +5% per hit, max 24 u/s
