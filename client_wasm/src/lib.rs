@@ -1,24 +1,44 @@
 //! WebGPU client for Pong game
 
-#![cfg(target_arch = "wasm32")]
+// FSM module - platform agnostic, can be tested natively
+mod fsm;
 
+// Re-export FSM types (always available)
+pub use fsm::{FsmState, GameAction, GameFsm};
+
+// Everything below requires wasm32
+#[cfg(target_arch = "wasm32")]
 mod camera;
+#[cfg(target_arch = "wasm32")]
 mod input;
+#[cfg(target_arch = "wasm32")]
 mod mesh;
+#[cfg(target_arch = "wasm32")]
 mod network;
+#[cfg(target_arch = "wasm32")]
 mod prediction;
+#[cfg(target_arch = "wasm32")]
 mod renderer;
+#[cfg(target_arch = "wasm32")]
 mod simulation;
+#[cfg(target_arch = "wasm32")]
 mod state;
 
+#[cfg(target_arch = "wasm32")]
 use prediction::ClientPredictor;
+#[cfg(target_arch = "wasm32")]
 use renderer::Renderer;
+#[cfg(target_arch = "wasm32")]
 use simulation::LocalGame;
+#[cfg(target_arch = "wasm32")]
 use state::GameState;
+#[cfg(target_arch = "wasm32")]
 use wasm_bindgen::prelude::*;
+#[cfg(target_arch = "wasm32")]
 use web_sys::{window, HtmlCanvasElement, KeyboardEvent};
 
 /// Main client state
+#[cfg(target_arch = "wasm32")]
 pub struct Client {
     renderer: Renderer,
     // Game state
@@ -45,9 +65,11 @@ pub struct Client {
     local_paddle_initialized: bool,
 }
 
+#[cfg(target_arch = "wasm32")]
 #[wasm_bindgen]
 pub struct WasmClient(Client);
 
+#[cfg(target_arch = "wasm32")]
 #[wasm_bindgen]
 impl WasmClient {
     #[allow(deprecated)]
