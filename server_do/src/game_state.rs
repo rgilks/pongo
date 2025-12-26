@@ -200,7 +200,13 @@ impl GameState {
                 self.match_state = MatchState::Waiting;
                 self.countdown_remaining = 3;
             }
-            MatchState::Waiting | MatchState::GameOver => {
+            MatchState::GameOver => {
+                // Notify remaining player that opponent left (won't rematch)
+                self.broadcast_to_all(&S2C::OpponentDisconnected);
+                // Reset to waiting state
+                self.match_state = MatchState::Waiting;
+            }
+            MatchState::Waiting => {
                 // Just update state
                 if self.clients.is_empty() {
                     self.match_state = MatchState::Waiting;

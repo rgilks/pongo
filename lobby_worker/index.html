@@ -756,35 +756,6 @@
         color: white;
       }
 
-        /* Touch Hint Overlay */
-        .touch-hint {
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            color: rgba(255, 255, 255, 0.5);
-            font-family: 'Outfit', sans-serif;
-            font-size: 24px;
-            font-weight: 700;
-            text-transform: uppercase;
-            pointer-events: none;
-            z-index: 40;
-            text-align: center;
-            width: 100%;
-            display: none; /* Hidden by default, shown on mobile */
-            animation: pulse-hint 2s infinite;
-        }
-
-        @keyframes pulse-hint {
-            0%, 100% { opacity: 0.3; transform: translate(-50%, -50%) scale(0.95); }
-            50% { opacity: 0.6; transform: translate(-50%, -50%) scale(1.05); }
-        }
-
-        .touch-hint.fade-out {
-            opacity: 0;
-            transition: opacity 0.5s;
-        }
-
         /* Game Title */
         .game-title {
             font-family: 'Outfit', sans-serif;
@@ -803,27 +774,57 @@
             text-transform: uppercase;
         }
 
-      /* Touch zones - visible on all touch devices including iPad */
-      .touch-zone {
-        position: absolute;
-        top: 0;
-        bottom: 0;
-        width: 50%;
-        z-index: 50;
-        touch-action: none;
+      /* Mobile touch buttons - subtle design for side panel */
+      .touch-controls {
+        display: none; /* Hidden by default, shown on mobile */
+        flex-direction: column;
+        gap: 8px;
+        padding: 5px;
+        align-items: center;
+        justify-content: center;
+      }
+      
+      .touch-btn {
+        width: 40px;
+        height: 40px;
+        border: 1px solid rgba(255, 255, 255, 0.3);
+        border-radius: 8px;
+        background: rgba(99, 102, 241, 0.2);
+        color: rgba(255, 255, 255, 0.7);
+        font-size: 16px;
+        font-weight: bold;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        touch-action: manipulation;
         -webkit-touch-callout: none;
         -webkit-user-select: none;
         user-select: none;
+        cursor: pointer;
+        transition: background 0.1s, transform 0.1s;
       }
       
-      #touchZoneLeft { left: 0; }
-      #touchZoneRight { right: 0; }
+      .touch-btn:active, .touch-btn.pressed {
+        background: rgba(99, 102, 241, 0.5);
+        color: white;
+        transform: scale(0.95);
+      }
       
-      /* Show touch zones on any touch device (includes iPad) */
-      @media (pointer: coarse) {
-        .touch-hint {
-          display: block;
+      /* Show touch controls on mobile */
+      @media (max-width: 850px) {
+        #sidePanel {
+          flex-direction: row !important;
+          align-items: stretch;
         }
+        
+        .touch-controls {
+          display: flex !important;
+        }
+        
+        .panel-card {
+          flex: 1;
+        }
+        
         .controls-info {
           display: none;
         }
@@ -938,7 +939,7 @@
           border-radius: 12px;
           box-shadow: var(--shadow-lg);
           background: linear-gradient(145deg, rgba(255,255,255,0.03), rgba(255,255,255,0.01));
-          overflow: hidden;
+          overflow: visible; /* Allow touch buttons to show */
         }
         
         #canvas {
@@ -976,15 +977,6 @@
       <!-- Game Area -->
       <div id="gameContainer">
         <canvas id="canvas" width="640" height="480"></canvas>
-        <!-- Invisible Touch Zones -->
-        <div id="touchZoneLeft" class="touch-zone"></div>
-        <div id="touchZoneRight" class="touch-zone"></div>
-        
-        <!-- Visual Hint for Controls -->
-        <div id="touchHint" class="touch-hint">
-            <span style="font-size: 32px; display: block; margin-bottom: 5px;">↕</span>
-            Slide Vertical to Move
-        </div>
 
         <div id="countdown"></div>
         <div id="victoryOverlay">
@@ -996,8 +988,14 @@
         </div>
       </div>
       
-      <!-- Side/Control Panel -->
+      <!-- Side/Control Panel with Touch Controls -->
       <div id="sidePanel">
+        <!-- Mobile Touch Controls - Left Side -->
+        <div class="touch-controls left">
+          <button class="touch-btn" data-dir="up">▲</button>
+          <button class="touch-btn" data-dir="down">▼</button>
+        </div>
+        
         <!-- Single Control Card -->
         <div class="panel-card">
           <div id="scoreRow">
@@ -1086,6 +1084,12 @@
               <img height="34" style="border:0px;height:34px;" src="https://storage.ko-fi.com/cdn/kofi2.png?v=6" alt="Buy Me a Coffee at ko-fi.com" />
             </a>
           </div>
+        </div>
+        
+        <!-- Mobile Touch Controls - Right Side -->
+        <div class="touch-controls right">
+          <button class="touch-btn" data-dir="up">▲</button>
+          <button class="touch-btn" data-dir="down">▼</button>
         </div>
       </div>
     </div>
@@ -1442,7 +1446,11 @@
             FSM.transition('COUNTDOWN_DONE');
           }
         } else if (event === 'opponent_disconnected') {
-          if (FSM.state === GameState.WAITING || FSM.state === GameState.COUNTDOWN_MULTI || FSM.state === GameState.GAME_OVER_MULTI) {
+          // Handle opponent leaving at any multiplayer stage
+          if (FSM.state === GameState.WAITING || 
+              FSM.state === GameState.COUNTDOWN_MULTI || 
+              FSM.state === GameState.PLAYING_MULTI ||
+              FSM.state === GameState.GAME_OVER_MULTI) {
             FSM.transition('DISCONNECTED');
           }
         }
@@ -1732,32 +1740,13 @@
           }
         }, { capture: true, passive: false });
 
-        // --- Touch Zone Logic (Direct Paddle Tracking) ---
-        const canvas = document.getElementById('canvas');
-        const gameContainer = document.getElementById('gameContainer');
+        // --- Touch Button Controls ---
         let currentTouchDir = 0;
-        let lastTouchY = null;
         
-        // Calculate paddle target based on touch Y position
-        const handleTouchForPaddle = (touchY) => {
-          if (!canvas || !client) return;
+        const handleTouchBtnPress = (dir) => {
+          if (!client) return;
           
-          const canvasRect = canvas.getBoundingClientRect();
-          const relativeY = touchY - canvasRect.top;
-          const normalizedY = relativeY / canvasRect.height;
-          
-          // Canvas logical height is 480, paddle moves in roughly middle 80%
-          // Map touch position to up/down movement
-          const centerY = 0.5;
-          const deadZone = 0.1; // 10% dead zone in center
-          
-          let newDir = 0;
-          if (normalizedY < centerY - deadZone) {
-            newDir = -1; // Up
-          } else if (normalizedY > centerY + deadZone) {
-            newDir = 1; // Down
-          }
-          
+          const newDir = dir === 'up' ? -1 : 1;
           if (newDir !== currentTouchDir) {
             // Release old direction
             if (currentTouchDir === -1) client.handle_key_string('ArrowUp', false);
@@ -1770,81 +1759,59 @@
             currentTouchDir = newDir;
             sendInput();
           }
-          
-          lastTouchY = touchY;
         };
         
-        const handleTouchEnd = () => {
-          if (currentTouchDir === -1) client && client.handle_key_string('ArrowUp', false);
-          if (currentTouchDir === 1) client && client.handle_key_string('ArrowDown', false);
+        const handleTouchBtnRelease = () => {
+          if (!client) return;
+          
+          if (currentTouchDir === -1) client.handle_key_string('ArrowUp', false);
+          if (currentTouchDir === 1) client.handle_key_string('ArrowDown', false);
           currentTouchDir = 0;
-          lastTouchY = null;
           sendInput();
         };
         
-        const setupTouchZone = (elementId) => {
-          const zone = document.getElementById(elementId);
-          if (!zone) return;
-
-          zone.addEventListener('touchstart', (e) => {
-             e.preventDefault();
-             const touchY = e.changedTouches[0].clientY;
-             handleTouchForPaddle(touchY);
-             
-             // Hide hint on first interaction
-             const hint = document.getElementById('touchHint');
-             if (hint) {
-                 hint.classList.add('fade-out');
-                 setTimeout(() => hint.remove(), 1000);
-             }
-          }, { passive: false });
-
-          zone.addEventListener('touchmove', (e) => {
-             e.preventDefault();
-             handleTouchForPaddle(e.changedTouches[0].clientY);
-          }, { passive: false });
-
-          zone.addEventListener('touchend', (e) => {
-             e.preventDefault();
-             handleTouchEnd();
-          }, { passive: false });
-
-          zone.addEventListener('touchcancel', (e) => {
-             e.preventDefault();
-             handleTouchEnd();
-          }, { passive: false });
-        };
-
-        setupTouchZone('touchZoneLeft');
-        setupTouchZone('touchZoneRight');
-        
-        // Also handle touch directly on canvas for iPad compatibility
-        if (canvas) {
-          canvas.addEventListener('touchstart', (e) => {
+        // Set up touch button event listeners
+        document.querySelectorAll('.touch-btn').forEach(btn => {
+          const dir = btn.dataset.dir;
+          
+          btn.addEventListener('touchstart', (e) => {
             e.preventDefault();
-            handleTouchForPaddle(e.changedTouches[0].clientY);
-            const hint = document.getElementById('touchHint');
-            if (hint) {
-              hint.classList.add('fade-out');
-              setTimeout(() => hint.remove(), 1000);
+            btn.classList.add('pressed');
+            handleTouchBtnPress(dir);
+          }, { passive: false });
+          
+          btn.addEventListener('touchend', (e) => {
+            e.preventDefault();
+            btn.classList.remove('pressed');
+            handleTouchBtnRelease();
+          }, { passive: false });
+          
+          btn.addEventListener('touchcancel', (e) => {
+            e.preventDefault();
+            btn.classList.remove('pressed');
+            handleTouchBtnRelease();
+          }, { passive: false });
+          
+          // Also support mouse for testing on desktop
+          btn.addEventListener('mousedown', (e) => {
+            e.preventDefault();
+            btn.classList.add('pressed');
+            handleTouchBtnPress(dir);
+          });
+          
+          btn.addEventListener('mouseup', (e) => {
+            e.preventDefault();
+            btn.classList.remove('pressed');
+            handleTouchBtnRelease();
+          });
+          
+          btn.addEventListener('mouseleave', () => {
+            if (btn.classList.contains('pressed')) {
+              btn.classList.remove('pressed');
+              handleTouchBtnRelease();
             }
-          }, { passive: false });
-          
-          canvas.addEventListener('touchmove', (e) => {
-            e.preventDefault();
-            handleTouchForPaddle(e.changedTouches[0].clientY);
-          }, { passive: false });
-          
-          canvas.addEventListener('touchend', (e) => {
-            e.preventDefault();
-            handleTouchEnd();
-          }, { passive: false });
-          
-          canvas.addEventListener('touchcancel', (e) => {
-            e.preventDefault();
-            handleTouchEnd();
-          }, { passive: false });
-        }
+          });
+        });
       }
 
       // ========================================
