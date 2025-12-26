@@ -128,19 +128,31 @@ const FSM = {
     return true; // Rust FSM handles invalid transitions gracefully
   },
 
-  async transition(action) {
-    const prevState = rustFsm.state;
-    const result = rustFsm.transition_str(action);
+  isTransitioning: false,
 
-    if (!result.success) {
-      console.warn(`Invalid transition: ${rustFsm.state_string()} + ${action}`);
+  async transition(action) {
+    if (this.isTransitioning) {
+      console.warn(`[FSM] Transition locked. Ignoring action: ${action}`);
       return false;
     }
 
-    console.log(`FSM: ${result.from_state} --[${action}]--> ${result.to_state}`);
-    await this.exitState(prevState);
-    await this.enterState(rustFsm.state);
-    return true;
+    this.isTransitioning = true;
+    try {
+      const prevState = rustFsm.state;
+      const result = rustFsm.transition_str(action);
+
+      if (!result.success) {
+        console.warn(`Invalid transition: ${rustFsm.state_string()} + ${action}`);
+        return false;
+      }
+
+      console.log(`FSM: ${result.from_state} --[${action}]--> ${result.to_state}`);
+      await this.exitState(prevState);
+      await this.enterState(rustFsm.state);
+      return true;
+    } finally {
+      this.isTransitioning = false;
+    }
   },
 
   async exitState(state) {
