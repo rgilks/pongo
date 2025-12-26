@@ -1,4 +1,6 @@
-worker/pkg/
+.husky/
+.prettierignore
+.prettierrc
 target/
 dist/
 node_modules/
