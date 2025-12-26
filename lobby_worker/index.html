@@ -786,12 +786,12 @@
       
       .touch-btn {
         width: 40px;
-        height: 40px;
+        height: 80px; /* Taller for easier pressing */
         border: 1px solid rgba(255, 255, 255, 0.3);
         border-radius: 8px;
         background: rgba(99, 102, 241, 0.2);
         color: rgba(255, 255, 255, 0.7);
-        font-size: 16px;
+        font-size: 18px;
         font-weight: bold;
         display: flex;
         align-items: center;
@@ -928,7 +928,7 @@
           width: calc(100% - 10px);
           max-width: none;
           flex-shrink: 0;
-          flex-grow: 1;
+          flex-grow: 0; /* Don't grow - keep fixed size */
           min-height: 0;
           padding: 0;
           margin: 5px;
@@ -939,7 +939,10 @@
           border-radius: 12px;
           box-shadow: var(--shadow-lg);
           background: linear-gradient(145deg, rgba(255,255,255,0.03), rgba(255,255,255,0.01));
-          overflow: visible; /* Allow touch buttons to show */
+          overflow: visible;
+          /* Use 16:10 aspect ratio to reduce dead space */
+          aspect-ratio: 16 / 10;
+          max-height: 50vh; /* Limit height to leave room for controls */
         }
         
         #canvas {
@@ -1028,7 +1031,7 @@
             
             <!-- Join with Code -->
             <div class="join-code-container">
-              <button id="joinCodeToggle" class="join-code-toggle">Have a game code? Join here</button>
+              <button id="joinCodeToggle" class="join-code-toggle">Join with Code</button>
               <div id="joinCodeForm" class="join-code-form">
                 <input type="text" id="joinCodeInput" class="join-code-input" placeholder="XXXXX" maxlength="5" autocomplete="off" autocapitalize="characters" />
                 <button id="joinCodeBtn" class="btn-join" disabled>Join Game</button>
@@ -1946,7 +1949,7 @@
         
         if (form.classList.contains('show')) {
           form.classList.remove('show');
-          toggle.textContent = 'Have a game code? Join here';
+          toggle.textContent = 'Join with Code';
         } else {
           form.classList.add('show');
           toggle.textContent = 'Cancel';
